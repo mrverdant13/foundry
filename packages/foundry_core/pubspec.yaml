@@ -1,0 +1,23 @@
+name: foundry_core
+description: >-
+  Core library for Foundry — mold parsing, variable resolution, template
+  rendering, and cast orchestration.
+version: 0.0.1-dev.1
+homepage: https://github.com/mrverdant13/foundry
+repository: https://github.com/mrverdant13/foundry/tree/main/packages/foundry_core
+issue_tracker: https://github.com/mrverdant13/foundry/issues
+topics:
+  - mason
+  - template
+  - codegen
+  - yaml
+  - liquid
+resolution: workspace
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dev_dependencies:
+  path: ^1.9.1
+  test: ^1.31.1
+  yaml: ^3.1.3
