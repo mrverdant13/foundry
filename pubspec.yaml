@@ -45,6 +45,85 @@ melos:
       description: Analyze all packages (CI)
       run: dart analyze --fatal-infos --fatal-warnings .
 
+    test:
+      description: Run tests for a package
+      run: >
+        dart run
+        coverde
+        optimize-tests
+        --include 'test/**_test.dart'
+        --output test/optimized_test.dart
+        &&
+        dart test
+        --color
+        --coverage-path coverage/lcov.info
+        --coverage-package MELOS_PACKAGE_NAME
+        --exclude-tags ci-only
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        test/optimized_test.dart
+      exec:
+        concurrency: 1
+        orderDependents: true
+        packageFilters:
+          dependsOn:
+            - test
+          dirExists:
+            - test
+    test.all:
+      description: Run tests for all packages
+      steps:
+        - test
+    test.ci:
+      description: Run tests for all packages (CI)
+      run: >
+        melos exec
+        --depends-on test
+        --dir-exists test
+        --fail-fast
+        --order-dependents
+        --
+        "
+        dart run
+        coverde
+        optimize-tests
+        --include 'test/**_test.dart'
+        --output test/optimized_test.dart
+        &&
+        dart test
+        --coverage-path coverage/lcov.info
+        --coverage-package MELOS_PACKAGE_NAME
+        --exclude-tags ci-only
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        test/optimized_test.dart
+        "
+    coverage.merge:
+      description: Merge all packages coverage trace files
+      run: >
+        dart run
+        coverde
+        rm
+        --no-dry-run
+        MELOS_ROOT_PATH/coverage/filtered.lcov.info
+        &&
+        melos exec
+        --file-exists coverage/lcov.info
+        --
+        "
+        dart run
+        coverde
+        transform
+        --input coverage/lcov.info
+        --output MELOS_ROOT_PATH/coverage/filtered.lcov.info
+        --transformations relative=MELOS_ROOT_PATH
+        "
+    coverage.check:
+      description: Check test coverage
+      run: >
+        dart run coverde check --input
+        MELOS_ROOT_PATH/coverage/filtered.lcov.info 100
+
 workspace:
   - packages/foundry_core/
   - packages/foundry_core/e2e/
