@@ -20,19 +20,12 @@ produce an **Artifact** — a generated project or file tree at `--output`.
 
 ## Why Foundry?
 
-Foundry is inspired by [Mason](https://pub.dev/packages/mason) but targets authors who
-want **Liquid everywhere** — in file templates, computed defaults, and conditional
-variable visibility — with validation and business rules in **hooks** instead of
-`mold.yaml`.
+Foundry uses **Liquid everywhere** — in file templates, computed defaults, and
+conditional variable visibility — with validation and business rules in **hooks**
+instead of `mold.yaml`.
 
-| Mason | Foundry |
-| --- | --- |
-| Brick | Mold |
-| `brick.yaml` | `mold.yaml` |
-| Mustache templates | Liquid templates |
-| `pre_gen` / `post_gen` | `prepare` / `shape` / `finish` hooks |
-
-See [REQUIREMENTS.md](REQUIREMENTS.md) for the full product specification.
+Inspired by [Mason](https://pub.dev/packages/mason). See
+[REQUIREMENTS.md](REQUIREMENTS.md) for the full product specification.
 
 ---
 
@@ -65,8 +58,7 @@ dart install foundry_cli
 ```
 
 The global binary is **`foundry`** (`executables: foundry:` in `foundry_cli`), even
-though the pub.dev package is **`foundry_cli`** — the same pattern as Clay
-(`dart install clay_cli` → `clay` binary).
+though the pub.dev package is **`foundry_cli`**.
 
 During local development in this repository, run the CLI via Melos or `dart run`
 (see [Contributing](CONTRIBUTING.md)).
@@ -196,6 +188,5 @@ expectations, commit conventions, and pull request guidelines.
 
 | Resource | URL |
 | --- | --- |
-| Mason | [pub.dev/packages/mason](https://pub.dev/packages/mason) |
 | liquify (Liquid for Dart) | [pub.dev/packages/liquify](https://pub.dev/packages/liquify) |
 | Melos | [melos.invertase.dev](https://melos.invertase.dev/) |
