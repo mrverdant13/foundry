@@ -4,6 +4,7 @@ environment:
   sdk: ">=3.5.0 <4.0.0"
 
 dev_dependencies:
+  coverde: ^0.4.0
   melos: ^7.5.1
   very_good_analysis: ^10.0.0
 
@@ -22,6 +23,155 @@ melos:
     bootstrap:
       environment:
         sdk: ">=3.5.0 <4.0.0"
+
+  scripts:
+    format:
+      description: Format a package
+      run: dart format .
+      exec:
+        concurrency: 1
+        orderDependents: true
+    format.ci:
+      description: Format all packages (CI)
+      run: dart format --set-exit-if-changed .
+
+    analyze:
+      description: Analyze a package
+      run: dart analyze .
+      exec:
+        concurrency: 1
+        orderDependents: true
+    analyze.ci:
+      description: Analyze all packages (CI)
+      run: dart analyze --fatal-infos --fatal-warnings .
+
+    test:
+      description: Run tests for a package
+      run: >
+        dart run
+        coverde
+        optimize-tests
+        --include 'test/**_test.dart'
+        --output test/optimized_test.dart
+        &&
+        dart test
+        --color
+        --coverage-path coverage/lcov.info
+        --coverage-package MELOS_PACKAGE_NAME
+        --exclude-tags ci-only
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        test/optimized_test.dart
+      exec:
+        concurrency: 1
+        orderDependents: true
+        packageFilters:
+          dependsOn:
+            - test
+          dirExists:
+            - test
+    test.all:
+      description: Run tests for all packages
+      steps:
+        - test
+    test.ci:
+      description: Run tests for all packages (CI)
+      run: >
+        melos exec
+        --depends-on test
+        --dir-exists test
+        --fail-fast
+        --order-dependents
+        --
+        "
+        dart run
+        coverde
+        optimize-tests
+        --include 'test/**_test.dart'
+        --output test/optimized_test.dart
+        &&
+        dart test
+        --coverage-path coverage/lcov.info
+        --coverage-package MELOS_PACKAGE_NAME
+        --exclude-tags ci-only
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        test/optimized_test.dart
+        "
+    coverage.merge:
+      description: Merge all packages coverage trace files
+      run: >
+        dart run
+        coverde
+        rm
+        --no-dry-run
+        MELOS_ROOT_PATH/coverage/filtered.lcov.info
+        &&
+        melos exec
+        --file-exists coverage/lcov.info
+        --
+        "
+        dart run
+        coverde
+        transform
+        --input coverage/lcov.info
+        --output MELOS_ROOT_PATH/coverage/filtered.lcov.info
+        --transformations relative=MELOS_ROOT_PATH
+        "
+    coverage.check:
+      description: Check test coverage
+      run: >
+        dart run coverde check --input
+        MELOS_ROOT_PATH/coverage/filtered.lcov.info 100
+
+    test.e2e:
+      description: Run E2E tests
+      run: >
+        dart run
+        coverde
+        optimize-tests
+        --include 'e2e/**_test.dart'
+        --output e2e/optimized_test.dart
+        &&
+        dart test
+        --color
+        --tags e2e
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        e2e/optimized_test.dart
+      exec:
+        concurrency: 1
+        packageFilters:
+          category:
+            - e2e
+          dirExists:
+            - e2e
+    test.e2e.all:
+      description: Run E2E tests for all packages
+      steps:
+        - test.e2e
+    test.e2e.ci:
+      description: Run E2E tests for all packages (CI)
+      run: >
+        melos exec
+        --category e2e
+        --dir-exists e2e
+        --fail-fast
+        --order-dependents
+        --
+        "
+        dart run
+        coverde
+        optimize-tests
+        --include 'e2e/**_test.dart'
+        --output e2e/optimized_test.dart
+        &&
+        dart test
+        --tags e2e
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        e2e/optimized_test.dart
+        "
 
 workspace:
   - packages/foundry_core/
