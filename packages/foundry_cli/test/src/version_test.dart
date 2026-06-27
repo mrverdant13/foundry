@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:foundry_cli/src/version.dart' show foundryCliVersion;
+import 'package:foundry_cli/src/version.dart' show readFoundryCliVersion;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -48,9 +48,9 @@ void main() {
     final pubspecVersion = _readPubspecVersion(_packageRoot());
 
     expect(
-      foundryCliVersion,
+      readFoundryCliVersion(),
       pubspecVersion,
-      reason: 'foundryCliVersion ($foundryCliVersion) must match '
+      reason: 'readFoundryCliVersion() (${readFoundryCliVersion()}) must match '
           'pubspec.yaml version ($pubspecVersion). '
           'Update lib/src/version.dart after bumping pubspec.yaml, or run '
           'dart run tool/sync_package_version.dart --cwd packages/foundry_cli '
