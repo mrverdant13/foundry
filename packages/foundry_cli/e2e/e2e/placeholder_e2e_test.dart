@@ -1,10 +1,11 @@
+import 'package:foundry_cli/src/version.dart';
 import 'package:test/test.dart';
 
 void main() {
   test(
-    'e2e workspace placeholder passes',
+    'foundry_cli version is exposed',
     () {
-      expect(true, isTrue);
+      expect(foundryCliVersion, isNotEmpty);
     },
     tags: const ['e2e'],
   );
