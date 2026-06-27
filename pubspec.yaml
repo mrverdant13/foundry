@@ -202,6 +202,36 @@ melos:
           category:
             - publishable
 
+    release.check:
+      description: >
+        Pre-publish gate. Set MELOS_PACKAGES=<package> to scope Melos-driven
+        steps to one package; omit for all publishable packages.
+      steps:
+        - format.ci
+        - analyze.ci
+        - test.ci
+        - pub-score.local
+        - melos publish --dry-run --category publishable --yes
+
+    release.prepare:
+      description: >
+        Bump version and changelog for a single package release. Set
+        MELOS_PACKAGES=<package> to scope to one package.
+      run: >
+        dart run MELOS_ROOT_PATH/tool/prepare_package_release.dart
+        --cwd "MELOS_PACKAGE_PATH"
+        --tag-format '{name}/{version}'
+        --commit-types feat,fix,docs,refactor,test,build
+        --bump build
+        --apply
+        &&
+        dart run MELOS_ROOT_PATH/tool/sync_package_version.dart
+        --cwd "MELOS_PACKAGE_PATH"
+      exec: {}
+      packageFilters:
+        category:
+          - publishable
+
 workspace:
   - packages/foundry_core/
   - packages/foundry_core/e2e/
