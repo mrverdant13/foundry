@@ -1,0 +1,59 @@
+# Remote pub.dev score checks for published packages.
+#
+# Skips packages not yet on pub.dev. Threshold 10 (pub-score.remote) allows a
+# missing example directory; lower it when examples are added.
+name: Check remote Pub.dev score
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  check-remote-pub-score:
+    name: Check remote Pub.dev score
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Install Dart
+        uses: dart-lang/setup-dart@v1
+      - name: Install melos
+        uses: ./.github/actions/install-dart-cli
+        with:
+          package: melos 7.5.1
+      - name: Bootstrap workspace
+        run: melos bs
+      - name: Verify remote Pub.dev score
+        run: |
+          set -e
+          checked=0
+          for package in foundry_core foundry_cli; do
+            if ! curl -sf "https://pub.dev/api/packages/${package}" \
+              | grep -q "\"name\":\"${package}\""; then
+              echo "::notice::${package} is not published on pub.dev yet; skipping."
+              continue
+            fi
+            checked=1
+            dart run pub_score_checker check_pub_score remote \
+              --markdown-output "packages/${package}/.dart_tool/remote_pub_score.md" \
+              --package-name "$package" \
+              --threshold 10
+          done
+          if [[ "$checked" -eq 0 ]]; then
+            echo "::notice::No published packages to check yet."
+          fi
+      - name: Set step summary
+        if: always()
+        run: |
+          for package in foundry_core foundry_cli; do
+            report="packages/${package}/.dart_tool/remote_pub_score.md"
+            if [[ -f "$report" ]]; then
+              echo "### ${package} (remote)" >> "$GITHUB_STEP_SUMMARY"
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
