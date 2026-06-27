@@ -56,3 +56,22 @@ jobs:
           name: filtered.lcov.info
           path: ./coverage/filtered.lcov.info
           retention-days: 1
+
+  codecov:
+    name: Publish coverage results
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download coverage trace file artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: filtered.lcov.info
+      - name: Upload coverage data to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          disable_search: true
+          directory: ./coverage/
+          files: ./filtered.lcov.info
+          fail_ci_if_error: true
+          verbose: true
