@@ -1,0 +1,77 @@
+# E2E workflow
+#
+# Duration policy: the test step must finish within 5 minutes. When the budget is
+# exceeded, the job fails and posts guidance to migrate E2E triggers to
+# push-to-main, workflow_dispatch, and a weekly schedule.
+name: Dart E2E
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+env:
+  E2E_TIMEOUT_SECONDS: 300
+
+jobs:
+  e2e:
+    name: Run E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Install dart
+        uses: dart-lang/setup-dart@v1
+      - name: Install melos
+        uses: ./.github/actions/install-dart-cli
+        with:
+          package: melos 7.5.1
+      - name: Initialize melos
+        run: melos bs
+      - name: Run E2E tests
+        id: e2e
+        run: |
+          set +e
+          start_epoch=$(date +%s)
+          timeout "${E2E_TIMEOUT_SECONDS}" melos run test.e2e.all
+          exit_code=$?
+          elapsed=$(( $(date +%s) - start_epoch ))
+          echo "elapsed_seconds=${elapsed}" >> "$GITHUB_OUTPUT"
+
+          if [ "${exit_code}" -eq 124 ]; then
+            echo "timed_out=true" >> "$GITHUB_OUTPUT"
+            exit 124
+          fi
+
+          exit "${exit_code}"
+      - name: Record E2E duration
+        if: success()
+        run: |
+          {
+            echo "## E2E duration"
+            echo ""
+            echo "Completed in ${{ steps.e2e.outputs.elapsed_seconds }}s (budget: ${E2E_TIMEOUT_SECONDS}s)."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Report E2E duration policy breach
+        if: steps.e2e.outputs.timed_out == 'true'
+        run: |
+          elapsed="${{ steps.e2e.outputs.elapsed_seconds }}"
+          message="E2E tests exceeded the 5-minute budget (${elapsed}s elapsed). The suite is too slow for every-PR runs — migrate E2E triggers to push-to-main, workflow_dispatch, and a weekly schedule; keep unit and command tests on every PR."
+          echo "::error title=E2E duration budget exceeded::${message}"
+          {
+            echo "## E2E duration budget exceeded"
+            echo ""
+            echo "${message}"
+            echo ""
+            echo "### Recommended CI triggers"
+            echo "- **Every PR:** unit and command tests (existing \`ci.yaml\` workflow)"
+            echo "- **E2E only on:** pushes to \`main\`, \`workflow_dispatch\`, and a weekly cron"
+            echo ""
+            echo "Update \`.github/workflows/e2e.yaml\` \`on:\` triggers when this failure appears."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
