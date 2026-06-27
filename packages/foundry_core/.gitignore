@@ -9,6 +9,7 @@
 # Testing and coverage
 /coverage/
 /test/optimized_test.dart
+/e2e/optimized_test.dart
 
 # Melos
 /melos_*.iml
