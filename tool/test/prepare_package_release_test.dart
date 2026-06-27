@@ -2266,7 +2266,8 @@ ProcessResult _runPrepareReleaseCli({
   required List<String> arguments,
 }) {
   final foundryRepoRoot = _resolveFoundryRepoRoot();
-  final scriptPath = '${foundryRepoRoot.path}/tool/prepare_package_release.dart';
+  final scriptPath =
+      '${foundryRepoRoot.path}/tool/prepare_package_release.dart';
   return Process.runSync(
     'dart',
     ['run', scriptPath, ...arguments],
