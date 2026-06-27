@@ -79,6 +79,15 @@ melos run test.e2e.ci    # E2E packages only
 Additional Melos scripts (`release.check`, `release.prepare`, and others) are
 defined in the root `pubspec.yaml` as they are added to the workspace.
 
+### CI secrets
+
+The **Codecov** job in [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) is
+commented out until a repository secret is configured. When enabled, it uploads
+merged coverage from the Ubuntu test runner. Add a repository secret named
+`CODECOV_TOKEN` with the upload token from your [Codecov project
+settings](https://docs.codecov.com/docs/codecov-uploader#usage), then uncomment
+the `codecov` job block in the workflow file.
+
 ---
 
 ## Testing expectations
