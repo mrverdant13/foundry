@@ -1,0 +1,91 @@
+{
+  "currentVersion": "0.0.1-dev.2",
+  "cases": [
+    {
+      "name": "docs-only increments dev build",
+      "commits": [
+        {
+          "type": "docs",
+          "scopes": ["clay_cli"],
+          "description": "document preview commands",
+          "subject": "docs(clay_cli): document preview commands"
+        }
+      ],
+      "expectedVersion": "0.0.1-dev.3"
+    },
+    {
+      "name": "fix increments patch and resets dev",
+      "commits": [
+        {
+          "type": "fix",
+          "scopes": ["clay_cli"],
+          "description": "resolve relative paths",
+          "subject": "fix(clay_cli): resolve relative paths"
+        }
+      ],
+      "expectedVersion": "0.0.2-dev.1"
+    },
+    {
+      "name": "feat increments minor and resets dev",
+      "commits": [
+        {
+          "type": "feat",
+          "scopes": ["clay_cli"],
+          "description": "add preview command",
+          "subject": "feat(clay_cli): add preview command"
+        }
+      ],
+      "expectedVersion": "0.1.0-dev.1"
+    },
+    {
+      "name": "breaking feat increments major",
+      "commits": [
+        {
+          "type": "feat",
+          "scopes": ["clay_cli"],
+          "description": "drop legacy flag",
+          "subject": "feat(clay_cli)!: drop legacy flag",
+          "isBreakingChange": true
+        }
+      ],
+      "expectedVersion": "1.0.0-dev.1"
+    },
+    {
+      "name": "breaking footer on feat increments major",
+      "commits": [
+        {
+          "type": "feat",
+          "scopes": ["clay_cli"],
+          "description": "reshape preview API",
+          "subject": "feat(clay_cli): reshape preview API",
+          "body": "BREAKING CHANGE: preview command flags were renamed."
+        }
+      ],
+      "expectedVersion": "1.0.0-dev.1"
+    },
+    {
+      "name": "feat wins over fix and docs",
+      "commits": [
+        {
+          "type": "docs",
+          "scopes": ["clay_cli"],
+          "description": "update readme",
+          "subject": "docs(clay_cli): update readme"
+        },
+        {
+          "type": "fix",
+          "scopes": ["clay_cli"],
+          "description": "resolve paths",
+          "subject": "fix(clay_cli): resolve paths"
+        },
+        {
+          "type": "feat",
+          "scopes": ["clay_cli"],
+          "description": "add preview",
+          "subject": "feat(clay_cli): add preview"
+        }
+      ],
+      "expectedVersion": "0.1.0-dev.1"
+    }
+  ]
+}
