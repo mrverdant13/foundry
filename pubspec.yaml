@@ -124,6 +124,55 @@ melos:
         dart run coverde check --input
         MELOS_ROOT_PATH/coverage/filtered.lcov.info 100
 
+    test.e2e:
+      description: Run E2E tests
+      run: >
+        dart run
+        coverde
+        optimize-tests
+        --include 'e2e/**_test.dart'
+        --output e2e/optimized_test.dart
+        &&
+        dart test
+        --color
+        --tags e2e
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        e2e/optimized_test.dart
+      exec:
+        concurrency: 1
+        packageFilters:
+          category:
+            - e2e
+          dirExists:
+            - e2e
+    test.e2e.all:
+      description: Run E2E tests for all packages
+      steps:
+        - test.e2e
+    test.e2e.ci:
+      description: Run E2E tests for all packages (CI)
+      run: >
+        melos exec
+        --category e2e
+        --dir-exists e2e
+        --fail-fast
+        --order-dependents
+        --
+        "
+        dart run
+        coverde
+        optimize-tests
+        --include 'e2e/**_test.dart'
+        --output e2e/optimized_test.dart
+        &&
+        dart test
+        --tags e2e
+        --reporter expanded
+        --test-randomize-ordering-seed random
+        e2e/optimized_test.dart
+        "
+
 workspace:
   - packages/foundry_core/
   - packages/foundry_core/e2e/
