@@ -177,6 +177,31 @@ melos:
         e2e/optimized_test.dart
         "
 
+    pub-score.local:
+      description: Check local pub.dev score for publishable packages
+      run: >
+        dart run pub_score_checker check_pub_score local
+        --markdown-output MELOS_PACKAGE_PATH/.dart_tool/local_pub_score.md
+        --package-path MELOS_PACKAGE_PATH
+        --threshold 10
+      exec:
+        concurrency: 1
+        packageFilters:
+          category:
+            - publishable
+    pub-score.remote:
+      description: Check remote pub.dev score for publishable packages
+      run: >
+        dart run pub_score_checker check_pub_score remote
+        --markdown-output MELOS_PACKAGE_PATH/.dart_tool/remote_pub_score.md
+        --package-name MELOS_PACKAGE_NAME
+        --threshold 10
+      exec:
+        concurrency: 1
+        packageFilters:
+          category:
+            - publishable
+
 workspace:
   - packages/foundry_core/
   - packages/foundry_core/e2e/
