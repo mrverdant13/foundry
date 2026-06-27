@@ -196,9 +196,25 @@ sync with its `pubspec.yaml`:
 - **Release order** — when both packages change, publish **`foundry_core` first**,
   then **`foundry_cli`**.
 
-Release workflows, tagging (`foundry_core/<version>`), and OIDC pub.dev publishing
-will be wired in dedicated CI PRs. Tag format is `<package>/<version>` (for
-example `foundry_core/0.0.1-dev.2`).
+### Release workflow
+
+1. **Prepare** — run the **Prepare Dart package release** workflow
+   (`prepare-release.yaml`) for `foundry_core` or `foundry_cli`. It opens a PR
+   titled `chore(<package>): release <version>` on branch
+   `<package>/chore/release-<version>`.
+2. **Verify** — the **Dart release PR check** workflow (`release-pr.yaml`) runs
+   `melos run release.check` when the PR title and branch match the release
+   pattern.
+3. **Tag** — merge the release PR. **Release tag on merge**
+   (`release-tag.yaml`) creates an annotated git tag `<package>/<version>` on
+   the merge commit (for example `foundry_core/0.0.1-dev.2`).
+4. **Publish** — dispatch **Publish Dart package** (`publish.yaml`) on the tag
+   ref with `dry_run: false`. Live publish requires the `pub-dev-publish`
+   GitHub environment (OIDC to pub.dev). Use `dry_run: true` from `main` or a
+   tag to run `release.check` without publishing.
+
+**Tag format:** `<package>/<version>` — pub.dev automated publishing should use
+the same pattern (for example `foundry_core/{{version}}`).
 
 ---
 
