@@ -76,8 +76,8 @@ melos run coverage.merge && melos run coverage.check
 melos run test.e2e.ci    # E2E packages only
 ```
 
-See [SETUP.md](SETUP.md) for the full Melos script reference, CI/CD workflows,
-and release tooling.
+Additional Melos scripts (`release.check`, `release.prepare`, and others) are
+defined in the root `pubspec.yaml` as they are added to the workspace.
 
 ---
 
@@ -187,9 +187,9 @@ sync with its `pubspec.yaml`:
 - **Release order** — when both packages change, publish **`foundry_core` first**,
   then **`foundry_cli`**.
 
-Release workflows, tagging (`foundry_core/<version>`), OIDC pub.dev publishing, and
-the full runbook are documented in [SETUP.md](SETUP.md#release-workflows) and will
-be wired in dedicated CI PRs per [TIMELINE.md](TIMELINE.md).
+Release workflows, tagging (`foundry_core/<version>`), and OIDC pub.dev publishing
+will be wired in dedicated CI PRs. Tag format is `<package>/<version>` (for
+example `foundry_core/0.0.1-dev.2`).
 
 ---
 
@@ -220,9 +220,6 @@ be wired in dedicated CI PRs per [TIMELINE.md](TIMELINE.md).
 | --- | --- |
 | [README.md](README.md) | Users — install, quick start, CLI reference |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors — this guide |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | Product specification |
-| [SETUP.md](SETUP.md) | Monorepo layout, Melos, CI/CD, releases |
-| [TIMELINE.md](TIMELINE.md) | Progressive PR plan and acceptance criteria |
 | `packages/*/CHANGELOG.md` | Per-package release notes |
 
 When adding user-facing behavior, update `README.md` and plan corresponding entries

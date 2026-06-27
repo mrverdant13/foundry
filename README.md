@@ -24,8 +24,7 @@ Foundry uses **Liquid everywhere** — in file templates, computed defaults, and
 conditional variable visibility — with validation and business rules in **hooks**
 instead of `mold.yaml`.
 
-Inspired by [Mason](https://pub.dev/packages/mason). See
-[REQUIREMENTS.md](REQUIREMENTS.md) for the full product specification.
+Inspired by [Mason](https://pub.dev/packages/mason).
 
 ---
 
@@ -133,8 +132,8 @@ command runner lands. Planned top-level commands:
 | `foundry recast` | Re-run the last cast |
 | `foundry finish` | Run the finish hook for the last cast |
 
-Command flags (`--vars`, `--output`, `--force`, `--no-hooks`) are defined in
-[REQUIREMENTS.md §3](REQUIREMENTS.md#3-cli-commands).
+Shared cast flags: `--output` (required on `cast`), repeatable `--vars key=value`,
+`--force` (overwrite existing output paths), and `--no-hooks` (skip hook phases).
 
 ---
 
@@ -153,8 +152,8 @@ foundry/
 └── analysis_options.yaml
 ```
 
-Monorepo setup, Melos scripts, CI/CD, and release workflows are documented in
-[SETUP.md](SETUP.md).
+Monorepo setup, Melos scripts, CI/CD, and release workflows are covered in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
