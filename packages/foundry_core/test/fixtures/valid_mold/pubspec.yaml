@@ -1,0 +1,11 @@
+name: demo_app
+description: A minimal demo mold for tests
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ../../..

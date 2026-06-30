@@ -1,0 +1,11 @@
+name: wrong_type
+description: Mold whose moldVariables has the wrong type
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ../../..

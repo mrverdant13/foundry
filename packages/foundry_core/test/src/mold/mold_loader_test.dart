@@ -4,6 +4,8 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'mold_test_support.dart';
+
 Directory _fixtureRoot() {
   var current = Directory.current;
   while (true) {
@@ -42,9 +44,9 @@ void main() {
       );
     });
 
-    test('rejects missing mold.yaml', () async {
+    test('rejects missing pubspec.yaml', () async {
       final tempDir =
-          await Directory.systemTemp.createTemp('foundry_no_manifest_');
+          await Directory.systemTemp.createTemp('foundry_no_pubspec_');
       addTearDown(() => tempDir.deleteSync(recursive: true));
 
       expect(
@@ -53,7 +55,7 @@ void main() {
           isA<MoldLoadException>().having(
             (error) => error.issues.first.message,
             'message',
-            contains('mold.yaml'),
+            contains('pubspec.yaml'),
           ),
         ),
       );
@@ -64,6 +66,7 @@ void main() {
 
       expect(mold.name, 'demo_app');
       expect(mold.description, 'A minimal demo mold for tests');
+      expect(mold.pubspec.version, '0.0.1');
       expect(mold.variableGroup.variables, hasLength(1));
       expect(
         mold.variableGroup.variables['project_name'],
@@ -79,10 +82,11 @@ void main() {
           await Directory.systemTemp.createTemp('foundry_with_hooks_');
       addTearDown(() => tempDir.deleteSync(recursive: true));
 
-      await File(p.join(tempDir.path, 'mold.yaml')).writeAsString('''
-name: hooked
-description: Mold with hooks
-''');
+      await writeMoldPubspec(
+        directory: tempDir,
+        name: 'hooked',
+        description: 'Mold with hooks',
+      );
       await File(p.join(tempDir.path, 'variables.dart')).writeAsString('''
 import 'package:foundry_core/foundry_core.dart';
 
@@ -117,10 +121,23 @@ const moldVariables = FoundryVariableGroup(
       );
     });
 
-    test('rejects invalid mold.yaml', () async {
+    test('rejects invalid pubspec.yaml', () async {
       expect(
-        () => loadMold(p.join(fixtures.path, 'invalid_manifest')),
+        () => loadMold(p.join(fixtures.path, 'invalid_pubspec')),
         throwsA(isA<MoldLoadException>()),
+      );
+    });
+
+    test('rejects pubspec without foundry_core dependency', () async {
+      expect(
+        () => loadMold(p.join(fixtures.path, 'missing_foundry_core')),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.first.message,
+            'message',
+            contains('foundry_core'),
+          ),
+        ),
       );
     });
 
@@ -145,6 +162,38 @@ const moldVariables = FoundryVariableGroup(
             (error) => error.issues.first.message,
             'message',
             contains('FoundryVariableGroup'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects pubspec when dart pub get fails', () async {
+      final tempDir =
+          await Directory.systemTemp.createTemp('foundry_bad_pub_get_');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await File(p.join(tempDir.path, 'pubspec.yaml')).writeAsString('''
+name: broken
+description: Broken mold dependencies
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ./does_not_exist
+''');
+      await File(p.join(tempDir.path, 'variables.dart')).writeAsString('//');
+
+      expect(
+        () => loadMold(tempDir.path),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.first.message,
+            'message',
+            contains('pub get failed'),
           ),
         ),
       );

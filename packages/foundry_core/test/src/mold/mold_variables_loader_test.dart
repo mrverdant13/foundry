@@ -5,6 +5,8 @@ import 'package:foundry_core/src/mold/mold_variables_loader.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'mold_test_support.dart';
+
 Future<File> _writeWrapper(String contents) async {
   final tempDir =
       await Directory.systemTemp.createTemp('foundry_wrapper_test_');
@@ -14,46 +16,31 @@ Future<File> _writeWrapper(String contents) async {
   return wrapper;
 }
 
-String _packageConfigPath() {
-  var current = Directory.current;
-  while (true) {
-    final config =
-        File(p.join(current.path, '.dart_tool', 'package_config.json'));
-    if (config.existsSync()) {
-      return config.path;
-    }
-
-    final parent = current.parent;
-    if (parent.path == current.path) {
-      fail('Could not locate package_config.json');
-    }
-    current = parent;
-  }
-}
-
 void main() {
   tearDown(() {
     moldVariablesLoaderTimeout = const Duration(seconds: 30);
   });
 
-  test('throws StateError when package config cannot be resolved', () async {
-    final previous = Directory.current;
-    final emptyDir = await Directory.systemTemp.createTemp(
-      'foundry_no_package_config_',
-    );
-    final variablesFile = File('${emptyDir.path}/variables.dart');
+  test('throws when package config is missing', () async {
+    final tempDir = await Directory.systemTemp.createTemp('foundry_no_config_');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final variablesFile = File(p.join(tempDir.path, 'variables.dart'));
     await variablesFile.writeAsString('const moldVariables = null;');
 
-    try {
-      Directory.current = emptyDir;
-      expect(
-        () => loadMoldVariableGroup(variablesFile: variablesFile),
-        throwsA(isA<StateError>()),
-      );
-    } finally {
-      Directory.current = previous;
-      await emptyDir.delete(recursive: true);
-    }
+    expect(
+      () => loadMoldVariableGroup(
+        variablesFile: variablesFile,
+        packageConfigPath:
+            p.join(tempDir.path, '.dart_tool', 'package_config.json'),
+      ),
+      throwsA(
+        isA<MoldLoadException>().having(
+          (error) => error.issues.first.message,
+          'message',
+          contains('package config'),
+        ),
+      ),
+    );
   });
 
   test('spawn wrapper reports string errors from the child isolate', () async {
@@ -66,10 +53,12 @@ void main(List<String> args, Object? message) {
 }
 ''');
 
+    final packageConfigPath = workspacePackageConfigPath();
+
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
         wrapper: wrapper,
-        packageConfigPath: _packageConfigPath(),
+        packageConfigPath: packageConfigPath,
         variablesPath: 'variables.dart',
       ),
       throwsA(
@@ -92,10 +81,12 @@ void main(List<String> args, Object? message) {
 }
 ''');
 
+    final packageConfigPath = workspacePackageConfigPath();
+
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
         wrapper: wrapper,
-        packageConfigPath: _packageConfigPath(),
+        packageConfigPath: packageConfigPath,
         variablesPath: 'variables.dart',
       ),
       throwsA(
@@ -120,10 +111,12 @@ Future<void> main(List<String> args, Object? message) async {
 }
 ''');
 
+    final packageConfigPath = workspacePackageConfigPath();
+
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
         wrapper: wrapper,
-        packageConfigPath: _packageConfigPath(),
+        packageConfigPath: packageConfigPath,
         variablesPath: 'variables.dart',
       ),
       throwsA(

@@ -10,6 +10,8 @@
 /coverage/
 /test/optimized_test.dart
 /e2e/optimized_test.dart
+/test/fixtures/**/.dart_tool/
+/test/fixtures/**/pubspec.lock
 
 # Melos
 /melos_*.iml
