@@ -77,5 +77,69 @@ hooks:
         throwsA(isA<MoldLoadException>()),
       );
     });
+
+    test('throws when document root is not a map', () {
+      expect(
+        () => parseMoldManifest(
+          yamlContent: 'just a string',
+          sourcePath: 'mold.yaml',
+        ),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.first.message,
+            'message',
+            contains('YAML map'),
+          ),
+        ),
+      );
+    });
+
+    test('throws when name is empty', () {
+      expect(
+        () => parseMoldManifest(
+          yamlContent: '''
+name: "   "
+description: Demo
+''',
+          sourcePath: 'mold.yaml',
+        ),
+        throwsA(isA<MoldLoadException>()),
+      );
+    });
+
+    test('throws when hooks is not a map', () {
+      expect(
+        () => parseMoldManifest(
+          yamlContent: '''
+name: demo
+description: Demo
+hooks: not-a-map
+''',
+          sourcePath: 'mold.yaml',
+        ),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.first.message,
+            'message',
+            contains('hooks'),
+          ),
+        ),
+      );
+    });
+
+    test('throws when hook path is empty', () {
+      expect(
+        () => parseMoldManifest(
+          yamlContent: '''
+name: demo
+description: Demo
+hooks:
+  prepare: "  "
+''',
+          sourcePath: 'mold.yaml',
+        ),
+        throwsA(isA<MoldLoadException>()),
+      );
+    });
   });
 }
