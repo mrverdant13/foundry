@@ -90,59 +90,64 @@ Future<Map<String, Object?>> _spawnWrapper({
   final exitPort = ReceivePort();
 
   try {
-    await Isolate.spawnUri(
-      wrapper.uri,
-      const <String>[],
-      receivePort.sendPort,
-      onExit: exitPort.sendPort,
-      packageConfig: File(packageConfigPath).absolute.uri,
-    );
-  } on Object catch (error) {
-    throw MoldLoadException([
-      MoldIssue(
-        severity: MoldIssueSeverity.error,
-        path: variablesPath,
-        message: _describeSpawnFailure(error),
-      ),
-    ]);
-  }
-
-  final result = await receivePort.first.timeout(
-    moldVariablesLoaderTimeout,
-    onTimeout: () {
+    try {
+      await Isolate.spawnUri(
+        wrapper.uri,
+        const <String>[],
+        receivePort.sendPort,
+        onExit: exitPort.sendPort,
+        packageConfig: File(packageConfigPath).absolute.uri,
+      );
+    } on Object catch (error) {
       throw MoldLoadException([
         MoldIssue(
           severity: MoldIssueSeverity.error,
           path: variablesPath,
-          message: 'Timed out while loading moldVariables.',
+          message: _describeSpawnFailure(error),
         ),
       ]);
-    },
-  );
+    }
 
-  await exitPort.first;
+    final result = await receivePort.first.timeout(
+      moldVariablesLoaderTimeout,
+      onTimeout: () {
+        throw MoldLoadException([
+          MoldIssue(
+            severity: MoldIssueSeverity.error,
+            path: variablesPath,
+            message: 'Timed out while loading moldVariables.',
+          ),
+        ]);
+      },
+    );
 
-  if (result is String) {
+    await exitPort.first;
+
+    if (result is String) {
+      throw MoldLoadException([
+        MoldIssue(
+          severity: MoldIssueSeverity.error,
+          path: variablesPath,
+          message: result,
+        ),
+      ]);
+    }
+
+    if (result is Map<String, Object?>) {
+      return result;
+    }
+
     throw MoldLoadException([
       MoldIssue(
         severity: MoldIssueSeverity.error,
         path: variablesPath,
-        message: result,
+        message: 'Unexpected response while loading moldVariables.',
       ),
     ]);
+  } finally {
+    receivePort.close();
+    exitPort.close();
   }
-
-  if (result is Map<String, Object?>) {
-    return result;
-  }
-
-  throw MoldLoadException([
-    MoldIssue(
-      severity: MoldIssueSeverity.error,
-      path: variablesPath,
-      message: 'Unexpected response while loading moldVariables.',
-    ),
-  ]);
 }
 
 String _describeSpawnFailure(Object error) {
