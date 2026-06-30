@@ -1,6 +1,7 @@
+import 'package:checked_yaml/checked_yaml.dart';
 import 'package:foundry_core/src/mold/mold_issue.dart';
 import 'package:foundry_core/src/mold/mold_pubspec.dart';
-import 'package:yaml/yaml.dart';
+import 'package:pubspec_parse/pubspec_parse.dart';
 
 /// Parses a mold root `pubspec.yaml` from [yamlContent].
 ///
@@ -10,107 +11,57 @@ MoldPubspec parseMoldPubspec({
   required String yamlContent,
   required String sourcePath,
 }) {
+  final Pubspec pubspec;
+  try {
+    pubspec = Pubspec.parse(
+      yamlContent,
+      sourceUrl: Uri.file(sourcePath),
+    );
+  } on ParsedYamlException catch (error) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: sourcePath,
+        message: _describeParseFailure(error),
+      ),
+    ]);
+  }
+
   final issues = <MoldIssue>[];
 
-  final dynamic document;
-  try {
-    document = loadYaml(yamlContent);
-  } on YamlException catch (error) {
-    throw MoldLoadException([
-      MoldIssue(
-        severity: MoldIssueSeverity.error,
-        path: sourcePath,
-        message: 'Invalid YAML: $error',
-      ),
-    ]);
-  }
-
-  if (document is! YamlMap) {
-    throw MoldLoadException([
-      MoldIssue(
-        severity: MoldIssueSeverity.error,
-        path: sourcePath,
-        message: 'Expected a YAML map at the document root.',
-      ),
-    ]);
-  }
-
-  final name = _readRequiredString(
-    document,
-    field: 'name',
-    sourcePath: sourcePath,
-    issues: issues,
-  );
-  final description = _readRequiredString(
-    document,
-    field: 'description',
-    sourcePath: sourcePath,
-    issues: issues,
-  );
-  final version = _readRequiredString(
-    document,
-    field: 'version',
-    sourcePath: sourcePath,
-    issues: issues,
-  );
-
-  _validateFoundryCoreDependency(
-    document,
-    sourcePath: sourcePath,
-    issues: issues,
-  );
-
-  if (issues.isNotEmpty) {
-    throw MoldLoadException(issues);
-  }
-
-  return MoldPubspec(
-    name: name!,
-    description: description!,
-    version: version!,
-  );
-}
-
-String? _readRequiredString(
-  YamlMap document, {
-  required String field,
-  required String sourcePath,
-  required List<MoldIssue> issues,
-}) {
-  final value = document[field];
-  if (value == null) {
+  if (pubspec.name.trim().isEmpty) {
     issues.add(
       MoldIssue(
         severity: MoldIssueSeverity.error,
         path: sourcePath,
-        message: 'Missing required field "$field".',
+        message: 'Field "name" must be a non-empty string.',
       ),
     );
-    return null;
   }
 
-  final stringValue = value.toString().trim();
-  if (stringValue.isEmpty) {
+  final description = pubspec.description?.trim();
+  if (description == null || description.isEmpty) {
     issues.add(
       MoldIssue(
         severity: MoldIssueSeverity.error,
         path: sourcePath,
-        message: 'Field "$field" must be a non-empty string.',
+        message: 'Missing required field "description".',
       ),
     );
-    return null;
   }
 
-  return stringValue;
-}
+  final version = pubspec.version;
+  if (version == null) {
+    issues.add(
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: sourcePath,
+        message: 'Missing required field "version".',
+      ),
+    );
+  }
 
-void _validateFoundryCoreDependency(
-  YamlMap document, {
-  required String sourcePath,
-  required List<MoldIssue> issues,
-}) {
-  final dependencies = document['dependencies'];
-  if (dependencies is! YamlMap || !dependencies.containsKey('foundry_core')) {
+  if (!pubspec.dependencies.containsKey('foundry_core')) {
     issues.add(
       MoldIssue(
         severity: MoldIssueSeverity.error,
@@ -120,4 +71,23 @@ void _validateFoundryCoreDependency(
       ),
     );
   }
+
+  if (issues.isNotEmpty) {
+    throw MoldLoadException(issues);
+  }
+
+  return MoldPubspec(
+    name: pubspec.name,
+    description: description!,
+    version: version!.toString(),
+  );
+}
+
+String _describeParseFailure(ParsedYamlException error) {
+  final message = error.message;
+  if (message.contains('Missing key "name"')) {
+    return 'Missing required field "name".';
+  }
+
+  return 'Could not parse pubspec.yaml: $message';
 }

@@ -136,7 +136,7 @@ dependencies: {}
       );
     });
 
-    test('throws when document root is not a map', () {
+    test('throws when pubspec.yaml cannot be parsed', () {
       expect(
         () => parseMoldPubspec(
           yamlContent: 'just a string',
@@ -146,7 +146,7 @@ dependencies: {}
           isA<MoldLoadException>().having(
             (error) => error.issues.first.message,
             'message',
-            contains('YAML map'),
+            contains('Could not parse pubspec.yaml'),
           ),
         ),
       );
