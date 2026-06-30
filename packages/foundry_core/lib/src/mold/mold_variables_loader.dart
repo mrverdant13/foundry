@@ -19,11 +19,12 @@ Duration moldVariablesLoaderTimeout = _loadTimeout;
 
 /// Loads the `moldVariables` [FoundryVariableGroup] from [variablesFile].
 ///
-/// Executes `variables.dart` in a child isolate so mold code cannot mutate the
-/// caller's memory. Throws [MoldLoadException] when the file is missing the
+/// Executes `variables.dart` in a child isolate using [packageConfigPath] from
+/// the mold package. Throws [MoldLoadException] when the file is missing the
 /// required symbol or exports a value of the wrong type.
 Future<FoundryVariableGroup> loadMoldVariableGroup({
   required File variablesFile,
+  required String packageConfigPath,
 }) async {
   if (!variablesFile.existsSync()) {
     throw MoldLoadException([
@@ -35,7 +36,19 @@ Future<FoundryVariableGroup> loadMoldVariableGroup({
     ]);
   }
 
-  final packageConfigPath = _findPackageConfigPath();
+  final packageConfig = File(packageConfigPath);
+  if (!packageConfig.existsSync()) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: packageConfigPath,
+        message: 'Missing package config for the mold package.',
+      ),
+    ]);
+  }
+
+  final resolvedPackageConfigPath = packageConfig.absolute.path;
+
   final wrapper = await _createWrapperScript(
     variablesUri: variablesFile.absolute.uri,
   );
@@ -43,7 +56,7 @@ Future<FoundryVariableGroup> loadMoldVariableGroup({
   try {
     final payload = await _spawnWrapper(
       wrapper: wrapper,
-      packageConfigPath: packageConfigPath,
+      packageConfigPath: resolvedPackageConfigPath,
       variablesPath: variablesFile.path,
     );
     return deserializeMoldVariableGroup(payload);
@@ -82,7 +95,7 @@ Future<Map<String, Object?>> _spawnWrapper({
       const <String>[],
       receivePort.sendPort,
       onExit: exitPort.sendPort,
-      packageConfig: File(packageConfigPath).uri,
+      packageConfig: File(packageConfigPath).absolute.uri,
     );
   } on Object catch (error) {
     throw MoldLoadException([
@@ -196,25 +209,4 @@ Map<String, Object?> _serializeVariable(FoundryVariable<dynamic> variable) {
 }
 ''');
   return wrapper;
-}
-
-String _findPackageConfigPath() {
-  var current = Directory.current;
-  while (true) {
-    final config =
-        File(p.join(current.path, '.dart_tool', 'package_config.json'));
-    if (config.existsSync()) {
-      return config.path;
-    }
-
-    final parent = current.parent;
-    if (parent.path == current.path) {
-      break;
-    }
-    current = parent;
-  }
-
-  throw StateError(
-    'Could not locate .dart_tool/package_config.json from ${Directory.current.path}',
-  );
 }

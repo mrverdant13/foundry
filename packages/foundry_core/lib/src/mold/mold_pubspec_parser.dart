@@ -1,12 +1,12 @@
 import 'package:foundry_core/src/mold/mold_issue.dart';
-import 'package:foundry_core/src/mold/mold_manifest.dart';
+import 'package:foundry_core/src/mold/mold_pubspec.dart';
 import 'package:yaml/yaml.dart';
 
-/// Parses a `mold.yaml` manifest from [yamlContent].
+/// Parses a mold root `pubspec.yaml` from [yamlContent].
 ///
-/// Returns a [MoldManifest] on success or throws [MoldLoadException] with
+/// Returns a [MoldPubspec] on success or throws [MoldLoadException] with
 /// structured [MoldIssue]s when required fields are missing or invalid.
-MoldManifest parseMoldManifest({
+MoldPubspec parseMoldPubspec({
   required String yamlContent,
   required String sourcePath,
 }) {
@@ -47,14 +47,27 @@ MoldManifest parseMoldManifest({
     sourcePath: sourcePath,
     issues: issues,
   );
+  final version = _readRequiredString(
+    document,
+    field: 'version',
+    sourcePath: sourcePath,
+    issues: issues,
+  );
+
+  _validateFoundryCoreDependency(
+    document,
+    sourcePath: sourcePath,
+    issues: issues,
+  );
 
   if (issues.isNotEmpty) {
     throw MoldLoadException(issues);
   }
 
-  return MoldManifest(
+  return MoldPubspec(
     name: name!,
     description: description!,
+    version: version!,
   );
 }
 
@@ -89,4 +102,22 @@ String? _readRequiredString(
   }
 
   return stringValue;
+}
+
+void _validateFoundryCoreDependency(
+  YamlMap document, {
+  required String sourcePath,
+  required List<MoldIssue> issues,
+}) {
+  final dependencies = document['dependencies'];
+  if (dependencies is! YamlMap || !dependencies.containsKey('foundry_core')) {
+    issues.add(
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: sourcePath,
+        message: 'Mold pubspec must declare a foundry_core dependency so '
+            'variables.dart and hooks can import package:foundry_core.',
+      ),
+    );
+  }
 }

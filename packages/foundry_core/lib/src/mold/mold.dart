@@ -1,35 +1,35 @@
 import 'dart:io';
 
 import 'package:foundry_core/src/mold/mold_hooks.dart';
-import 'package:foundry_core/src/mold/mold_manifest.dart';
+import 'package:foundry_core/src/mold/mold_pubspec.dart';
 import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
-/// A loaded mold definition combining manifest metadata and variable schema.
+/// A loaded mold definition combining package metadata and variable schema.
 @immutable
 final class Mold {
   /// Creates a [Mold].
   const Mold({
     required this.directory,
-    required this.manifest,
+    required this.pubspec,
     required this.variableGroup,
   });
 
   /// Absolute path to the mold root directory.
   final Directory directory;
 
-  /// Parsed `mold.yaml` metadata.
-  final MoldManifest manifest;
+  /// Parsed root `pubspec.yaml` metadata.
+  final MoldPubspec pubspec;
 
   /// Variable schema loaded from `variables.dart`.
   final FoundryVariableGroup variableGroup;
 
-  /// Shorthand for [MoldManifest.name].
-  String get name => manifest.name;
+  /// Shorthand for [MoldPubspec.name].
+  String get name => pubspec.name;
 
-  /// Shorthand for [MoldManifest.description].
-  String get description => manifest.description;
+  /// Shorthand for [MoldPubspec.description].
+  String get description => pubspec.description;
 
   /// Absolute path to the prepare hook when the standard file exists.
   File? get prepareHook {
