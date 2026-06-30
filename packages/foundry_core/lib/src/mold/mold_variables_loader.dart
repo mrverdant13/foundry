@@ -52,10 +52,10 @@ Future<FoundryVariableGroup> loadMoldVariableGroup({
   }
 }
 
-@visibleForTesting
 /// Spawns a generated wrapper script and returns the deserialized payload.
 ///
 /// Exposed to exercise isolate failure modes in unit tests.
+@visibleForTesting
 Future<Map<String, Object?>> spawnMoldVariablesWrapperForTesting({
   required File wrapper,
   required String packageConfigPath,
