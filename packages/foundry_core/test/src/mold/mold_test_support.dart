@@ -48,7 +48,6 @@ Future<void> writeMoldPubspec({
   required Directory directory,
   required String name,
   required String description,
-  bool includeFoundryCore = true,
 }) async {
   final coreRoot = foundryCorePackageRoot();
   final corePath = coreRoot.absolute.path;
