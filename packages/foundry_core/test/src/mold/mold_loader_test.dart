@@ -69,6 +69,39 @@ void main() {
         mold.variableGroup.variables['project_name'],
         isA<FoundryStringVariable>(),
       );
+      expect(mold.prepareHook, isNull);
+      expect(mold.shapeHook, isNull);
+      expect(mold.finishHook, isNull);
+    });
+
+    test('resolves standard hook files when present', () async {
+      final tempDir =
+          await Directory.systemTemp.createTemp('foundry_with_hooks_');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await File(p.join(tempDir.path, 'mold.yaml')).writeAsString('''
+name: hooked
+description: Mold with hooks
+''');
+      await File(p.join(tempDir.path, 'variables.dart')).writeAsString('''
+import 'package:foundry_core/foundry_core.dart';
+
+const moldVariables = FoundryVariableGroup(
+  variables: {
+    'project_name': FoundryStringVariable(label: 'Project name'),
+  },
+);
+''');
+      final hooksDir = Directory(p.join(tempDir.path, MoldHooks.directory));
+      await hooksDir.create();
+      await File(p.join(hooksDir.path, MoldHooks.prepare)).writeAsString('//');
+      await File(p.join(hooksDir.path, MoldHooks.finish)).writeAsString('//');
+
+      final mold = await loadMold(tempDir.path);
+
+      expect(mold.prepareHook?.path, endsWith(MoldHooks.preparePath));
+      expect(mold.shapeHook, isNull);
+      expect(mold.finishHook?.path, endsWith(MoldHooks.finishPath));
     });
 
     test('rejects missing variables.dart', () async {

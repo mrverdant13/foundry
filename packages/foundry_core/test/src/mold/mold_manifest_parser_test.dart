@@ -1,8 +1,25 @@
+import 'package:foundry_core/src/mold/mold_hooks.dart';
 import 'package:foundry_core/src/mold/mold_issue.dart';
 import 'package:foundry_core/src/mold/mold_manifest_parser.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('MoldHooks', () {
+    test('exposes standard hook paths', () {
+      expect(MoldHooks.prepare, 'prepare.dart');
+      expect(MoldHooks.shape, 'shape.dart');
+      expect(MoldHooks.finish, 'finish.dart');
+      expect(MoldHooks.preparePath, 'hooks/prepare.dart');
+      expect(MoldHooks.shapePath, 'hooks/shape.dart');
+      expect(MoldHooks.finishPath, 'hooks/finish.dart');
+      expect(MoldHooks.allPaths, [
+        'hooks/prepare.dart',
+        'hooks/shape.dart',
+        'hooks/finish.dart',
+      ]);
+    });
+  });
+
   group('parseMoldManifest', () {
     test('parses required fields', () {
       final manifest = parseMoldManifest(
@@ -15,25 +32,23 @@ description: Flutter application starter
 
       expect(manifest.name, 'flutter_app');
       expect(manifest.description, 'Flutter application starter');
-      expect(manifest.hooks.isEmpty, isTrue);
     });
 
-    test('parses optional hook paths', () {
+    test('ignores legacy hooks declarations in mold.yaml', () {
       final manifest = parseMoldManifest(
         yamlContent: '''
 name: demo
 description: Demo mold
 hooks:
-  prepare: hooks/prepare.dart
-  shape: hooks/shape.dart
-  finish: hooks/finish.dart
+  prepare: custom/prepare.dart
+  shape: custom/shape.dart
+  finish: custom/finish.dart
 ''',
         sourcePath: 'mold.yaml',
       );
 
-      expect(manifest.hooks.prepare, 'hooks/prepare.dart');
-      expect(manifest.hooks.shape, 'hooks/shape.dart');
-      expect(manifest.hooks.finish, 'hooks/finish.dart');
+      expect(manifest.name, 'demo');
+      expect(manifest.description, 'Demo mold');
     });
 
     test('throws when name is missing', () {
@@ -100,41 +115,6 @@ hooks:
           yamlContent: '''
 name: "   "
 description: Demo
-''',
-          sourcePath: 'mold.yaml',
-        ),
-        throwsA(isA<MoldLoadException>()),
-      );
-    });
-
-    test('throws when hooks is not a map', () {
-      expect(
-        () => parseMoldManifest(
-          yamlContent: '''
-name: demo
-description: Demo
-hooks: not-a-map
-''',
-          sourcePath: 'mold.yaml',
-        ),
-        throwsA(
-          isA<MoldLoadException>().having(
-            (error) => error.issues.first.message,
-            'message',
-            contains('hooks'),
-          ),
-        ),
-      );
-    });
-
-    test('throws when hook path is empty', () {
-      expect(
-        () => parseMoldManifest(
-          yamlContent: '''
-name: demo
-description: Demo
-hooks:
-  prepare: "  "
 ''',
           sourcePath: 'mold.yaml',
         ),
