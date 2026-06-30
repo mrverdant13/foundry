@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 
-/// Optional lifecycle hook paths declared in [mold.yaml].
+/// Optional lifecycle hook paths declared in a mold manifest.
 @immutable
 final class MoldHooks {
   /// Creates [MoldHooks].
