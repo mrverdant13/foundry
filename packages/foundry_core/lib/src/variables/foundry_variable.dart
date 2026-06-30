@@ -2,8 +2,9 @@ import 'package:meta/meta.dart';
 
 /// Base type for variables declared in a mold's `variables.dart`.
 ///
-/// Concrete variable kinds are added incrementally; PR 15 only requires a
-/// minimal contract so molds can export the required variable group symbol.
+/// Concrete variable kinds are added incrementally as the runtime expands;
+/// this release only requires a minimal contract so molds can export the
+/// required variable group symbol.
 @immutable
 sealed class FoundryVariable<T> {
   /// Creates a [FoundryVariable].
