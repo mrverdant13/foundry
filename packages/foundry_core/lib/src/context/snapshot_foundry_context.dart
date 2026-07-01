@@ -6,7 +6,8 @@ import 'package:meta/meta.dart';
 /// Base type for variable callbacks declared in a mold's `variables.dart`
 /// (`visibleWhen`, `defaultValue`, per-variable `validators`, and
 /// `groupValidators`). Exposes strict `required*` / `optional*` accessors
-/// only — no mutation methods and no hook environment fields.
+/// (plus a read-only snapshot via [entries]) — no mutation methods and no hook
+/// environment fields.
 ///
 /// `required*` accessors throw [FoundryContextException] when a key is
 /// missing, null, or holds a value of the wrong runtime type. `optional*`
@@ -104,10 +105,10 @@ class SnapshotFoundryContext {
     );
   }
 
-  /// Package-private snapshot of the current cast values.
+  /// Read-only snapshot of the current cast values.
   ///
-  /// Exposed for future template rendering; not part of the public API and
-  /// not exported from `package:foundry_core/foundry_core.dart`.
+  /// Not intended for use outside this package even though it is reachable via
+  /// the public API export.
   @internal
   Map<String, Object?> get entries => _values;
 }
