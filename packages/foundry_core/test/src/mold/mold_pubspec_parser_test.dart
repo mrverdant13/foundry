@@ -1,6 +1,7 @@
 import 'package:foundry_core/src/mold/mold_hooks.dart';
 import 'package:foundry_core/src/mold/mold_issue.dart';
 import 'package:foundry_core/src/mold/mold_pubspec_parser.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -9,13 +10,13 @@ void main() {
       expect(MoldHooks.prepare, 'prepare.dart');
       expect(MoldHooks.shape, 'shape.dart');
       expect(MoldHooks.finish, 'finish.dart');
-      expect(MoldHooks.preparePath, 'hooks/prepare.dart');
-      expect(MoldHooks.shapePath, 'hooks/shape.dart');
-      expect(MoldHooks.finishPath, 'hooks/finish.dart');
+      expect(MoldHooks.preparePath, p.join('hooks', 'prepare.dart'));
+      expect(MoldHooks.shapePath, p.join('hooks', 'shape.dart'));
+      expect(MoldHooks.finishPath, p.join('hooks', 'finish.dart'));
       expect(MoldHooks.allPaths, [
-        'hooks/prepare.dart',
-        'hooks/shape.dart',
-        'hooks/finish.dart',
+        p.join('hooks', 'prepare.dart'),
+        p.join('hooks', 'shape.dart'),
+        p.join('hooks', 'finish.dart'),
       ]);
     });
   });
