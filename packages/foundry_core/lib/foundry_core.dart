@@ -2,6 +2,7 @@
 library;
 
 export 'src/context/foundry_context_exception.dart';
+export 'src/context/hook_exception.dart';
 export 'src/context/snapshot_foundry_context.dart';
 export 'src/logging/logger.dart';
 export 'src/mold/mold.dart';
