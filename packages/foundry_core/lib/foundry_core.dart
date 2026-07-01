@@ -3,6 +3,7 @@ library;
 
 export 'src/mold/mold.dart';
 export 'src/mold/mold_hooks.dart';
+export 'src/mold/mold_inspector.dart';
 export 'src/mold/mold_issue.dart';
 export 'src/mold/mold_loader.dart' show loadMold;
 export 'src/mold/mold_pubspec.dart';
