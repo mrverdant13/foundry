@@ -91,6 +91,14 @@ Future<void> runMoldHook({
       );
     }
 
+    final stderrText = (result.stderr as String).trim();
+    if (stderrText.isNotEmpty) {
+      // Forwarded as-is (not re-wrapped via `logger.warn`/`logger.error`):
+      // the hook's own `Logger` already applied `[WARN]`/`[ERROR]` prefixes
+      // before writing to its stderr.
+      context.logger.info(stderrText);
+    }
+
     final decoded = readMoldHookOutcome(
       phase: phase,
       hookPath: hookFile.path,

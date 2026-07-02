@@ -126,6 +126,30 @@ Future<void> run(FoundryContext context) async {
       expect(messages, contains('hello from hook'));
     });
 
+    test('forwards hook stderr through the logger when the process succeeds',
+        () async {
+      await writeHook(MoldHooks.shapePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.logger.warn('careful from hook');
+}
+''');
+      final hookFile = File(p.join(moldDirectory.path, MoldHooks.shapePath));
+      final messages = <String>[];
+      final context = buildContext(
+        logger: Logger(onInfo: messages.add),
+      );
+
+      await runMoldHook(
+        phase: MoldHookPhase.shape,
+        hookFile: hookFile,
+        context: context,
+      );
+
+      expect(messages, contains('[WARN] careful from hook'));
+    });
+
     test('runs the hook process with the output directory as cwd', () async {
       await writeHook(MoldHooks.finishPath, '''
 import 'dart:io';
