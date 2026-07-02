@@ -199,6 +199,41 @@ void main() {
       expect(errors, ['Required.', 'Too short.']);
     });
 
+    test('throws when value has the wrong type', () {
+      const variable = FoundryStringVariable(label: 'Project name');
+
+      expect(
+        () => variable.validate(42, SnapshotFoundryContext(const {})),
+        throwsA(
+          isA<FoundryContextException>().having(
+            (exception) => exception.message,
+            'message',
+            'Expected a value of type String but found a value of type '
+                'int.',
+          ),
+        ),
+      );
+    });
+
+    test('does not run validators when value has the wrong type', () {
+      var validatorCalled = false;
+      final variable = FoundryStringVariable(
+        label: 'Project name',
+        validators: [
+          (value, _) {
+            validatorCalled = true;
+            return null;
+          },
+        ],
+      );
+
+      expect(
+        () => variable.validate(42, SnapshotFoundryContext(const {})),
+        throwsA(isA<FoundryContextException>()),
+      );
+      expect(validatorCalled, isFalse);
+    });
+
     test('validators receive a SnapshotFoundryContext', () {
       SnapshotFoundryContext? received;
       FoundryStringVariable(

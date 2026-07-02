@@ -106,11 +106,22 @@ sealed class FoundryVariable<T> {
 
   /// Runs [validators] against [value] and the current [context], returning
   /// each non-null error message in order.
-  List<String> validate(Object? value, SnapshotFoundryContext context) =>
-      validators
-          .map((validator) => validator(value as T?, context))
-          .whereType<String>()
-          .toList(growable: false);
+  ///
+  /// Throws [FoundryContextException] if [value] is non-null and not a
+  /// [T], instead of letting the internal cast fail with an opaque
+  /// [TypeError].
+  List<String> validate(Object? value, SnapshotFoundryContext context) {
+    if (value != null && value is! T) {
+      throw FoundryContextException(
+        'Expected a value of type $T but found a value of type '
+        '${value.runtimeType}.',
+      );
+    }
+    return validators
+        .map((validator) => validator(value as T?, context))
+        .whereType<String>()
+        .toList(growable: false);
+  }
 }
 
 /// A free-form string variable.
