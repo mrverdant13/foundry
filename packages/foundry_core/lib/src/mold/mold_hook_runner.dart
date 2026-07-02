@@ -50,13 +50,21 @@ Future<void> runMoldHook({
 
     final inputFile = File(p.join(workDir.path, 'hook_input.json'));
     final outputFile = File(p.join(workDir.path, 'hook_output.json'));
-    await inputFile.writeAsString(
-      jsonEncode({
-        'values': context.entries,
-        'moldDirectory': context.moldDirectory.absolute.path,
-        'outputDirectory': context.outputDirectory.absolute.path,
-      }),
-    );
+    try {
+      await inputFile.writeAsString(
+        jsonEncode({
+          'values': context.entries,
+          'moldDirectory': context.moldDirectory.absolute.path,
+          'outputDirectory': context.outputDirectory.absolute.path,
+        }),
+      );
+    } catch (error) {
+      throw MoldHookException(
+        phase: phase,
+        hookPath: hookFile.path,
+        message: 'Failed to prepare hook input: $error',
+      );
+    }
 
     final result = await Process.run(
       'dart',

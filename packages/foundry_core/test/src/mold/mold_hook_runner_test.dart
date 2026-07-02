@@ -182,6 +182,36 @@ Future<void> run(FoundryContext context) async {
       );
     });
 
+    test(
+        'throws MoldHookException when the context values cannot be '
+        'JSON-encoded', () async {
+      await writeHook(MoldHooks.finishPath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {}
+''');
+      final hookFile = File(p.join(moldDirectory.path, MoldHooks.finishPath));
+      final context = buildContext(values: {'when': DateTime.now()});
+
+      await expectLater(
+        runMoldHook(
+          phase: MoldHookPhase.finish,
+          hookFile: hookFile,
+          context: context,
+        ),
+        throwsA(
+          isA<MoldHookException>()
+              .having((error) => error.phase, 'phase', MoldHookPhase.finish)
+              .having((error) => error.hookPath, 'hookPath', hookFile.path)
+              .having(
+                (error) => error.message,
+                'message',
+                contains('Failed to prepare hook input'),
+              ),
+        ),
+      );
+    });
+
     test('throws MoldHookException when the mold package config is missing',
         () async {
       final unresolvedMoldDirectory = await Directory.systemTemp.createTemp(
