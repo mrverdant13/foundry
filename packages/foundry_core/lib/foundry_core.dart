@@ -16,4 +16,5 @@ export 'src/mold/mold_pubspec_parser.dart' show parseMoldPubspec;
 export 'src/variables/foundry_variable.dart';
 export 'src/variables/foundry_variable_evaluation.dart';
 export 'src/variables/foundry_variable_group.dart';
+export 'src/variables/foundry_variable_group_validation.dart';
 export 'src/version.dart' show foundryCoreVersion, readFoundryCoreVersion;

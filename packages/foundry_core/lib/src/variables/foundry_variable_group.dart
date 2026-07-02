@@ -1,6 +1,7 @@
 import 'package:foundry_core/src/context/snapshot_foundry_context.dart';
 import 'package:foundry_core/src/variables/foundry_variable.dart';
 import 'package:foundry_core/src/variables/foundry_variable_evaluation.dart';
+import 'package:foundry_core/src/variables/foundry_variable_group_validation.dart';
 import 'package:meta/meta.dart';
 
 /// Code-first variable schema exported from a mold's variables definition file.
@@ -9,10 +10,14 @@ final class FoundryVariableGroup {
   /// Creates a [FoundryVariableGroup].
   const FoundryVariableGroup({
     required this.variables,
+    this.groupValidators = const [],
   });
 
   /// Variable definitions keyed by context field name.
   final Map<String, FoundryVariable<dynamic>> variables;
+
+  /// Cross-field validators run against the whole group during [validate].
+  final List<FoundryGroupValidator> groupValidators;
 
   /// Evaluates every variable against [rawValues] in declaration order.
   ///
@@ -66,6 +71,37 @@ final class FoundryVariableGroup {
     return FoundryVariableGroupEvaluation(
       resolvedValues: Map.unmodifiable(resolvedValues),
       entries: List.unmodifiable(entries),
+    );
+  }
+
+  /// Validates an [evaluation] previously produced by [evaluate].
+  ///
+  /// Runs each visible variable's field validators against
+  /// [FoundryVariableGroupEvaluation.resolvedValues], then runs
+  /// [groupValidators] against the same values. Only variables and
+  /// validators that report at least one non-null error message are
+  /// reflected in the result.
+  FoundryVariableGroupValidation validate(
+    FoundryVariableGroupEvaluation evaluation,
+  ) {
+    final context = SnapshotFoundryContext(evaluation.resolvedValues);
+
+    final fieldErrors = <String, List<String>>{};
+    for (final entry in evaluation.entries) {
+      final errors = entry.variable.validate(entry.value, context);
+      if (errors.isNotEmpty) {
+        fieldErrors[entry.key] = errors;
+      }
+    }
+
+    final groupErrors = groupValidators
+        .map((validator) => validator(context))
+        .whereType<String>()
+        .toList(growable: false);
+
+    return FoundryVariableGroupValidation(
+      fieldErrors: Map.unmodifiable(fieldErrors),
+      groupErrors: List.unmodifiable(groupErrors),
     );
   }
 }
