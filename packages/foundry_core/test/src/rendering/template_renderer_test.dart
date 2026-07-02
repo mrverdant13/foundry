@@ -247,6 +247,33 @@ void main() {
       },
     );
 
+    test(
+      'wraps content-rendering failures in a TemplateRenderException',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'broken.txt'),
+          '{{ value | unknown_filter_xyz }}',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'value': 'x'}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              contains('broken.txt'),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
     test('throws when the template directory does not exist', () async {
       final missing = Directory(p.join(tempRoot.path, 'missing_template'));
 

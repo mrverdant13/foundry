@@ -87,11 +87,19 @@ Future<List<File>> renderTemplate({
       continue;
     }
 
-    final templateContents = await sourceFile.readAsString();
-    final renderedContents = Template.parse(
-      templateContents,
-      data: values,
-    ).render();
+    final String renderedContents;
+    try {
+      final templateContents = await sourceFile.readAsString();
+      renderedContents = Template.parse(
+        templateContents,
+        data: values,
+      ).render();
+    } catch (error) {
+      throw TemplateRenderException(
+        'Failed to render contents of template file '
+        '"$relativeSourcePath": $error',
+      );
+    }
     plannedWrites.add(_PlannedWrite(destinationFile, renderedContents));
   }
 
