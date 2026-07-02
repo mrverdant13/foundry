@@ -56,10 +56,18 @@ Future<List<File>> renderTemplate({
       sourceFile.path,
       from: resolvedTemplateDirectory.path,
     );
-    final destinationRelativePath = _renderPathSegments(
-      relativeSourcePath,
-      values,
-    );
+    final String destinationRelativePath;
+    try {
+      destinationRelativePath = _renderPathSegments(
+        relativeSourcePath,
+        values,
+      );
+    } catch (error) {
+      throw TemplateRenderException(
+        'Failed to render path segments of template file '
+        '"$relativeSourcePath": $error',
+      );
+    }
     final destinationPath = p.normalize(
       p.join(resolvedOutputDirectory.path, destinationRelativePath),
     );

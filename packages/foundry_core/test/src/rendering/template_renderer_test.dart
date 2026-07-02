@@ -274,6 +274,36 @@ void main() {
       },
     );
 
+    test(
+      'wraps path segment rendering failures in a TemplateRenderException',
+      () async {
+        await _writeFile(
+          p.join(
+            templateDirectory.path,
+            '{{ name | unknown_filter_xyz }}.txt',
+          ),
+          'contents',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'name': 'demo'}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              contains('unknown_filter_xyz'),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
     test('throws when the template directory does not exist', () async {
       final missing = Directory(p.join(tempRoot.path, 'missing_template'));
 
