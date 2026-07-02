@@ -277,11 +277,12 @@ void main() {
     test(
       'wraps path segment rendering failures in a TemplateRenderException',
       () async {
+        // Uses an unclosed Liquid tag (rather than an invalid filter) to
+        // trigger a parse failure, since the raw source file name must stay
+        // valid on every OS the test suite runs on (e.g. "|" is not a legal
+        // Windows filename character).
         await _writeFile(
-          p.join(
-            templateDirectory.path,
-            '{{ name | unknown_filter_xyz }}.txt',
-          ),
+          p.join(templateDirectory.path, '{{ name.txt'),
           'contents',
         );
 
@@ -295,7 +296,7 @@ void main() {
             isA<TemplateRenderException>().having(
               (e) => e.message,
               'message',
-              contains('unknown_filter_xyz'),
+              contains('{{ name.txt'),
             ),
           ),
         );
