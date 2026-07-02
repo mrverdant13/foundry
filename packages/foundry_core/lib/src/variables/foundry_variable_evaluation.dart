@@ -10,6 +10,7 @@ final class FoundryVariableEvaluationEntry {
     required this.key,
     required this.variable,
     required this.value,
+    required this.isEnabled,
   });
 
   /// The variable's key in `FoundryVariableGroup.variables`.
@@ -20,6 +21,26 @@ final class FoundryVariableEvaluationEntry {
 
   /// The resolved value for [key].
   final Object? value;
+
+  /// Whether the field should be editable, per [FoundryVariable.enabledWhen].
+  ///
+  /// `false` means the field stays visible but is shown read-only.
+  final bool isEnabled;
+
+  /// Longer help text shown alongside the field in the TUI.
+  ///
+  /// Convenience accessor for [FoundryVariable.description].
+  String? get description => variable.description;
+
+  /// Ghost text shown in an empty text input.
+  ///
+  /// Convenience accessor for [FoundryVariable.placeholder].
+  String? get placeholder => variable.placeholder;
+
+  /// Short hint or footer copy shown in the TUI.
+  ///
+  /// Convenience accessor for [FoundryVariable.help].
+  String? get help => variable.help;
 }
 
 /// Result of evaluating a `FoundryVariableGroup` against a set of raw values.

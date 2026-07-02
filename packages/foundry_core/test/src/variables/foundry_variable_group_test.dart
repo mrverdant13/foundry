@@ -35,6 +35,11 @@ FoundryVariableGroup _buildTestGroup({
       'class_name': FoundryStringVariable(
         label: 'Class name',
         defaultValue: (context) => context.requiredString('project_name'),
+        enabledWhen: (context) =>
+            context.optionalString('project_type') != 'app',
+        description: 'The Dart class name used by generated code.',
+        placeholder: 'MyApp',
+        help: 'Defaults to the project name.',
       ),
     },
   );
@@ -106,6 +111,74 @@ void main() {
         evaluation.entries.map((entry) => entry.key),
         ['project_type', 'project_name', 'class_name'],
       );
+    });
+
+    test('marks a variable read-only when enabledWhen returns false', () {
+      final evaluation = _buildTestGroup().evaluate(
+        rawValues: const {'project_type': 'app'},
+        dirtyKeys: const {'project_type'},
+      );
+
+      final classNameEntry = evaluation.entries.firstWhere(
+        (entry) => entry.key == 'class_name',
+      );
+      expect(classNameEntry.isEnabled, isFalse);
+    });
+
+    test('keeps a variable editable when no enabledWhen is set', () {
+      final evaluation = _buildTestGroup().evaluate(
+        rawValues: const {'project_type': 'package'},
+        dirtyKeys: const {'project_type'},
+      );
+
+      final projectNameEntry = evaluation.entries.firstWhere(
+        (entry) => entry.key == 'project_name',
+      );
+      expect(projectNameEntry.isEnabled, isTrue);
+    });
+
+    test('keeps a read-only variable visible', () {
+      final evaluation = _buildTestGroup().evaluate(
+        rawValues: const {'project_type': 'app'},
+        dirtyKeys: const {'project_type'},
+      );
+
+      expect(
+        evaluation.entries.any((entry) => entry.key == 'class_name'),
+        isTrue,
+      );
+      expect(evaluation.resolvedValues.containsKey('class_name'), isTrue);
+    });
+
+    test('surfaces variable metadata on the evaluation entry', () {
+      final evaluation = _buildTestGroup().evaluate(
+        rawValues: const {'project_type': 'package'},
+        dirtyKeys: const {'project_type'},
+      );
+
+      final classNameEntry = evaluation.entries.firstWhere(
+        (entry) => entry.key == 'class_name',
+      );
+      expect(
+        classNameEntry.description,
+        'The Dart class name used by generated code.',
+      );
+      expect(classNameEntry.placeholder, 'MyApp');
+      expect(classNameEntry.help, 'Defaults to the project name.');
+    });
+
+    test('metadata defaults to null when unset', () {
+      final evaluation = _buildTestGroup().evaluate(
+        rawValues: const {'project_type': 'package'},
+        dirtyKeys: const {'project_type'},
+      );
+
+      final projectTypeEntry = evaluation.entries.firstWhere(
+        (entry) => entry.key == 'project_type',
+      );
+      expect(projectTypeEntry.description, isNull);
+      expect(projectTypeEntry.placeholder, isNull);
+      expect(projectTypeEntry.help, isNull);
     });
   });
 

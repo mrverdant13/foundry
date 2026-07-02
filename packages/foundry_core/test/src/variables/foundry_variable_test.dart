@@ -53,6 +53,78 @@ void main() {
     });
   });
 
+  group('isEnabled', () {
+    test('is true when no enabledWhen callback is set', () {
+      const variable = FoundryStringVariable(label: 'Project name');
+
+      expect(variable.isEnabled(SnapshotFoundryContext(const {})), isTrue);
+    });
+
+    test('reflects the enabledWhen callback result', () {
+      final variable = FoundryStringVariable(
+        label: 'Package name',
+        enabledWhen: (context) =>
+            context.requiredString('project_type') == 'package',
+      );
+
+      expect(
+        variable.isEnabled(
+          SnapshotFoundryContext(const {'project_type': 'package'}),
+        ),
+        isTrue,
+      );
+      expect(
+        variable.isEnabled(
+          SnapshotFoundryContext(const {'project_type': 'app'}),
+        ),
+        isFalse,
+      );
+    });
+
+    test('receives a SnapshotFoundryContext, not a mutable one', () {
+      SnapshotFoundryContext? received;
+      FoundryStringVariable(
+        label: 'Package name',
+        enabledWhen: (context) {
+          received = context;
+          return true;
+        },
+      ).isEnabled(SnapshotFoundryContext(const {}));
+
+      expect(
+        received,
+        isA<SnapshotFoundryContext>().having(
+          (context) => context.runtimeType,
+          'runtimeType',
+          SnapshotFoundryContext,
+        ),
+      );
+    });
+  });
+
+  group('metadata', () {
+    test('defaults description, placeholder, and help to null', () {
+      const variable = FoundryStringVariable(label: 'Project name');
+
+      expect(variable.description, isNull);
+      expect(variable.placeholder, isNull);
+      expect(variable.help, isNull);
+    });
+
+    test('exposes description, placeholder, and help when provided', () {
+      const variable = FoundryStringVariable(
+        label: 'Project name',
+        description: 'The name of the generated project.',
+        placeholder: 'my_app',
+        help: 'Used for the root package name.',
+      );
+
+      expect(variable.description, 'The name of the generated project.');
+      expect(variable.placeholder, 'my_app');
+      expect(variable.help, 'Used for the root package name.');
+    });
+  });
+
   group('resolveValue', () {
     test('derives the default value when no raw value is supplied', () {
       final variable = FoundryStringVariable(

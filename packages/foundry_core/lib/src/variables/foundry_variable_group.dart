@@ -31,6 +31,9 @@ final class FoundryVariableGroup {
   /// 2. The value is resolved via `FoundryVariable.resolveValue`, which
   ///    preserves a manually supplied or [dirtyKeys] value over a derived
   ///    default.
+  /// 3. `enabledWhen` is evaluated against the same context used for
+  ///    visibility; a `false` result marks the entry read-only via
+  ///    [FoundryVariableEvaluationEntry.isEnabled] without hiding it.
   ///
   /// Resolved values accumulate as evaluation proceeds, so later variables'
   /// `visibleWhen` and `defaultValue` callbacks can read earlier ones.
@@ -64,6 +67,7 @@ final class FoundryVariableGroup {
           key: key,
           variable: variable,
           value: value,
+          isEnabled: variable.isEnabled(visibilityContext),
         ),
       );
     }

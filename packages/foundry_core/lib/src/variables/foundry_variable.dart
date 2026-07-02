@@ -8,6 +8,14 @@ import 'package:meta/meta.dart';
 /// Receives a [SnapshotFoundryContext] — never a mutable `FoundryContext`.
 typedef FoundryVisibleWhen = bool Function(SnapshotFoundryContext context);
 
+/// Callback that decides whether a visible variable is editable for the
+/// current cast values.
+///
+/// When it evaluates to `false`, the variable stays visible but is shown
+/// read-only. Receives a [SnapshotFoundryContext] — never a mutable
+/// `FoundryContext`.
+typedef FoundryEnabledWhen = bool Function(SnapshotFoundryContext context);
+
 /// Callback that derives a variable's default value from the current cast
 /// values.
 ///
@@ -43,8 +51,12 @@ sealed class FoundryVariable<T> {
   const FoundryVariable({
     required this.label,
     this.visibleWhen,
+    this.enabledWhen,
     this.defaultValue,
     this.validators = const [],
+    this.description,
+    this.placeholder,
+    this.help,
   });
 
   /// Human-readable label shown in the variable TUI.
@@ -54,6 +66,11 @@ sealed class FoundryVariable<T> {
   /// always visible.
   final FoundryVisibleWhen? visibleWhen;
 
+  /// Callback deciding whether this variable is editable; `null` means
+  /// always enabled. When it evaluates to `false`, the variable remains
+  /// visible but is shown read-only.
+  final FoundryEnabledWhen? enabledWhen;
+
   /// Callback deriving this variable's default value when the user has not
   /// supplied one; `null` means no computed default.
   final FoundryDefaultValue<T>? defaultValue;
@@ -61,11 +78,26 @@ sealed class FoundryVariable<T> {
   /// Per-variable validation callbacks, run in order.
   final List<FoundryFieldValidator<T>> validators;
 
+  /// Longer help text shown alongside the field in the TUI.
+  final String? description;
+
+  /// Ghost text shown in an empty text input.
+  final String? placeholder;
+
+  /// Short hint or footer copy shown in the TUI.
+  final String? help;
+
   /// Whether this variable is visible given the current [context].
   ///
   /// Variables with no [visibleWhen] callback are always visible.
   bool isVisible(SnapshotFoundryContext context) =>
       visibleWhen?.call(context) ?? true;
+
+  /// Whether this variable is editable given the current [context].
+  ///
+  /// Variables with no [enabledWhen] callback are always enabled.
+  bool isEnabled(SnapshotFoundryContext context) =>
+      enabledWhen?.call(context) ?? true;
 
   /// Resolves this variable's value for the current evaluation pass.
   ///
@@ -130,7 +162,11 @@ final class FoundryStringVariable extends FoundryVariable<String> {
   const FoundryStringVariable({
     required super.label,
     super.visibleWhen,
+    super.enabledWhen,
     super.defaultValue,
     super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
   });
 }
