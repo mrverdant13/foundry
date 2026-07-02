@@ -13,7 +13,10 @@ import 'package:meta/meta.dart';
 /// missing, null, or holds a value of the wrong runtime type. `optional*`
 /// accessors return `null` when a key is missing or null, and throw
 /// [FoundryContextException] only when the value has the wrong runtime type.
-@immutable
+///
+/// Not annotated `@immutable`: the mutable `FoundryContext` subclass layers
+/// `set` / `merge` / `remove` on top of the same read logic by overriding
+/// [currentValues].
 class SnapshotFoundryContext {
   /// Creates a [SnapshotFoundryContext] from the current gathered [values].
   SnapshotFoundryContext(Map<String, Object?> values)
@@ -21,8 +24,16 @@ class SnapshotFoundryContext {
 
   final Map<String, Object?> _values;
 
+  /// The values read accessors operate on.
+  ///
+  /// Overridden by the mutable `FoundryContext` subclass so inherited
+  /// accessors reflect live mutations instead of the frozen snapshot taken
+  /// at construction time.
+  @protected
+  Map<String, Object?> get currentValues => _values;
+
   /// Whether [key] is present in the current cast values.
-  bool contains(String key) => _values.containsKey(key);
+  bool contains(String key) => currentValues.containsKey(key);
 
   /// Returns the value for [key] as a `String?`.
   ///
@@ -77,8 +88,8 @@ class SnapshotFoundryContext {
   /// Returns `null` if [key] is absent or its value is `null`. Throws
   /// [FoundryContextException] if the value is not a `T`.
   T? optional<T>(String key) {
-    if (!_values.containsKey(key)) return null;
-    final value = _values[key];
+    if (!currentValues.containsKey(key)) return null;
+    final value = currentValues[key];
     if (value == null) return null;
     return _cast<T>(key, value);
   }
@@ -89,12 +100,12 @@ class SnapshotFoundryContext {
   /// Throws [FoundryContextException] if [key] is absent, its value is
   /// `null`, or the value is not a `T`.
   T required<T>(String key) {
-    if (!_values.containsKey(key) || _values[key] == null) {
+    if (!currentValues.containsKey(key) || currentValues[key] == null) {
       throw FoundryContextException(
         'Missing required value for key "$key".',
       );
     }
-    return _cast<T>(key, _values[key]);
+    return _cast<T>(key, currentValues[key]);
   }
 
   T _cast<T>(String key, Object? value) {
@@ -107,8 +118,12 @@ class SnapshotFoundryContext {
 
   /// Read-only snapshot of the current cast values.
   ///
+  /// Always wrapped as unmodifiable, even when [currentValues] resolves to a
+  /// mutable backing map (as it does for the `FoundryContext` subclass), so
+  /// this never leaks a view that can bypass `set` / `merge` / `remove`.
+  ///
   /// Not intended for use outside this package even though it is reachable via
   /// the public API export.
   @internal
-  Map<String, Object?> get entries => _values;
+  Map<String, Object?> get entries => Map.unmodifiable(currentValues);
 }
