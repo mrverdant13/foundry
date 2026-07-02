@@ -1,5 +1,20 @@
+import 'dart:io';
+
 import 'package:foundry_core/src/logging/logger.dart';
 import 'package:test/test.dart';
+
+/// A [Stdout] double that records [writeln] calls instead of writing to a
+/// real stream. Unused [Stdout]/[IOSink] members are left unimplemented via
+/// [noSuchMethod] since [Logger] only ever calls [writeln] on its sinks.
+class _RecordingStdout implements Stdout {
+  final List<String> lines = [];
+
+  @override
+  void writeln([Object? object = '']) => lines.add(object.toString());
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   group('Logger', () {
@@ -38,6 +53,39 @@ void main() {
       expect(() => logger.warn('hi'), returnsNormally);
       expect(() => logger.error('hi'), returnsNormally);
       expect(() => logger.progress('hi'), returnsNormally);
+    });
+
+    test('default info and progress sinks write to stdout', () {
+      final recorder = _RecordingStdout();
+
+      IOOverrides.runZoned(
+        () {
+          Logger()
+            ..info('Loading mold…')
+            ..progress('Rendering template…');
+        },
+        stdout: () => recorder,
+      );
+
+      expect(recorder.lines, ['Loading mold…', 'Rendering template…']);
+    });
+
+    test('default warn and error sinks write to stderr', () {
+      final recorder = _RecordingStdout();
+
+      IOOverrides.runZoned(
+        () {
+          Logger()
+            ..warn('Deprecated field.')
+            ..error('Hook crashed.');
+        },
+        stderr: () => recorder,
+      );
+
+      expect(
+        recorder.lines,
+        ['[WARN] Deprecated field.', '[ERROR] Hook crashed.'],
+      );
     });
   });
 

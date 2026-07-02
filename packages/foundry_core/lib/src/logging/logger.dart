@@ -1,25 +1,28 @@
+import 'dart:io' as io;
+
 /// Writes a single log [message].
 typedef LogSink = void Function(String message);
 
 /// Emits progress, info, warning, and error output on behalf of a running
 /// hook.
 ///
-/// The default sinks write to `stdout`/`stderr` via `print`; callers (e.g.
-/// tests, or the CLI's TUI boundary) may inject their own sinks to capture or
-/// restyle output.
+/// The default sinks write `info`/`progress` messages to `stdout` and
+/// `warn`/`error` messages to `stderr`; callers (e.g. tests, or the CLI's TUI
+/// boundary) may inject their own sinks to capture or restyle output.
 class Logger {
   /// Creates a [Logger], optionally overriding where each log level writes.
   ///
-  /// All sinks default to [print] when omitted.
+  /// `info`/`progress` default to `stdout`; `warn`/`error` default to
+  /// `stderr`.
   Logger({
     LogSink? onInfo,
     LogSink? onWarn,
     LogSink? onError,
     LogSink? onProgress,
-  })  : _onInfo = onInfo ?? print,
-        _onWarn = onWarn ?? print,
-        _onError = onError ?? print,
-        _onProgress = onProgress ?? print;
+  })  : _onInfo = onInfo ?? io.stdout.writeln,
+        _onWarn = onWarn ?? io.stderr.writeln,
+        _onError = onError ?? io.stderr.writeln,
+        _onProgress = onProgress ?? io.stdout.writeln;
 
   final LogSink _onInfo;
   final LogSink _onWarn;
