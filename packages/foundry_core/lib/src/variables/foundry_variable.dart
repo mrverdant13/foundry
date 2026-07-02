@@ -1,3 +1,4 @@
+import 'package:foundry_core/src/context/foundry_context_exception.dart';
 import 'package:foundry_core/src/context/snapshot_foundry_context.dart';
 import 'package:meta/meta.dart';
 
@@ -74,6 +75,10 @@ sealed class FoundryVariable<T> {
   /// treat as "unset"). Otherwise, [defaultValue] is derived against a
   /// [SnapshotFoundryContext] built from [resolvedValues] merged with
   /// [rawValues].
+  ///
+  /// Throws [FoundryContextException] if the raw value for [key] is
+  /// non-null and not a [T], so a mistyped input is reported here rather
+  /// than surfacing later as an opaque cast failure.
   Object? resolveValue({
     required String key,
     required Map<String, Object?> rawValues,
@@ -82,7 +87,14 @@ sealed class FoundryVariable<T> {
   }) {
     final hasRawValue = rawValues.containsKey(key) && rawValues[key] != null;
     if (dirtyKeys.contains(key) || hasRawValue) {
-      return rawValues[key];
+      final rawValue = rawValues[key];
+      if (rawValue != null && rawValue is! T) {
+        throw FoundryContextException(
+          'Expected a value of type $T for key "$key" but found a value '
+          'of type ${rawValue.runtimeType}.',
+        );
+      }
+      return rawValue;
     }
 
     final derive = defaultValue;

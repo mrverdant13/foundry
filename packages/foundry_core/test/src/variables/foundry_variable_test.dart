@@ -1,3 +1,4 @@
+import 'package:foundry_core/src/context/foundry_context_exception.dart';
 import 'package:foundry_core/src/context/snapshot_foundry_context.dart';
 import 'package:foundry_core/src/variables/foundry_variable.dart';
 import 'package:test/test.dart';
@@ -128,6 +129,44 @@ void main() {
       );
 
       expect(value, 'My App');
+    });
+
+    test(
+      'throws when a manually supplied raw value has the wrong type',
+      () {
+        const variable = FoundryStringVariable(label: 'Project name');
+
+        expect(
+          () => variable.resolveValue(
+            key: 'project_name',
+            rawValues: const {'project_name': 42},
+            dirtyKeys: const {},
+            resolvedValues: const {},
+          ),
+          throwsA(
+            isA<FoundryContextException>().having(
+              (exception) => exception.message,
+              'message',
+              'Expected a value of type String for key "project_name" but '
+                  'found a value of type int.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('throws when a dirty raw value has the wrong type', () {
+      const variable = FoundryStringVariable(label: 'Package name');
+
+      expect(
+        () => variable.resolveValue(
+          key: 'package_name',
+          rawValues: const {'package_name': 42},
+          dirtyKeys: const {'package_name'},
+          resolvedValues: const {},
+        ),
+        throwsA(isA<FoundryContextException>()),
+      );
     });
   });
 
