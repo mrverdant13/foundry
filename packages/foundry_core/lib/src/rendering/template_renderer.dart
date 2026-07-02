@@ -49,6 +49,7 @@ Future<List<File>> renderTemplate({
 
   final plannedWrites = <_PlannedWrite>[];
   final conflictingPaths = <String>[];
+  final sourcesByDestination = <String, String>{};
 
   for (final sourceFile in sourceFiles) {
     final relativeSourcePath = p.relative(
@@ -69,6 +70,16 @@ Future<List<File>> renderTemplate({
         '"${resolvedOutputDirectory.path}".',
       );
     }
+
+    final conflictingSourcePath = sourcesByDestination[destinationPath];
+    if (conflictingSourcePath != null) {
+      throw TemplateRenderException(
+        'Template files "$conflictingSourcePath" and "$relativeSourcePath" '
+        'both render to destination "$destinationPath".',
+      );
+    }
+    sourcesByDestination[destinationPath] = relativeSourcePath;
+
     final destinationFile = File(destinationPath);
 
     if (!force && destinationFile.existsSync()) {

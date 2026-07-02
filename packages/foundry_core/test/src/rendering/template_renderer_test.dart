@@ -215,6 +215,38 @@ void main() {
       },
     );
 
+    test(
+      'throws and writes nothing when two template files render to the '
+      'same destination path',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ a }}.txt'),
+          'from a',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ b }}.txt'),
+          'from b',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'a': 'same', 'b': 'same'}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              contains('both render to destination'),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
     test('throws when the template directory does not exist', () async {
       final missing = Directory(p.join(tempRoot.path, 'missing_template'));
 
