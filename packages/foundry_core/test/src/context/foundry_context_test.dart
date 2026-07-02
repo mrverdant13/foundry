@@ -105,6 +105,20 @@ void main() {
     );
   });
 
+  group('entries', () {
+    test('cannot be mutated to bypass set/merge/remove', () {
+      final context = buildContext(values: const {'name': 'demo_app'});
+
+      expect(() => context.entries['name'] = 'other', throwsUnsupportedError);
+    });
+
+    test('reflects the latest mutations', () {
+      final context = buildContext()..set('name', 'demo_app');
+
+      expect(context.entries, {'name': 'demo_app'});
+    });
+  });
+
   group('snapshot', () {
     test('reflects the current values', () {
       final context = buildContext(values: const {'name': 'demo_app'})

@@ -118,8 +118,12 @@ class SnapshotFoundryContext {
 
   /// Read-only snapshot of the current cast values.
   ///
+  /// Always wrapped as unmodifiable, even when [currentValues] resolves to a
+  /// mutable backing map (as it does for the `FoundryContext` subclass), so
+  /// this never leaks a view that can bypass `set` / `merge` / `remove`.
+  ///
   /// Not intended for use outside this package even though it is reachable via
   /// the public API export.
   @internal
-  Map<String, Object?> get entries => currentValues;
+  Map<String, Object?> get entries => Map.unmodifiable(currentValues);
 }
