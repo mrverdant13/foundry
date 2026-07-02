@@ -39,6 +39,7 @@ Future<List<File>> renderTemplate({
     );
   }
 
+  final resolvedOutputDirectory = outputDirectory.absolute;
   final values = context.entries;
   final sourceFiles = Glob('**', recursive: true)
       .listSync(root: resolvedTemplateDirectory.path, followLinks: false)
@@ -58,9 +59,17 @@ Future<List<File>> renderTemplate({
       relativeSourcePath,
       values,
     );
-    final destinationFile = File(
-      p.join(outputDirectory.path, destinationRelativePath),
+    final destinationPath = p.normalize(
+      p.join(resolvedOutputDirectory.path, destinationRelativePath),
     );
+    if (!p.isWithin(resolvedOutputDirectory.path, destinationPath)) {
+      throw TemplateRenderException(
+        'Rendered path "$destinationRelativePath" (from '
+        '"$relativeSourcePath") escapes the output directory '
+        '"${resolvedOutputDirectory.path}".',
+      );
+    }
+    final destinationFile = File(destinationPath);
 
     if (!force && destinationFile.existsSync()) {
       conflictingPaths.add(destinationFile.path);

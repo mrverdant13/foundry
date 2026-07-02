@@ -164,6 +164,57 @@ void main() {
       },
     );
 
+    test(
+      'throws and writes nothing when a rendered path segment traverses '
+      'outside the output directory',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ segment }}', 'file.txt'),
+          'contents',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'segment': '..'}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              contains('escapes the output directory'),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
+    test(
+      'throws and writes nothing when a rendered path segment is absolute',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ segment }}file.txt'),
+          'contents',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({
+              'segment': Platform.isWindows ? r'C:\Windows\' : '/etc/',
+            }),
+          ),
+          throwsA(isA<TemplateRenderException>()),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
     test('throws when the template directory does not exist', () async {
       final missing = Directory(p.join(tempRoot.path, 'missing_template'));
 
