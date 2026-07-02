@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/foundry_core.dart';
+import 'package:foundry_core/src/mold/mold_hook_runner.dart';
 import 'package:foundry_core/src/mold/mold_pub_get.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -217,6 +218,82 @@ Future<void> run(FoundryContext context) async {
           ),
         ),
       );
+    });
+  });
+
+  group('readMoldHookOutcome', () {
+    test('throws when the output file does not exist', () {
+      final outputFile = File(
+        p.join(outputDirectory.path, 'does_not_exist.json'),
+      );
+
+      expect(
+        () => readMoldHookOutcome(
+          phase: MoldHookPhase.prepare,
+          hookPath: 'hooks/prepare.dart',
+          outputFile: outputFile,
+        ),
+        throwsA(
+          isA<MoldHookException>().having(
+            (error) => error.message,
+            'message',
+            contains('did not produce an output payload'),
+          ),
+        ),
+      );
+    });
+
+    test('throws when the output file contains malformed JSON', () {
+      final outputFile = File(p.join(outputDirectory.path, 'output.json'))
+        ..writeAsStringSync('not json');
+
+      expect(
+        () => readMoldHookOutcome(
+          phase: MoldHookPhase.prepare,
+          hookPath: 'hooks/prepare.dart',
+          outputFile: outputFile,
+        ),
+        throwsA(
+          isA<MoldHookException>().having(
+            (error) => error.message,
+            'message',
+            contains('invalid output payload'),
+          ),
+        ),
+      );
+    });
+
+    test('throws when the output file decodes to a non-object value', () {
+      final outputFile = File(p.join(outputDirectory.path, 'output.json'))
+        ..writeAsStringSync('[1, 2, 3]');
+
+      expect(
+        () => readMoldHookOutcome(
+          phase: MoldHookPhase.prepare,
+          hookPath: 'hooks/prepare.dart',
+          outputFile: outputFile,
+        ),
+        throwsA(
+          isA<MoldHookException>().having(
+            (error) => error.message,
+            'message',
+            contains('invalid output payload'),
+          ),
+        ),
+      );
+    });
+
+    test('returns the decoded map for a valid JSON object', () {
+      final outputFile = File(p.join(outputDirectory.path, 'output.json'))
+        ..writeAsStringSync('{"greeting": "hi"}');
+
+      final decoded = readMoldHookOutcome(
+        phase: MoldHookPhase.prepare,
+        hookPath: 'hooks/prepare.dart',
+        outputFile: outputFile,
+      );
+
+      expect(decoded, {'greeting': 'hi'});
     });
   });
 }

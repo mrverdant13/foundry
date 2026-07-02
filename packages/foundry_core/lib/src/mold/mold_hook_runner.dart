@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:foundry_core/src/context/foundry_context.dart';
 import 'package:foundry_core/src/mold/mold_hook_exception.dart';
 import 'package:foundry_core/src/mold/mold_pub_get.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 const _entryPointSymbol = 'run';
@@ -82,32 +83,53 @@ Future<void> runMoldHook({
       );
     }
 
-    if (!outputFile.existsSync()) {
-      throw MoldHookException(
-        phase: phase,
-        hookPath: hookFile.path,
-        message: 'Hook process did not produce an output payload.',
-      );
-    }
-
-    Object? decoded;
-    try {
-      decoded = jsonDecode(await outputFile.readAsString());
-    } on FormatException {
-      decoded = null;
-    }
-    if (decoded is! Map<String, Object?>) {
-      throw MoldHookException(
-        phase: phase,
-        hookPath: hookFile.path,
-        message: 'Hook process produced an invalid output payload.',
-      );
-    }
-
+    final decoded = readMoldHookOutcome(
+      phase: phase,
+      hookPath: hookFile.path,
+      outputFile: outputFile,
+    );
     context._replaceValues(decoded);
   } finally {
     await workDir.delete(recursive: true);
   }
+}
+
+/// Reads and validates the JSON payload a hook process wrote to
+/// [outputFile].
+///
+/// Throws [MoldHookException] when [outputFile] is missing, contains
+/// malformed JSON, or decodes to something other than a JSON object.
+///
+/// Exposed for unit tests covering malformed hook output without spawning a
+/// process.
+@visibleForTesting
+Map<String, Object?> readMoldHookOutcome({
+  required MoldHookPhase phase,
+  required String hookPath,
+  required File outputFile,
+}) {
+  if (!outputFile.existsSync()) {
+    throw MoldHookException(
+      phase: phase,
+      hookPath: hookPath,
+      message: 'Hook process did not produce an output payload.',
+    );
+  }
+
+  Object? decoded;
+  try {
+    decoded = jsonDecode(outputFile.readAsStringSync());
+  } on FormatException {
+    decoded = null;
+  }
+  if (decoded is! Map<String, Object?>) {
+    throw MoldHookException(
+      phase: phase,
+      hookPath: hookPath,
+      message: 'Hook process produced an invalid output payload.',
+    );
+  }
+  return decoded;
 }
 
 extension on FoundryContext {
