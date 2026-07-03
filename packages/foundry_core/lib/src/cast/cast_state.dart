@@ -19,7 +19,8 @@ final class CastState {
   /// Parses a [CastState] from a decoded `last_cast.json` object.
   ///
   /// Throws a [TypeError] if a required field is missing or holds a value
-  /// of the wrong type.
+  /// of the wrong type, or a [FormatException] if [timestamp] is not a
+  /// valid ISO-8601 string.
   factory CastState.fromJson(Map<String, Object?> json) {
     return CastState(
       moldPath: json['moldPath']! as String,
