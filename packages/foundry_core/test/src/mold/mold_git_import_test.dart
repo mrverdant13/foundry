@@ -55,19 +55,13 @@ version: 0.0.1
   }
 }
 
-int _tempImportDirCount() {
-  return Directory.systemTemp
-      .listSync()
-      .whereType<Directory>()
-      .where((dir) => p.basename(dir.path).startsWith('foundry_mold_import_'))
-      .length;
-}
-
 void main() {
   late Directory workDir;
+  late Directory tempParent;
 
   setUp(() {
     workDir = Directory.systemTemp.createTempSync('foundry_git_import_');
+    tempParent = Directory(p.join(workDir.path, 'tmp'))..createSync();
   });
 
   tearDown(() {
@@ -84,11 +78,10 @@ void main() {
       final destinationParent = Directory(p.join(workDir.path, 'dest'))
         ..createSync();
 
-      final tempDirCountBefore = _tempImportDirCount();
-
       final destination = await importMoldFromGit(
         gitUrl: Uri.file(repoDir.path).toString(),
         destinationParent: destinationParent,
+        tempParent: tempParent,
       );
 
       expect(destination.path, p.join(destinationParent.path, 'greeter'));
@@ -100,7 +93,7 @@ void main() {
         File(p.join(destination.path, 'template', 'README.md')).existsSync(),
         isTrue,
       );
-      expect(_tempImportDirCount(), tempDirCountBefore);
+      expect(tempParent.listSync(), isEmpty);
     });
 
     test('does not copy the cloned repository VCS metadata', () async {
@@ -144,13 +137,12 @@ void main() {
       final destinationParent = Directory(p.join(workDir.path, 'dest'))
         ..createSync();
 
-      final tempDirCountBefore = _tempImportDirCount();
-
       await expectLater(
         importMoldFromGit(
           gitUrl: Uri.file(repoDir.path).toString(),
           path: 'does_not_exist',
           destinationParent: destinationParent,
+          tempParent: tempParent,
         ),
         throwsA(
           isA<MoldImportException>().having(
@@ -160,7 +152,7 @@ void main() {
           ),
         ),
       );
-      expect(_tempImportDirCount(), tempDirCountBefore);
+      expect(tempParent.listSync(), isEmpty);
     });
 
     test('fails when the given path is absolute', () async {

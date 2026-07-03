@@ -7,7 +7,8 @@ import 'package:path/path.dart' as p;
 /// Imports a mold from a git repository into `./<name>/` under
 /// [destinationParent] (the process cwd when omitted).
 ///
-/// Shallow-clones [gitUrl] into a temporary directory, optionally
+/// Shallow-clones [gitUrl] into a temporary directory created under
+/// [tempParent] (the system temp directory when omitted), optionally
 /// descending into [path] when the mold lives in a subdirectory of the
 /// repository, then copies it to the destination the same way local
 /// import does. The temporary clone is always removed afterward, whether
@@ -20,9 +21,10 @@ Future<Directory> importMoldFromGit({
   required String gitUrl,
   String? path,
   Directory? destinationParent,
+  Directory? tempParent,
   bool force = false,
 }) async {
-  final tempDirectory = await Directory.systemTemp.createTemp(
+  final tempDirectory = await (tempParent ?? Directory.systemTemp).createTemp(
     'foundry_mold_import_',
   );
   try {
