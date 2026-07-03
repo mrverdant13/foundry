@@ -48,6 +48,7 @@ Future<CastOutcome> castMold({
   bool noHooks = false,
 }) async {
   final outputDirectory = Directory(outputPath);
+  await outputDirectory.create(recursive: true);
 
   final context = FoundryContext(
     values: values,

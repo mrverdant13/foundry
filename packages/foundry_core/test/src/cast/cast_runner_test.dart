@@ -104,6 +104,50 @@ void main() {
     );
 
     test(
+      'creates the output directory before running hooks when it does not '
+      'already exist',
+      () async {
+        final parentDirectory =
+            await Directory.systemTemp.createTemp('foundry_cast_runner_new_');
+        addTearDown(() => parentDirectory.delete(recursive: true));
+        final freshOutputDirectory =
+            Directory(p.join(parentDirectory.path, 'nested', 'output'));
+        expect(freshOutputDirectory.existsSync(), isFalse);
+
+        await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+        await writeTemplateFile('output.txt', '{{ project_name }}');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+
+        final outcome = await castMold(
+          mold: mold,
+          outputPath: freshOutputDirectory.path,
+          values: const {'project_name': 'Ada'},
+        );
+
+        expect(freshOutputDirectory.existsSync(), isTrue);
+        expect(outcome.values['seed'], 'from-prepare');
+        expect(
+          await File(
+            p.join(freshOutputDirectory.path, 'output.txt'),
+          ).readAsString(),
+          'Ada',
+        );
+      },
+    );
+
+    test(
       'runs the prepare hook before variable resolution and the shape hook '
       'after',
       () async {
