@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 
 /// Persisted state of the last successful `foundry cast`, written to
-/// `.foundry/last_cast.json` in the process cwd (see REQUIREMENTS.md §3.3).
+/// `.foundry/last_cast.json` in the process cwd.
 ///
 /// Read back by `foundry recast` (re-runs the full cast pipeline with the
 /// same [moldPath], [outputPath], and [vars]) and `foundry finish` (runs

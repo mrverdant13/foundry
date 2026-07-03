@@ -2,7 +2,7 @@
 ///
 /// Signals that no prior `foundry cast` ran in the current working
 /// directory — the trigger for `foundry recast` and `foundry finish` to
-/// fail with a clear, actionable error (REQUIREMENTS.md §3.3).
+/// fail with a clear, actionable error.
 final class CastStateNotFoundException implements Exception {
   /// Creates a [CastStateNotFoundException] for the missing file at [path].
   const CastStateNotFoundException(this.path);
