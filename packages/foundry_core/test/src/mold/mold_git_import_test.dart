@@ -103,6 +103,20 @@ void main() {
       expect(_tempImportDirCount(), tempDirCountBefore);
     });
 
+    test('does not copy the cloned repository VCS metadata', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(repoDir, moldName: 'greeter');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+
+      final destination = await importMoldFromGit(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        destinationParent: destinationParent,
+      );
+
+      expect(Directory(p.join(destination.path, '.git')).existsSync(), isFalse);
+    });
+
     test('descends into the given path when the mold is in a subdirectory',
         () async {
       final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();

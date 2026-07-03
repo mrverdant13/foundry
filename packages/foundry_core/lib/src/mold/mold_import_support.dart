@@ -38,6 +38,8 @@ String readMoldNameForImport(File pubspecFile) {
 /// from the mold's root `pubspec.yaml`, and returns the destination
 /// directory.
 ///
+/// VCS and tool-generated directories (`.git`, `.dart_tool`) are skipped.
+///
 /// Throws [MoldImportException] when [source] is missing `pubspec.yaml`,
 /// the destination would be the source itself (or a directory within it),
 /// or the destination already exists and [force] is `false`.
@@ -80,16 +82,23 @@ Future<Directory> copyMoldToDestination({
   return destination;
 }
 
+/// Directory names excluded from mold copies, such as VCS metadata and
+/// tool-generated caches that should never be part of an imported mold.
+const _excludedDirectoryNames = {'.git', '.dart_tool'};
+
 Future<void> _copyDirectoryContents(
   Directory source,
   Directory destination,
 ) async {
   await destination.create(recursive: true);
   await for (final entity in source.list(followLinks: false)) {
-    final destinationPath = p.join(destination.path, p.basename(entity.path));
+    final basename = p.basename(entity.path);
     if (entity is Directory) {
+      if (_excludedDirectoryNames.contains(basename)) continue;
+      final destinationPath = p.join(destination.path, basename);
       await _copyDirectoryContents(entity, Directory(destinationPath));
     } else if (entity is File) {
+      final destinationPath = p.join(destination.path, basename);
       await entity.copy(destinationPath);
     }
   }
