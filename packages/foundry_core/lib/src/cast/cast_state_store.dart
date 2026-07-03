@@ -31,7 +31,10 @@ Future<void> writeCastState(CastState state, {Directory? cwd}) async {
 /// Reads and parses `.foundry/last_cast.json` under [cwd] (the process
 /// working directory when omitted).
 ///
-/// Throws [CastStateNotFoundException] if no cast state file exists.
+/// Throws [CastStateNotFoundException] if no cast state file exists. Also
+/// propagates [FormatException] if the file's contents are not valid JSON,
+/// [TypeError] if the decoded JSON has an unexpected shape, and
+/// [FileSystemException] on I/O failures.
 Future<CastState> readCastState({Directory? cwd}) async {
   final file = castStateFile(cwd: cwd);
   if (!file.existsSync()) {
