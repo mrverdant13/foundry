@@ -44,7 +44,7 @@ class FoundryCommandRunner extends CommandRunner<int> {
     } on UsageException catch (e) {
       logger
         ..error(e.message)
-        ..info(e.usage);
+        ..error(e.usage);
       return FoundryExitCode.userError.code;
     }
   }

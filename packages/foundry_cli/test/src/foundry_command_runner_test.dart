@@ -48,7 +48,8 @@ void main() {
         errorMessages,
         contains(contains('not-a-real-command')),
       );
-      expect(infoMessages, isNotEmpty);
+      expect(errorMessages, contains(contains('Usage:')));
+      expect(infoMessages, isEmpty);
     });
 
     test('falls back to a default logger when none is provided', () async {
@@ -61,14 +62,19 @@ void main() {
 
     test('an invalid flag prints usage to stderr and exits non-zero', () async {
       final errorMessages = <String>[];
+      final infoMessages = <String>[];
       final runner = FoundryCommandRunner(
-        logger: Logger(onError: errorMessages.add),
+        logger: Logger(
+          onError: errorMessages.add,
+          onInfo: infoMessages.add,
+        ),
       );
 
       final exitCode = await runner.run(['--not-a-real-flag']);
 
       expect(exitCode, FoundryExitCode.userError.code);
-      expect(errorMessages, isNotEmpty);
+      expect(errorMessages, contains(contains('Usage:')));
+      expect(infoMessages, isEmpty);
     });
   });
 }
