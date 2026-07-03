@@ -56,8 +56,8 @@ void main() {
     });
 
     test('fails when the source directory does not exist', () async {
-      expect(
-        () => importMoldFromLocal(
+      await expectLater(
+        importMoldFromLocal(
           sourcePath: p.join(workDir.path, 'does_not_exist'),
           destinationParent: workDir,
         ),
@@ -75,8 +75,8 @@ void main() {
       final emptySource = Directory(p.join(workDir.path, 'empty_source'))
         ..createSync();
 
-      expect(
-        () => importMoldFromLocal(
+      await expectLater(
+        importMoldFromLocal(
           sourcePath: emptySource.path,
           destinationParent: workDir,
         ),
@@ -95,8 +95,8 @@ void main() {
         ..createSync();
       Directory(p.join(destinationParent.path, 'greeter')).createSync();
 
-      expect(
-        () => importMoldFromLocal(
+      await expectLater(
+        importMoldFromLocal(
           sourcePath: p.join(fixtures.path, 'importable_mold'),
           destinationParent: destinationParent,
         ),
@@ -138,8 +138,8 @@ description: Self-nesting fixture
 version: 0.0.1
 ''');
 
-      expect(
-        () => importMoldFromLocal(
+      await expectLater(
+        importMoldFromLocal(
           sourcePath: source.path,
           destinationParent: workDir,
         ),
