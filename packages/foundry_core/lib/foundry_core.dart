@@ -14,6 +14,7 @@ export 'src/context/foundry_hook_exception.dart';
 export 'src/context/snapshot_foundry_context.dart';
 export 'src/logging/logger.dart';
 export 'src/mold/mold.dart';
+export 'src/mold/mold_git_import.dart' show importMoldFromGit;
 export 'src/mold/mold_hook_exception.dart';
 export 'src/mold/mold_hook_runner.dart' show runMoldHook;
 export 'src/mold/mold_hooks.dart';

@@ -1,0 +1,66 @@
+import 'dart:io';
+
+import 'package:foundry_core/src/mold/mold_import_exception.dart';
+import 'package:foundry_core/src/mold/mold_import_support.dart';
+import 'package:path/path.dart' as p;
+
+/// Imports a mold from a git repository into `./<name>/` under
+/// [destinationParent] (the process cwd when omitted).
+///
+/// Shallow-clones [gitUrl] into a temporary directory, optionally
+/// descending into [path] when the mold lives in a subdirectory of the
+/// repository, then copies it to the destination the same way local
+/// import does. The temporary clone is always removed afterward, whether
+/// or not the import succeeds.
+///
+/// Throws [MoldImportException] when the clone fails, [path] does not
+/// exist in the cloned repository, or the destination already exists and
+/// [force] is `false`.
+Future<Directory> importMoldFromGit({
+  required String gitUrl,
+  String? path,
+  Directory? destinationParent,
+  bool force = false,
+}) async {
+  final tempDirectory = await Directory.systemTemp.createTemp(
+    'foundry_mold_import_',
+  );
+  try {
+    final cloneResult = await Process.run('git', [
+      'clone',
+      '--depth=1',
+      '--quiet',
+      gitUrl,
+      tempDirectory.path,
+    ]);
+    if (cloneResult.exitCode != 0) {
+      throw MoldImportException(
+        'Failed to clone "$gitUrl": ${_processOutput(cloneResult)}',
+      );
+    }
+
+    final source = (path == null || path.isEmpty)
+        ? tempDirectory
+        : Directory(p.join(tempDirectory.path, path));
+    if (!source.existsSync()) {
+      throw MoldImportException(
+        'Path "$path" was not found in "$gitUrl".',
+      );
+    }
+
+    return await copyMoldToDestination(
+      source: source,
+      destinationParent: (destinationParent ?? Directory.current).absolute,
+      force: force,
+    );
+  } finally {
+    if (tempDirectory.existsSync()) {
+      await tempDirectory.delete(recursive: true);
+    }
+  }
+}
+
+String _processOutput(ProcessResult result) {
+  final output = '${result.stdout}${result.stderr}'.trim();
+  return output.isEmpty ? 'git exited with code ${result.exitCode}.' : output;
+}
