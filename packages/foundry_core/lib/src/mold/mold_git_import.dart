@@ -41,7 +41,7 @@ Future<Directory> importMoldFromGit({
 
     final source = (path == null || path.isEmpty)
         ? tempDirectory
-        : Directory(p.join(tempDirectory.path, path));
+        : _resolveClonePath(tempDirectory, path);
     if (!source.existsSync()) {
       throw MoldImportException(
         'Path "$path" was not found in "$gitUrl".',
@@ -58,6 +58,26 @@ Future<Directory> importMoldFromGit({
       await tempDirectory.delete(recursive: true);
     }
   }
+}
+
+/// Resolves [path] against [tempDirectory], rejecting values that escape
+/// the cloned repository (absolute paths or `..` segments that resolve
+/// outside of it).
+Directory _resolveClonePath(Directory tempDirectory, String path) {
+  if (p.isAbsolute(path)) {
+    throw MoldImportException(
+      'Path "$path" must be relative to the repository root.',
+    );
+  }
+
+  final resolved = p.normalize(p.join(tempDirectory.path, path));
+  if (!p.isWithin(tempDirectory.path, resolved)) {
+    throw MoldImportException(
+      'Path "$path" resolves outside of the cloned repository.',
+    );
+  }
+
+  return Directory(resolved);
 }
 
 String _processOutput(ProcessResult result) {

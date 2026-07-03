@@ -149,6 +149,57 @@ void main() {
       expect(_tempImportDirCount(), tempDirCountBefore);
     });
 
+    test('fails when the given path is absolute', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(repoDir, moldName: 'greeter');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+      final outsideDir = Directory(p.join(workDir.path, 'outside'))
+        ..createSync();
+      File(p.join(outsideDir.path, 'pubspec.yaml')).writeAsStringSync('''
+name: outside
+description: should not be importable via an absolute path
+version: 0.0.1
+''');
+
+      await expectLater(
+        importMoldFromGit(
+          gitUrl: Uri.file(repoDir.path).toString(),
+          path: outsideDir.path,
+          destinationParent: destinationParent,
+        ),
+        throwsA(
+          isA<MoldImportException>().having(
+            (error) => error.message,
+            'message',
+            contains('must be relative'),
+          ),
+        ),
+      );
+    });
+
+    test('fails when the given path escapes the cloned repository', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(repoDir, moldName: 'greeter');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+
+      await expectLater(
+        importMoldFromGit(
+          gitUrl: Uri.file(repoDir.path).toString(),
+          path: '../outside',
+          destinationParent: destinationParent,
+        ),
+        throwsA(
+          isA<MoldImportException>().having(
+            (error) => error.message,
+            'message',
+            contains('resolves outside'),
+          ),
+        ),
+      );
+    });
+
     test('fails when the clone url is invalid', () async {
       final destinationParent = Directory(p.join(workDir.path, 'dest'))
         ..createSync();
