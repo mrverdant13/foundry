@@ -181,5 +181,39 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+        'wraps a FileSystemException in a MoldScaffoldException when '
+        'template exists as a file instead of a directory', () async {
+      File(p.join(workDir.path, 'template')).createSync();
+
+      await expectLater(
+        scaffoldMold(directory: workDir, name: 'flutter_app'),
+        throwsA(
+          isA<MoldScaffoldException>().having(
+            (error) => error.message,
+            'message',
+            contains('Failed to scaffold mold'),
+          ),
+        ),
+      );
+    });
+
+    test(
+        'wraps a FileSystemException in a MoldScaffoldException when '
+        'hooks exists as a file instead of a directory', () async {
+      File(p.join(workDir.path, 'hooks')).createSync();
+
+      await expectLater(
+        scaffoldMold(directory: workDir, name: 'flutter_app'),
+        throwsA(
+          isA<MoldScaffoldException>().having(
+            (error) => error.message,
+            'message',
+            contains('Failed to scaffold mold'),
+          ),
+        ),
+      );
+    });
   });
 }

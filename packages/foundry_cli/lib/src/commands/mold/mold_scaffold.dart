@@ -50,6 +50,9 @@ String defaultMoldName(Directory directory) {
 /// [name] becomes the mold's package name. Throws [MoldScaffoldException]
 /// when any scaffold target already exists at [directory], to avoid
 /// clobbering existing files or leaving a partially-scaffolded mold behind.
+/// This also covers targets that exist as the wrong entity type (for
+/// example a plain file named `template`) and races where a target is
+/// created after the preflight check but before this function writes it.
 Future<void> scaffoldMold({
   required Directory directory,
   required String name,
@@ -72,11 +75,20 @@ Future<void> scaffoldMold({
     );
   }
 
-  await directory.create(recursive: true);
-  await pubspecFile.writeAsString(_pubspecContents(name));
-  await variablesFile.writeAsString(_variablesContents);
-  await templateDir.create();
-  await hooksDir.create();
+  try {
+    await directory.create(recursive: true);
+    await pubspecFile.create(exclusive: true);
+    await pubspecFile.writeAsString(_pubspecContents(name));
+    await variablesFile.create(exclusive: true);
+    await variablesFile.writeAsString(_variablesContents);
+    await templateDir.create();
+    await hooksDir.create();
+  } on FileSystemException catch (exception) {
+    throw MoldScaffoldException(
+      'Failed to scaffold mold at "${directory.path}": '
+      '${exception.message} (${exception.path}).',
+    );
+  }
 }
 
 String _pubspecContents(String name) => '''
