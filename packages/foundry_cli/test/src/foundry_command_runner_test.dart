@@ -20,6 +20,12 @@ class _ThrowingCommand extends Command<int> {
 
 void main() {
   group('FoundryCommandRunner', () {
+    test('registers the mold resource command', () {
+      final runner = FoundryCommandRunner();
+
+      expect(runner.commands.keys, contains('mold'));
+    });
+
     test('--version prints the current package version and exits 0', () async {
       final infoMessages = <String>[];
       final runner = FoundryCommandRunner(

@@ -1,5 +1,6 @@
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:foundry_cli/src/commands/mold/mold_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/version.dart';
 import 'package:foundry_core/foundry_core.dart' show Logger;
@@ -9,8 +10,8 @@ import 'package:foundry_core/foundry_core.dart' show Logger;
 ///
 /// Commands are organized around resources (for example `mold`), with
 /// top-level commands for the primary cast workflow (`cast`, `recast`,
-/// `finish`). Resource and workflow commands are registered by later
-/// additions to this runner.
+/// `finish`). Workflow commands are registered by later additions to this
+/// runner.
 /// {@endtemplate}
 class FoundryCommandRunner extends CommandRunner<int> {
   /// {@macro foundry_cli.foundry_command_runner}
@@ -25,6 +26,7 @@ class FoundryCommandRunner extends CommandRunner<int> {
       negatable: false,
       help: 'Print the current version.',
     );
+    addCommand(MoldCommand(logger: this.logger));
   }
 
   /// The flag name used to print the current [foundryCliVersion].
