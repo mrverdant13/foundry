@@ -48,26 +48,35 @@ String defaultMoldName(Directory directory) {
 /// and `hooks/` under [directory].
 ///
 /// [name] becomes the mold's package name. Throws [MoldScaffoldException]
-/// when a `pubspec.yaml` already exists at [directory], to avoid clobbering
-/// an existing mold.
+/// when any scaffold target already exists at [directory], to avoid
+/// clobbering existing files or leaving a partially-scaffolded mold behind.
 Future<void> scaffoldMold({
   required Directory directory,
   required String name,
 }) async {
   final pubspecFile = File(p.join(directory.path, 'pubspec.yaml'));
-  if (pubspecFile.existsSync()) {
+  final variablesFile = File(p.join(directory.path, 'variables.dart'));
+  final templateDir = Directory(p.join(directory.path, 'template'));
+  final hooksDir = Directory(p.join(directory.path, 'hooks'));
+
+  final conflicts = [
+    if (pubspecFile.existsSync()) 'pubspec.yaml',
+    if (variablesFile.existsSync()) 'variables.dart',
+    if (templateDir.existsSync()) 'template/',
+    if (hooksDir.existsSync()) 'hooks/',
+  ];
+  if (conflicts.isNotEmpty) {
     throw MoldScaffoldException(
       'A mold already exists at "${directory.path}" '
-      '(pubspec.yaml is already present).',
+      '(${conflicts.join(', ')} already present).',
     );
   }
 
   await directory.create(recursive: true);
   await pubspecFile.writeAsString(_pubspecContents(name));
-  await File(p.join(directory.path, 'variables.dart'))
-      .writeAsString(_variablesContents);
-  await Directory(p.join(directory.path, 'template')).create();
-  await Directory(p.join(directory.path, 'hooks')).create();
+  await variablesFile.writeAsString(_variablesContents);
+  await templateDir.create();
+  await hooksDir.create();
 }
 
 String _pubspecContents(String name) => '''

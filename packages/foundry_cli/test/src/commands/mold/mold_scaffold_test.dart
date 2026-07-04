@@ -99,9 +99,86 @@ void main() {
           isA<MoldScaffoldException>().having(
             (error) => error.message,
             'message',
-            contains('already exists'),
+            allOf(contains('already exists'), contains('pubspec.yaml')),
           ),
         ),
+      );
+    });
+
+    test('fails without writing anything when variables.dart already exists',
+        () async {
+      File(p.join(workDir.path, 'variables.dart')).createSync();
+
+      await expectLater(
+        scaffoldMold(directory: workDir, name: 'flutter_app'),
+        throwsA(
+          isA<MoldScaffoldException>().having(
+            (error) => error.message,
+            'message',
+            contains('variables.dart'),
+          ),
+        ),
+      );
+      expect(
+        File(p.join(workDir.path, 'pubspec.yaml')).existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory(p.join(workDir.path, 'template')).existsSync(),
+        isFalse,
+      );
+      expect(Directory(p.join(workDir.path, 'hooks')).existsSync(), isFalse);
+    });
+
+    test('fails without writing anything when template/ already exists',
+        () async {
+      Directory(p.join(workDir.path, 'template')).createSync();
+
+      await expectLater(
+        scaffoldMold(directory: workDir, name: 'flutter_app'),
+        throwsA(
+          isA<MoldScaffoldException>().having(
+            (error) => error.message,
+            'message',
+            contains('template/'),
+          ),
+        ),
+      );
+      expect(
+        File(p.join(workDir.path, 'pubspec.yaml')).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(workDir.path, 'variables.dart')).existsSync(),
+        isFalse,
+      );
+      expect(Directory(p.join(workDir.path, 'hooks')).existsSync(), isFalse);
+    });
+
+    test('fails without writing anything when hooks/ already exists', () async {
+      Directory(p.join(workDir.path, 'hooks')).createSync();
+
+      await expectLater(
+        scaffoldMold(directory: workDir, name: 'flutter_app'),
+        throwsA(
+          isA<MoldScaffoldException>().having(
+            (error) => error.message,
+            'message',
+            contains('hooks/'),
+          ),
+        ),
+      );
+      expect(
+        File(p.join(workDir.path, 'pubspec.yaml')).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(workDir.path, 'variables.dart')).existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory(p.join(workDir.path, 'template')).existsSync(),
+        isFalse,
       );
     });
   });
