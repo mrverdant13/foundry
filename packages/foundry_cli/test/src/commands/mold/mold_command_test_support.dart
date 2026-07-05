@@ -55,3 +55,64 @@ final moldVariables = FoundryVariableGroup(
 ''');
   await Directory(p.join(directory.path, 'template')).create();
 }
+
+/// Writes a minimal mold source (`pubspec.yaml` naming the mold, plus a
+/// `template/` file) into [directory], suitable as an import source. Import
+/// only reads the pubspec `name` field and copies files, so this does not
+/// need to be a loadable mold.
+Future<void> writeImportSourceMold({
+  required Directory directory,
+  required String name,
+}) async {
+  await File(p.join(directory.path, 'pubspec.yaml')).writeAsString('''
+name: $name
+description: A mold used for import command tests.
+version: 0.0.1
+''');
+  final templateDir = Directory(p.join(directory.path, 'template'))
+    ..createSync();
+  await File(p.join(templateDir.path, 'README.md')).writeAsString('# $name\n');
+}
+
+Future<ProcessResult> _git(List<String> args, {required String cwd}) {
+  return Process.run('git', args, workingDirectory: cwd);
+}
+
+/// Initializes a local git repository at [repoDir] with an import-source
+/// mold at `<repoDir>/<subPath>` and commits it, so tests can clone from a
+/// `file://` remote without hitting the network.
+Future<void> initMoldGitRepo(
+  Directory repoDir, {
+  required String moldName,
+  String subPath = '.',
+}) async {
+  final moldDir = subPath == '.'
+      ? repoDir
+      : (Directory(p.join(repoDir.path, subPath))..createSync(recursive: true));
+  await writeImportSourceMold(directory: moldDir, name: moldName);
+
+  await _git(['init', '--quiet'], cwd: repoDir.path);
+  await _git(
+    ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'add', '-A'],
+    cwd: repoDir.path,
+  );
+  final commitResult = await _git(
+    [
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'user.name=Test',
+      'commit',
+      '--quiet',
+      '-m',
+      'Initial commit',
+    ],
+    cwd: repoDir.path,
+  );
+  if (commitResult.exitCode != 0) {
+    throw StateError(
+      'Failed to set up git fixture repo: '
+      '${commitResult.stdout}${commitResult.stderr}',
+    );
+  }
+}

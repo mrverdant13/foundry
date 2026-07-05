@@ -41,8 +41,9 @@ String readMoldNameForImport(File pubspecFile) {
 /// VCS and tool-generated directories (`.git`, `.dart_tool`) are skipped.
 ///
 /// Throws [MoldImportException] when [source] is missing `pubspec.yaml`,
-/// the destination would be the source itself (or a directory within it),
-/// or the destination already exists and [force] is `false`.
+/// the mold name is not a safe single path segment, the destination would
+/// be the source itself (or a directory within it), or the destination
+/// already exists and [force] is `false`.
 Future<Directory> copyMoldToDestination({
   required Directory source,
   required Directory destinationParent,
@@ -56,6 +57,7 @@ Future<Directory> copyMoldToDestination({
   }
 
   final name = readMoldNameForImport(pubspecFile);
+  _ensureSafeMoldName(name);
   final destination = Directory(p.join(destinationParent.path, name));
 
   final normalizedSource = p.normalize(source.absolute.path);
@@ -80,6 +82,22 @@ Future<Directory> copyMoldToDestination({
 
   await _copyDirectoryContents(source, destination);
   return destination;
+}
+
+/// Ensures [name] (the mold's `pubspec.yaml` `name` field) is safe to use
+/// as a single destination directory segment.
+///
+/// Throws [MoldImportException] when [name] contains a path separator or
+/// is a `.`/`..` segment, either of which would let the destination
+/// resolve outside of `destinationParent` (and, with `force`, could cause
+/// deletion outside of it).
+void _ensureSafeMoldName(String name) {
+  final isSingleSegment = !p.isAbsolute(name) && p.split(name).length == 1;
+  if (!isSingleSegment || name == '.' || name == '..') {
+    throw MoldImportException(
+      'Mold name "$name" is not a valid destination directory name.',
+    );
+  }
 }
 
 /// Directory names excluded from mold copies, such as VCS metadata and
