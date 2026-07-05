@@ -73,3 +73,42 @@ version: 0.0.1
     ..createSync();
   await File(p.join(templateDir.path, 'README.md')).writeAsString('# $name\n');
 }
+
+Future<ProcessResult> _git(List<String> args, {required String cwd}) {
+  return Process.run('git', args, workingDirectory: cwd);
+}
+
+/// Initializes a local git repository at [repoDir] with an import-source
+/// mold and commits it, so tests can clone from a `file://` remote without
+/// hitting the network.
+Future<void> initMoldGitRepo(
+  Directory repoDir, {
+  required String moldName,
+}) async {
+  await writeImportSourceMold(directory: repoDir, name: moldName);
+
+  await _git(['init', '--quiet'], cwd: repoDir.path);
+  await _git(
+    ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'add', '-A'],
+    cwd: repoDir.path,
+  );
+  final commitResult = await _git(
+    [
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'user.name=Test',
+      'commit',
+      '--quiet',
+      '-m',
+      'Initial commit',
+    ],
+    cwd: repoDir.path,
+  );
+  if (commitResult.exitCode != 0) {
+    throw StateError(
+      'Failed to set up git fixture repo: '
+      '${commitResult.stdout}${commitResult.stderr}',
+    );
+  }
+}
