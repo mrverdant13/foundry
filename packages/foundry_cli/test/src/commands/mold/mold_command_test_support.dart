@@ -55,3 +55,21 @@ final moldVariables = FoundryVariableGroup(
 ''');
   await Directory(p.join(directory.path, 'template')).create();
 }
+
+/// Writes a minimal mold source (`pubspec.yaml` naming the mold, plus a
+/// `template/` file) into [directory], suitable as an import source. Import
+/// only reads the pubspec `name` field and copies files, so this does not
+/// need to be a loadable mold.
+Future<void> writeImportSourceMold({
+  required Directory directory,
+  required String name,
+}) async {
+  await File(p.join(directory.path, 'pubspec.yaml')).writeAsString('''
+name: $name
+description: A mold used for import command tests.
+version: 0.0.1
+''');
+  final templateDir = Directory(p.join(directory.path, 'template'))
+    ..createSync();
+  await File(p.join(templateDir.path, 'README.md')).writeAsString('# $name\n');
+}
