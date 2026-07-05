@@ -130,6 +130,36 @@ void main() {
       );
     });
 
+    test('fails when the mold name would escape the destination parent',
+        () async {
+      final source = Directory(p.join(workDir.path, 'source'))..createSync();
+      File(p.join(source.path, 'pubspec.yaml')).writeAsStringSync('''
+name: ../escaped
+description: A mold name attempting a path traversal
+version: 0.0.1
+''');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+
+      await expectLater(
+        importMoldFromLocal(
+          sourcePath: source.path,
+          destinationParent: destinationParent,
+        ),
+        throwsA(
+          isA<MoldImportException>().having(
+            (error) => error.message,
+            'message',
+            contains('is not a valid destination directory name'),
+          ),
+        ),
+      );
+      expect(
+        Directory(p.join(workDir.path, 'escaped')).existsSync(),
+        isFalse,
+      );
+    });
+
     test('fails when the destination would be inside the source', () async {
       final source = Directory(p.join(workDir.path, 'greeter'))..createSync();
       File(p.join(source.path, 'pubspec.yaml')).writeAsStringSync('''

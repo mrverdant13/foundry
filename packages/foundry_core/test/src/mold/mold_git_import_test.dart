@@ -225,6 +225,64 @@ version: 0.0.1
       );
     });
 
+    test(
+        'fails when the cloned mold name would escape the destination '
+        'parent', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      File(p.join(repoDir.path, 'pubspec.yaml')).writeAsStringSync('''
+name: ../escaped
+description: A mold name attempting a path traversal
+version: 0.0.1
+''');
+      Directory(p.join(repoDir.path, 'template')).createSync();
+      await _git(['init', '--quiet'], cwd: repoDir.path);
+      await _git(
+        [
+          '-c',
+          'user.email=test@example.com',
+          '-c',
+          'user.name=Test',
+          'add',
+          '-A',
+        ],
+        cwd: repoDir.path,
+      );
+      await _git(
+        [
+          '-c',
+          'user.email=test@example.com',
+          '-c',
+          'user.name=Test',
+          'commit',
+          '--quiet',
+          '-m',
+          'Initial commit',
+        ],
+        cwd: repoDir.path,
+      );
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+
+      await expectLater(
+        importMoldFromGit(
+          gitUrl: Uri.file(repoDir.path).toString(),
+          destinationParent: destinationParent,
+          tempParent: tempParent,
+        ),
+        throwsA(
+          isA<MoldImportException>().having(
+            (error) => error.message,
+            'message',
+            contains('is not a valid destination directory name'),
+          ),
+        ),
+      );
+      expect(
+        Directory(p.join(workDir.path, 'escaped')).existsSync(),
+        isFalse,
+      );
+    });
+
     test('fails when destination exists and force is false', () async {
       final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
       await _initMoldRepo(repoDir, moldName: 'greeter');
