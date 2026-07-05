@@ -53,7 +53,7 @@ class MoldInspectCommand extends Command<int> {
         case MoldIssueSeverity.error:
           logger.error(message);
         case MoldIssueSeverity.warning:
-          logger.warn(message);
+          logger.info('[WARN] $message');
       }
     }
 
