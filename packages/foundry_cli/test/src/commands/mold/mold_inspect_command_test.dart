@@ -114,8 +114,9 @@ final moldVariables = FoundryVariableGroup(variables: {});
       final exitCode = await runner.run(['inspect']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(warnMessages, contains(contains('variables')));
+      expect(infoMessages, contains(contains('variables')));
       expect(infoMessages, contains(contains('demo_app')));
+      expect(warnMessages, isEmpty);
     });
 
     test('rejects more than one positional argument', () async {
