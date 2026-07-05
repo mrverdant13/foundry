@@ -57,6 +57,56 @@ void main() {
       expect(infoMessages, contains(contains(destination.path)));
     });
 
+    test('descends into --path when the mold is in a subdirectory', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await initMoldGitRepo(
+        repoDir,
+        moldName: 'nested',
+        subPath: 'molds/api',
+      );
+      final destParent = Directory(p.join(workDir.path, 'dest'))..createSync();
+      final infoMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: destParent,
+        onInfo: infoMessages.add,
+      );
+
+      final exitCode = await runner.run([
+        'git',
+        '--git-url=${Uri.file(repoDir.path)}',
+        '--path=molds/api',
+      ]);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      final destination = Directory(p.join(destParent.path, 'nested'));
+      expect(destination.existsSync(), isTrue);
+      expect(infoMessages, contains(contains(destination.path)));
+    });
+
+    test('overwrites the destination when --force is passed', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await initMoldGitRepo(repoDir, moldName: 'greeter');
+      final destParent = Directory(p.join(workDir.path, 'dest'))..createSync();
+      final existing = Directory(p.join(destParent.path, 'greeter'))
+        ..createSync();
+      File(p.join(existing.path, 'stale.txt')).createSync();
+      final runner = buildRunner(workingDirectory: destParent);
+
+      final exitCode = await runner.run([
+        'git',
+        '--git-url=${Uri.file(repoDir.path)}',
+        '--force',
+      ]);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      final destination = Directory(p.join(destParent.path, 'greeter'));
+      expect(File(p.join(destination.path, 'stale.txt')).existsSync(), isFalse);
+      expect(
+        File(p.join(destination.path, 'pubspec.yaml')).existsSync(),
+        isTrue,
+      );
+    });
+
     test('fails with a user error when the clone fails', () async {
       final destParent = Directory(p.join(workDir.path, 'dest'))..createSync();
       final errorMessages = <String>[];

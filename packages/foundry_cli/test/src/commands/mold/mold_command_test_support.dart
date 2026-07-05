@@ -79,13 +79,17 @@ Future<ProcessResult> _git(List<String> args, {required String cwd}) {
 }
 
 /// Initializes a local git repository at [repoDir] with an import-source
-/// mold and commits it, so tests can clone from a `file://` remote without
-/// hitting the network.
+/// mold at `<repoDir>/<subPath>` and commits it, so tests can clone from a
+/// `file://` remote without hitting the network.
 Future<void> initMoldGitRepo(
   Directory repoDir, {
   required String moldName,
+  String subPath = '.',
 }) async {
-  await writeImportSourceMold(directory: repoDir, name: moldName);
+  final moldDir = subPath == '.'
+      ? repoDir
+      : (Directory(p.join(repoDir.path, subPath))..createSync(recursive: true));
+  await writeImportSourceMold(directory: moldDir, name: moldName);
 
   await _git(['init', '--quiet'], cwd: repoDir.path);
   await _git(
