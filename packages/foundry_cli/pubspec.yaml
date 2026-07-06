@@ -19,6 +19,7 @@ environment:
 dependencies:
   args: ^2.7.0
   foundry_core: ^0.0.1-dev.1
+  nocterm: ^0.8.0
   path: ^1.9.1
 
 dev_dependencies:
