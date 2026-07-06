@@ -1,5 +1,6 @@
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/commands/mold/mold_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/version.dart';
@@ -27,6 +28,7 @@ class FoundryCommandRunner extends CommandRunner<int> {
       help: 'Print the current version.',
     );
     addCommand(MoldCommand(logger: this.logger));
+    addCommand(CastCommand(logger: this.logger));
   }
 
   /// The flag name used to print the current [foundryCliVersion].
