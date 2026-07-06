@@ -153,6 +153,9 @@ class CastCommand extends Command<int> {
         logger.error('  $error');
       }
       return FoundryExitCode.userError.code;
+    } on FoundryContextException catch (exception) {
+      logger.error('Invalid cast variable input: ${exception.message}');
+      return FoundryExitCode.userError.code;
     } on MoldHookException catch (exception) {
       logger.error(exception.toString());
       return FoundryExitCode.userError.code;
