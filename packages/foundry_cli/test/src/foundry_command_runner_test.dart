@@ -26,6 +26,12 @@ void main() {
       expect(runner.commands.keys, contains('mold'));
     });
 
+    test('registers the cast command', () {
+      final runner = FoundryCommandRunner();
+
+      expect(runner.commands.keys, contains('cast'));
+    });
+
     test('--version prints the current package version and exits 0', () async {
       final infoMessages = <String>[];
       final runner = FoundryCommandRunner(
