@@ -1,4 +1,4 @@
 # {{ project_name | pascal_case }}
 
-Prepared: {{ prepared_value }}
+Prepared: {{ seed }}
 Shaped: {{ shaped_value }}
