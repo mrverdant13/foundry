@@ -31,12 +31,10 @@ void expectDirectoryTreesMatch({
   final expectedFiles = listRelativeFiles(expected);
   final actualFiles = listRelativeFiles(actual);
 
-  final missingExpected = expectedFiles
-      .where((path) => !actualFiles.contains(path))
-      .join(', ');
-  final unexpectedActual = actualFiles
-      .where((path) => !expectedFiles.contains(path))
-      .join(', ');
+  final missingExpected =
+      expectedFiles.where((path) => !actualFiles.contains(path)).join(', ');
+  final unexpectedActual =
+      actualFiles.where((path) => !expectedFiles.contains(path)).join(', ');
 
   expect(
     actualFiles,
