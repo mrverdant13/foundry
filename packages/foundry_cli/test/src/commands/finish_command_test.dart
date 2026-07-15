@@ -188,5 +188,48 @@ Future<void> run(FoundryContext context) async {
         contains(contains('MoldHookException(finish,')),
       );
     });
+
+    test('fails with a user error when the mold cannot be loaded', () async {
+      await writeCastState(
+        workDir,
+        moldPath: 'does_not_exist',
+        outputPath: 'out',
+      );
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+      );
+
+      final exitCode = await runner.run(['finish']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(errorMessages, isNotEmpty);
+    });
+
+    test(
+      'fails with a user error when the stored output directory is missing',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMoldWithFinishHook(
+          directory: moldDir,
+          name: 'demo_app',
+        );
+        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run(['finish']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('Output directory "out" does not exist')),
+        );
+      },
+    );
   });
 }

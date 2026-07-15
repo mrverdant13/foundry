@@ -169,5 +169,144 @@ void main() {
       final state = json.decode(stateFile.readAsStringSync()) as Map;
       expect((state['vars'] as Map)['from_prepare'], 'yes');
     });
+
+    test('fails with a user error when the mold cannot be loaded', () async {
+      await writeCastState(
+        workDir,
+        moldPath: 'does_not_exist',
+        outputPath: 'out',
+      );
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+      );
+
+      final exitCode = await runner.run(['recast', '--force']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(errorMessages, isNotEmpty);
+    });
+
+    test(
+      'fails with a user error when cast-time variable validation fails',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'out')).createSync();
+        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          runCast: ({
+            required mold,
+            required outputPath,
+            required values,
+            force = false,
+            noHooks = false,
+          }) async {
+            throw const CastVariablesInvalidException(
+              FoundryVariableGroupValidation(
+                fieldErrors: {
+                  'project_name': ['project_name is invalid at recast time'],
+                },
+                groupErrors: ['group validation failed at recast time'],
+              ),
+            );
+          },
+        );
+
+        final exitCode = await runner.run(['recast', '--force']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('Cast variables are invalid:')),
+        );
+        expect(
+          errorMessages,
+          contains(
+            contains('project_name: project_name is invalid at recast time'),
+          ),
+        );
+        expect(
+          errorMessages,
+          contains(contains('group validation failed at recast time')),
+        );
+      },
+    );
+
+    test(
+      'fails with a user error when cast variable input is invalid',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'out')).createSync();
+        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          runCast: ({
+            required mold,
+            required outputPath,
+            required values,
+            force = false,
+            noHooks = false,
+          }) async {
+            throw const FoundryContextException('invalid recast variable');
+          },
+        );
+
+        final exitCode = await runner.run(['recast', '--force']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('Invalid cast variable input: invalid recast')),
+        );
+      },
+    );
+
+    test('fails with a user error when a mold hook throws', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeHookFailingMold(directory: moldDir, name: 'demo_app');
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+      );
+
+      final exitCode = await runner.run(['recast', '--force']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(
+        errorMessages,
+        contains(contains('MoldHookException(prepare,')),
+      );
+    });
+
+    test('fails with a user error when template rendering fails', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeBrokenTemplateMold(directory: moldDir, name: 'demo_app');
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+      );
+
+      final exitCode = await runner.run(['recast', '--force']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(
+        errorMessages,
+        contains(contains('Failed to render contents of template file')),
+      );
+    });
   });
 }
