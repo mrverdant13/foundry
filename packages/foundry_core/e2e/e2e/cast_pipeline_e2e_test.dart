@@ -14,10 +14,10 @@ void main() {
     late Directory expectedDirectory;
 
     setUp(() async {
-      moldPath = fixturePath('cast_pipeline_mold');
-      expectedDirectory = Directory(fixturePath('cast_pipeline/expected'));
       outputDirectory =
           await Directory.systemTemp.createTemp('foundry_cast_e2e_');
+      moldPath = fixturePath('cast_pipeline_mold');
+      expectedDirectory = Directory(fixturePath('cast_pipeline/expected'));
     });
 
     tearDown(() async {
