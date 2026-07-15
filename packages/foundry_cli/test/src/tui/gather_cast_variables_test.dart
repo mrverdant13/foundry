@@ -1,3 +1,4 @@
+import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:nocterm/nocterm.dart' show NoctermBinding;
@@ -39,6 +40,66 @@ void main() {
       );
 
       expect(values, {'project_name': 'Ada'});
+    },
+  );
+
+  test(
+    'gatherCastVariablesInteractively throws UsageException for invalid '
+    'FOUNDRY_E2E_VARS JSON',
+    () async {
+      const variableGroup = FoundryVariableGroup(
+        variables: {
+          'project_name': FoundryStringVariable(label: 'Project name'),
+        },
+      );
+
+      await expectLater(
+        gatherCastVariablesInteractively(
+          variableGroup: variableGroup,
+          moldName: 'demo_app',
+          moldDescription: 'A demo mold.',
+          environment: {
+            foundryE2eVarsEnvironmentKey: '{not json}',
+          },
+        ),
+        throwsA(
+          isA<UsageException>().having(
+            (exception) => exception.message,
+            'message',
+            contains(foundryE2eVarsEnvironmentKey),
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'gatherCastVariablesInteractively throws UsageException when '
+    'FOUNDRY_E2E_VARS is not a JSON object',
+    () async {
+      const variableGroup = FoundryVariableGroup(
+        variables: {
+          'project_name': FoundryStringVariable(label: 'Project name'),
+        },
+      );
+
+      await expectLater(
+        gatherCastVariablesInteractively(
+          variableGroup: variableGroup,
+          moldName: 'demo_app',
+          moldDescription: 'A demo mold.',
+          environment: {
+            foundryE2eVarsEnvironmentKey: '[]',
+          },
+        ),
+        throwsA(
+          isA<UsageException>().having(
+            (exception) => exception.message,
+            'message',
+            contains('must be a JSON object'),
+          ),
+        ),
+      );
     },
   );
 
