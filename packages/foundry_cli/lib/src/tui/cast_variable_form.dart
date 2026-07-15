@@ -136,18 +136,20 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   bool _handleKeyEvent(KeyboardEvent event, int entryCount) {
     if (event.logicalKey == LogicalKey.tab && !event.isShiftPressed) {
+      if (entryCount == 0) {
+        return true;
+      }
       setState(() {
-        if (entryCount > 0) {
-          _focusedIndex = (_focusedIndex + 1) % entryCount;
-        }
+        _focusedIndex = (_focusedIndex + 1) % entryCount;
       });
       return true;
     }
     if (event.logicalKey == LogicalKey.tab && event.isShiftPressed) {
+      if (entryCount == 0) {
+        return true;
+      }
       setState(() {
-        if (entryCount > 0) {
-          _focusedIndex = (_focusedIndex - 1 + entryCount) % entryCount;
-        }
+        _focusedIndex = (_focusedIndex - 1 + entryCount) % entryCount;
       });
       return true;
     }
