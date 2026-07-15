@@ -65,7 +65,6 @@ void main() {
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
-        readState: ({cwd}) async => readCastState(cwd: cwd),
       );
 
       final exitCode = await runner.run(['finish']);
@@ -73,6 +72,63 @@ void main() {
       expect(exitCode, FoundryExitCode.userError.code);
       expect(errorMessages, contains(contains('Run `foundry cast` first')));
     });
+
+    test(
+      'fails with a clear error when --no-hooks is passed without cast state',
+      () async {
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run(['finish', '--no-hooks']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('Run `foundry cast` first')));
+      },
+    );
+
+    test(
+      'fails with a user error when last_cast.json is not valid JSON',
+      () async {
+        final foundryDir = Directory(p.join(workDir.path, '.foundry'))
+          ..createSync();
+        await File(p.join(foundryDir.path, 'last_cast.json'))
+            .writeAsString('not json');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run(['finish']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('invalid or corrupted')));
+      },
+    );
+
+    test(
+      'fails with a user error when last_cast.json has an unexpected shape',
+      () async {
+        final foundryDir = Directory(p.join(workDir.path, '.foundry'))
+          ..createSync();
+        await File(p.join(foundryDir.path, 'last_cast.json')).writeAsString(
+          jsonEncode({'moldPath': 'mold'}),
+        );
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run(['finish']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('invalid or corrupted')));
+      },
+    );
 
     test('fails with a usage error when given positional arguments', () async {
       final runner = buildRunner(workingDirectory: workDir);

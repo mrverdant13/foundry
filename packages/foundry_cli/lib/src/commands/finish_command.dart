@@ -63,17 +63,19 @@ class FinishCommand extends Command<int> {
     }
 
     final noHooks = argResults!.flag(CastCommand.noHooksOptionName);
+
+    final state = await readCastStateOrReportError(
+      logger: logger,
+      workingDirectory: workingDirectory,
+      readState: _readState,
+    );
+    if (state == null) {
+      return FoundryExitCode.userError.code;
+    }
+
     if (noHooks) {
       logger.info('Finish skipped (--no-hooks).');
       return FoundryExitCode.success.code;
-    }
-
-    final CastState state;
-    try {
-      state = await _readState(cwd: workingDirectory);
-    } on CastStateNotFoundException catch (exception) {
-      logger.error('$exception');
-      return FoundryExitCode.userError.code;
     }
 
     final moldPath = p.normalize(
