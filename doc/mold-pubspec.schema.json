@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mrverdant13/foundry/blob/main/doc/mold-pubspec.schema.json",
+  "title": "Foundry mold pubspec.yaml",
+  "description": "Root package manifest for a Foundry mold. Molds are Dart packages; this JSON Schema describes the parsed object shape of the mold's pubspec.yaml for editor validation and tooling. Variable definitions live in variables.dart, not in this file.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "description", "version", "dependencies"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z_][a-z0-9_]*$",
+      "description": "Mold package name. Also used as the destination directory name when importing a mold."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short human-readable summary of the mold."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Standard pub package version. Use 1.0.0 for hand-authored molds."
+    },
+    "publish_to": {
+      "description": "Set to none for molds that are not published to pub.dev.",
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sdk": {
+          "type": "string",
+          "description": "Dart SDK constraint for the mold package.",
+          "default": ">=3.5.0 <4.0.0"
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["foundry_core"],
+      "properties": {
+        "foundry_core": {
+          "description": "Required so variables.dart and hooks can import package:foundry_core.",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": false,
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "git": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "name": "flutter_app",
+      "description": "Flutter application starter",
+      "version": "1.0.0",
+      "publish_to": "none",
+      "environment": {
+        "sdk": ">=3.5.0 <4.0.0"
+      },
+      "dependencies": {
+        "foundry_core": "^0.0.1-dev.1"
+      }
+    }
+  ]
+}
