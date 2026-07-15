@@ -21,6 +21,28 @@ void main() {
   });
 
   test(
+    'gatherCastVariablesInteractively returns values from FOUNDRY_E2E_VARS',
+    () async {
+      const variableGroup = FoundryVariableGroup(
+        variables: {
+          'project_name': FoundryStringVariable(label: 'Project name'),
+        },
+      );
+
+      final values = await gatherCastVariablesInteractively(
+        variableGroup: variableGroup,
+        moldName: 'demo_app',
+        moldDescription: 'A demo mold.',
+        environment: {
+          foundryE2eVarsEnvironmentKey: '{"project_name":"Ada"}',
+        },
+      );
+
+      expect(values, {'project_name': 'Ada'});
+    },
+  );
+
+  test(
     'gatherCastVariablesInteractively returns the resolved values once the '
     'user submits',
     () async {

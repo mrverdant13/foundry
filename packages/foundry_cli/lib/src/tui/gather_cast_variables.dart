@@ -1,7 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:foundry_cli/src/tui/cast_variable_form.dart';
 import 'package:foundry_core/foundry_core.dart' show FoundryVariableGroup;
 import 'package:nocterm/nocterm.dart'
     show TerminalBackend, VoidCallback, runApp, shutdownApp;
+
+/// Environment variable read by [gatherCastVariablesInteractively] during
+/// automated e2e tests to supply variable values without a terminal.
+const foundryE2eVarsEnvironmentKey = 'FOUNDRY_E2E_VARS';
 
 /// Completes an interactive gather session as if the user pressed Escape.
 void cancelGatherCastVariables(
@@ -33,7 +40,20 @@ Future<Map<String, Object?>?> gatherCastVariablesInteractively({
   required String moldDescription,
   TerminalBackend? backend,
   bool enableHotReload = true,
+  Map<String, String>? environment,
 }) async {
+  final e2eVarsJson =
+      (environment ?? Platform.environment)[foundryE2eVarsEnvironmentKey];
+  if (e2eVarsJson != null) {
+    final decoded = jsonDecode(e2eVarsJson);
+    if (decoded is! Map) {
+      throw const FormatException(
+        '$foundryE2eVarsEnvironmentKey must be a JSON object.',
+      );
+    }
+    return Map<String, Object?>.from(decoded);
+  }
+
   Map<String, Object?>? result;
   void finish(Map<String, Object?>? values) {
     result = values;
