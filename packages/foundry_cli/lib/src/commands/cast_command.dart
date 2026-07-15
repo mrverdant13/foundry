@@ -19,6 +19,39 @@ typedef CastVariableGatherer = Future<Map<String, Object?>?> Function({
 /// Reads persisted cast state from the process working directory.
 typedef CastStateReader = Future<CastState> Function({Directory? cwd});
 
+/// Reads persisted cast state for commands that depend on a prior cast.
+///
+/// Returns `null` after logging a user-facing error when the state file is
+/// missing, invalid, or unreadable.
+Future<CastState?> readCastStateOrReportError({
+  required Logger logger,
+  required Directory workingDirectory,
+  CastStateReader readState = readCastState,
+}) async {
+  final statePath = castStateFile(cwd: workingDirectory).path;
+  try {
+    return await readState(cwd: workingDirectory);
+  } on CastStateNotFoundException catch (exception) {
+    logger.error('$exception');
+    return null;
+  } on FormatException catch (exception) {
+    logger.error(
+      'Cast state at "$statePath" is invalid or corrupted: $exception. '
+      'Run `foundry cast` to create fresh state.',
+    );
+    return null;
+  } on TypeError {
+    logger.error(
+      'Cast state at "$statePath" is invalid or corrupted. '
+      'Run `foundry cast` to create fresh state.',
+    );
+    return null;
+  } on FileSystemException catch (exception) {
+    logger.error('Failed to read cast state at "$statePath": $exception');
+    return null;
+  }
+}
+
 /// Runs the cast pipeline for a loaded mold.
 ///
 /// Production code uses [castMold]; tests inject a fake implementation to
