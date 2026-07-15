@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/tui/cast_variable_form.dart';
 import 'package:foundry_core/foundry_core.dart' show FoundryVariableGroup;
 import 'package:nocterm/nocterm.dart'
@@ -45,10 +46,19 @@ Future<Map<String, Object?>?> gatherCastVariablesInteractively({
   final e2eVarsJson =
       (environment ?? Platform.environment)[foundryE2eVarsEnvironmentKey];
   if (e2eVarsJson != null) {
-    final decoded = jsonDecode(e2eVarsJson);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(e2eVarsJson);
+    } on FormatException catch (exception) {
+      throw UsageException(
+        '$foundryE2eVarsEnvironmentKey must be valid JSON: $exception',
+        '',
+      );
+    }
     if (decoded is! Map) {
-      throw const FormatException(
+      throw UsageException(
         '$foundryE2eVarsEnvironmentKey must be a JSON object.',
+        '',
       );
     }
     return Map<String, Object?>.from(decoded);
