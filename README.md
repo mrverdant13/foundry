@@ -1,13 +1,12 @@
 # Foundry
 
 **Foundry** is a Dart CLI for scaffolding and code generation. Authors define **Molds**
-(Liquid templates with variables and hooks); users **cast** a mold with `--vars` to
+(Dart packages with Liquid templates, variables, and hooks); users **cast** a mold to
 produce an **Artifact** — a generated project or file tree at `--output`.
 
 > [!WARNING]
 > **Under development.** Foundry is pre-release and has not published to pub.dev yet.
-> The CLI, library API, and `mold.yaml` schema are still evolving — **breaking
-> changes may be introduced** before the first stable release.
+> The CLI and library API may still change before the first stable release.
 
 | Item | Value |
 | --- | --- |
@@ -21,8 +20,8 @@ produce an **Artifact** — a generated project or file tree at `--output`.
 ## Why Foundry?
 
 Foundry uses **Liquid everywhere** — in file templates, computed defaults, and
-conditional variable visibility — with validation and business rules in **hooks**
-instead of `mold.yaml`.
+conditional variable visibility — with validation and business rules in **Dart**
+(`variables.dart` and hooks), not in the mold manifest.
 
 Inspired by [Mason](https://pub.dev/packages/mason).
 
@@ -30,15 +29,17 @@ Inspired by [Mason](https://pub.dev/packages/mason).
 
 ## Typical mold layout
 
-Foundry does not mandate a directory layout beyond what a mold declares in
-`mold.yaml`. A common convention:
+Each mold is a **Dart package**. The root `pubspec.yaml` is the mold manifest;
+variable definitions live in `variables.dart`. See
+[`doc/mold-pubspec.schema.json`](doc/mold-pubspec.schema.json) for editor validation.
 
 ```
-my_mold/
-├── mold.yaml          # name, description, variables, optional hook paths
+flutter_app/
+├── pubspec.yaml       # name, description, version, foundry_core dependency
+├── variables.dart     # FoundryVariableGroup for interactive input
+├── lib/               # optional shared Dart code
 ├── template/          # Liquid templates (file contents and path segments)
-└── hooks/
-    ├── pubspec.yaml   # depends on foundry_core
+└── hooks/             # optional lifecycle hooks (see doc/hooks.md)
     ├── prepare.dart
     ├── shape.dart
     └── finish.dart
@@ -62,28 +63,14 @@ though the pub.dev package is **`foundry_cli`**.
 During local development in this repository, run the CLI via Melos or `dart run`
 (see [Contributing](CONTRIBUTING.md)).
 
-### Cast a mold
-
-> **Planned.** The commands below are specified for v1 but not yet implemented in
-> the CLI. They are documented here so authors know the intended workflow.
-
-```bash
-foundry cast ./my_mold \
-  --output=./my_app \
-  --vars project_name=MyApp \
-  --vars project_type=app
-```
-
-Foundry resolves variables (including Liquid `when` and `default` expressions), runs
-hook phases, and renders files under `template/` into `--output`.
-
 ### Scaffold a new mold
 
 ```bash
-foundry mold init --name=my_mold
+foundry mold init --name=flutter_app
 ```
 
-Creates `mold.yaml`, `template/`, and `hooks/` in the current directory.
+Creates `pubspec.yaml`, `variables.dart`, `template/`, and `hooks/` in the current
+directory.
 
 ### Inspect a mold
 
@@ -91,18 +78,34 @@ Creates `mold.yaml`, `template/`, and `hooks/` in the current directory.
 foundry mold inspect
 ```
 
-Analyzes variable dependencies, hook paths, and template layout. Defaults to the
-current directory when no path is given.
+Validates the mold package, variable group, `template/` directory, and optional hook
+files. Defaults to the current directory when no path is given.
 
 ### Import a mold
 
 ```bash
-foundry mold import git --git-url=https://github.com/example/molds.git --path=flutter_app
+foundry mold import git \
+  --git-url=https://github.com/example/molds.git \
+  --path=flutter_app
+
 foundry mold import local --path=../shared-molds/api
 ```
 
 Copies the mold into `./<name>/` under the current working directory, where `<name>`
-comes from the mold manifest.
+comes from the mold's root `pubspec.yaml` `name` field.
+
+### Cast a mold
+
+```bash
+foundry cast ./flutter_app --output=./my_app
+```
+
+Foundry runs lifecycle hooks, gathers variables through an interactive TUI, renders
+files under `template/` into `--output`, and writes `.foundry/last_cast.json` in the
+process working directory on success.
+
+Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to skip all
+hook phases.
 
 ### Recast and finish
 
@@ -113,18 +116,37 @@ foundry finish
 
 `recast` repeats the last successful cast using state stored in
 `.foundry/last_cast.json`. `finish` runs only the finish hook against the last cast
-output.
+output without re-rendering templates.
 
 ---
 
-## CLI reference (planned)
+## CLI reference
 
-Global flags and exit codes will align with common Dart CLI conventions once the
-command runner lands. Planned top-level commands:
+### Invocation
+
+```
+foundry [--version] <command> [arguments] [options]
+```
+
+### Global flags
+
+| Flag | Description |
+| --- | --- |
+| `--version` | Print the CLI version and exit |
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | User-facing error (invalid input, mold load failure, hook abort, etc.) |
+| `2` | Unexpected internal error |
+
+### Commands
 
 | Command | Description |
 | --- | --- |
-| `foundry mold init` | Scaffold a new mold in cwd |
+| `foundry mold init` | Scaffold a new mold in the current directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -132,8 +154,82 @@ command runner lands. Planned top-level commands:
 | `foundry recast` | Re-run the last cast |
 | `foundry finish` | Run the finish hook for the last cast |
 
-Shared cast flags: `--output` (required on `cast`), repeatable `--vars key=value`,
-`--force` (overwrite existing output paths), and `--no-hooks` (skip hook phases).
+#### `foundry mold init`
+
+```
+foundry mold init [--name=<name>]
+```
+
+| Option | Description |
+| --- | --- |
+| `--name` | Mold package name (defaults to the current directory basename) |
+
+#### `foundry mold import git`
+
+```
+foundry mold import git --git-url=<url> [--path=<relative/path>] [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--git-url` | **Required.** Git repository URL to shallow-clone |
+| `--path` | Relative path to the mold within the repository |
+| `--force` | Overwrite the destination directory if it already exists |
+
+#### `foundry mold import local`
+
+```
+foundry mold import local --path=<dir> [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--path` | **Required.** Local directory containing the mold |
+| `--force` | Overwrite the destination directory if it already exists |
+
+#### `foundry mold inspect`
+
+```
+foundry mold inspect [<path>]
+```
+
+| Argument | Description |
+| --- | --- |
+| `<path>` | Mold directory (defaults to the current directory) |
+
+#### `foundry cast`
+
+```
+foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
+```
+
+| Argument / option | Description |
+| --- | --- |
+| `<mold-path>` | **Required.** Path to the mold directory |
+| `--output` | **Required.** Directory to write generated artifacts |
+| `--force` | Allow casting into a non-empty output directory |
+| `--no-hooks` | Skip prepare, shape, and finish hooks |
+
+#### `foundry recast`
+
+```
+foundry recast [--force] [--no-hooks]
+```
+
+| Option | Description |
+| --- | --- |
+| `--force` | Allow casting into a non-empty output directory |
+| `--no-hooks` | Skip prepare, shape, and finish hooks |
+
+#### `foundry finish`
+
+```
+foundry finish [--no-hooks]
+```
+
+| Option | Description |
+| --- | --- |
+| `--no-hooks` | Skip the finish hook (no-op when omitted hook file) |
 
 ---
 
@@ -143,6 +239,9 @@ Shared cast flags: `--output` (required on `cast`), repeatable `--vars key=value
 foundry/
 ├── README.md                    # This file
 ├── CONTRIBUTING.md              # Contributor guide
+├── doc/
+│   ├── mold-pubspec.schema.json # JSON Schema for mold pubspec.yaml
+│   └── hooks.md                 # Mold lifecycle hooks reference
 ├── pubspec.yaml                 # Melos workspace root
 ├── packages/
 │   ├── foundry_core/            # Core library (mold parsing, cast pipeline)
@@ -153,7 +252,7 @@ foundry/
 ```
 
 Monorepo setup, Melos scripts, CI/CD, and release workflows are covered in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[Contributing](CONTRIBUTING.md).
 
 ---
 
@@ -161,16 +260,17 @@ Monorepo setup, Melos scripts, CI/CD, and release workflows are covered in
 
 Core logic lives in the [`foundry_core`](packages/foundry_core/) library package.
 Public APIs for mold loading, variable resolution, template rendering, and cast
-orchestration will be exported from `package:foundry_core/foundry_core.dart` as
-features land.
+orchestration are exported from `package:foundry_core/foundry_core.dart`.
 
-Mold hooks depend on **`foundry_core`** (not `foundry_cli`):
+Mold hooks depend on **`foundry_core`** (not `foundry_cli`). See
+[`doc/hooks.md`](doc/hooks.md) for the full hook contract.
 
 ```dart
 import 'package:foundry_core/foundry_core.dart';
 
-Future<void> run(HookContext context) async {
+Future<void> run(FoundryContext context) async {
   context.logger.info('…');
+  context.set('extra', 'value');
 }
 ```
 
