@@ -16,6 +16,9 @@ typedef CastVariableGatherer = Future<Map<String, Object?>?> Function({
   required String moldDescription,
 });
 
+/// Reads persisted cast state from the process working directory.
+typedef CastStateReader = Future<CastState> Function({Directory? cwd});
+
 /// Runs the cast pipeline for a loaded mold.
 ///
 /// Production code uses [castMold]; tests inject a fake implementation to
