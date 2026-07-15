@@ -135,14 +135,16 @@ void main() {
         name: 'demo_app',
         withHooks: true,
       );
-      final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
       final runner = buildRunner(workingDirectory: workDir);
 
       final exitCode = await runner.run(['recast', '--force', '--no-hooks']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      final stateFile = File(p.join(workDir.path, '.foundry', 'last_cast.json'));
+      final stateFile = File(
+        p.join(workDir.path, '.foundry', 'last_cast.json'),
+      );
       final state = json.decode(stateFile.readAsStringSync()) as Map;
       expect((state['vars'] as Map).containsKey('from_prepare'), isFalse);
     });
@@ -154,14 +156,16 @@ void main() {
         name: 'demo_app',
         withHooks: true,
       );
-      final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
       final runner = buildRunner(workingDirectory: workDir);
 
       final exitCode = await runner.run(['recast', '--force']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      final stateFile = File(p.join(workDir.path, '.foundry', 'last_cast.json'));
+      final stateFile = File(
+        p.join(workDir.path, '.foundry', 'last_cast.json'),
+      );
       final state = json.decode(stateFile.readAsStringSync()) as Map;
       expect((state['vars'] as Map)['from_prepare'], 'yes');
     });

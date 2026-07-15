@@ -88,7 +88,7 @@ void main() {
       () async {
         final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
         await writeCastableMold(directory: moldDir, name: 'demo_app');
-        final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
+        Directory(p.join(workDir.path, 'out')).createSync();
         await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
         final errorMessages = <String>[];
         final runner = buildRunner(
@@ -172,7 +172,7 @@ Future<void> run(FoundryContext context) async {
   throw const FoundryHookException('finish always fails');
 }
 ''');
-      final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
       final errorMessages = <String>[];
       final runner = buildRunner(
