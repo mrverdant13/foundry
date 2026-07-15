@@ -73,7 +73,8 @@ void main() {
       expect(errorMessages, contains(contains('foundry cast')));
     });
 
-    test('logs and returns null when cast state has an unexpected shape', () async {
+    test('logs and returns null when cast state has an unexpected shape',
+        () async {
       final foundryDir = Directory(p.join(workDir.path, '.foundry'))
         ..createSync();
       await File(p.join(foundryDir.path, 'last_cast.json')).writeAsString(
@@ -89,6 +90,25 @@ void main() {
       expect(state, isNull);
       expect(errorMessages, contains(contains('invalid or corrupted')));
       expect(errorMessages, contains(contains('foundry cast')));
+    });
+
+    test('logs and returns null when cast state cannot be read', () async {
+      final errorMessages = <String>[];
+      final statePath = castStateFile(cwd: workDir).path;
+
+      final state = await readCastStateOrReportError(
+        logger: Logger(onError: errorMessages.add),
+        workingDirectory: workDir,
+        readState: ({cwd}) async {
+          throw FileSystemException('Permission denied', statePath);
+        },
+      );
+
+      expect(state, isNull);
+      expect(
+        errorMessages,
+        contains(contains('Failed to read cast state at "$statePath"')),
+      );
     });
   });
 }

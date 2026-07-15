@@ -40,7 +40,10 @@ Future<CastState?> readCastStateOrReportError({
       'Run `foundry cast` to create fresh state.',
     );
     return null;
-  } on TypeError {
+  }
+  // Manually catching this error to be more specific about the error message.
+  // ignore: avoid_catching_errors
+  on TypeError {
     logger.error(
       'Cast state at "$statePath" is invalid or corrupted. '
       'Run `foundry cast` to create fresh state.',
