@@ -53,6 +53,25 @@ Future<void> run(FoundryContext context) async {
   }
 }
 
+/// Writes a mold with a finish hook that creates `finish_marker.txt` in the
+/// output directory.
+Future<void> writeCastableMoldWithFinishHook({
+  required Directory directory,
+  required String name,
+}) async {
+  await writeCastableMold(directory: directory, name: name);
+  final hooksDir = Directory(p.join(directory.path, 'hooks'))..createSync();
+  await File(p.join(hooksDir.path, 'finish.dart')).writeAsString('''
+import 'dart:io';
+
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  await File('finish_marker.txt').writeAsString('done');
+}
+''');
+}
+
 /// Writes a mold whose prepare hook fails during casting.
 Future<void> writeHookFailingMold({
   required Directory directory,
