@@ -6,8 +6,15 @@ import 'package:path/path.dart' as p;
 Directory e2eTestRoot() {
   final candidates = <Directory>[
     Directory(p.join(Directory.current.path, 'e2e')),
-    Directory(p.join(
-        Directory.current.path, 'packages', 'foundry_core', 'e2e', 'e2e')),
+    Directory(
+      p.join(
+        Directory.current.path,
+        'packages',
+        'foundry_core',
+        'e2e',
+        'e2e',
+      ),
+    ),
   ];
 
   for (final candidate in candidates) {

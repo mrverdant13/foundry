@@ -31,14 +31,19 @@ void expectDirectoryTreesMatch({
   final expectedFiles = listRelativeFiles(expected);
   final actualFiles = listRelativeFiles(actual);
 
+  final missingExpected = expectedFiles
+      .where((path) => !actualFiles.contains(path))
+      .join(', ');
+  final unexpectedActual = actualFiles
+      .where((path) => !expectedFiles.contains(path))
+      .join(', ');
+
   expect(
     actualFiles,
     expectedFiles,
     reason: 'Directory trees differ.\n'
-        'Expected only: '
-        '${expectedFiles.where((path) => !actualFiles.contains(path)).join(', ')}\n'
-        'Unexpected: '
-        '${actualFiles.where((path) => !expectedFiles.contains(path)).join(', ')}',
+        'Expected only: $missingExpected\n'
+        'Unexpected: $unexpectedActual',
   );
 
   for (final relativePath in expectedFiles) {
