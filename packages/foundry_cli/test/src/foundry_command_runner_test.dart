@@ -32,6 +32,18 @@ void main() {
       expect(runner.commands.keys, contains('cast'));
     });
 
+    test('registers the recast command', () {
+      final runner = FoundryCommandRunner();
+
+      expect(runner.commands.keys, contains('recast'));
+    });
+
+    test('registers the finish command', () {
+      final runner = FoundryCommandRunner();
+
+      expect(runner.commands.keys, contains('finish'));
+    });
+
     test('--version prints the current package version and exits 0', () async {
       final infoMessages = <String>[];
       final runner = FoundryCommandRunner(
