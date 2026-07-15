@@ -6,7 +6,7 @@ import 'package:nocterm/nocterm.dart';
 /// `gatherCastVariablesInteractively` can be exercised end-to-end (through
 /// Nocterm's real `runApp`/input pipeline) without a real terminal.
 class FakeTerminalBackend implements TerminalBackend {
-  final _inputController = StreamController<List<int>>.broadcast();
+  final _inputController = StreamController<List<int>>();
   final output = StringBuffer();
 
   @override
