@@ -65,11 +65,12 @@ class RecastCommand extends Command<int> {
     final force = argResults!.flag(CastCommand.forceOptionName);
     final noHooks = argResults!.flag(CastCommand.noHooksOptionName);
 
-    final CastState state;
-    try {
-      state = await _readState(cwd: workingDirectory);
-    } on CastStateNotFoundException catch (exception) {
-      logger.error('$exception');
+    final state = await readCastStateOrReportError(
+      logger: logger,
+      workingDirectory: workingDirectory,
+      readState: _readState,
+    );
+    if (state == null) {
       return FoundryExitCode.userError.code;
     }
 
