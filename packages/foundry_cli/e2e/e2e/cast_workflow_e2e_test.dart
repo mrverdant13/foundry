@@ -75,6 +75,9 @@ void main() {
         );
       },
       tags: const ['e2e'],
+      // Cast + recast each spawn the CLI, run pub get, and load variables in
+      // an isolate — well over the default 30s on cold CI runners.
+      timeout: const Timeout(Duration(minutes: 2)),
     );
   });
 }
