@@ -1,0 +1,11 @@
+name: greeter
+description: A mold used for CLI import e2e tests.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ../../../../../foundry_core
