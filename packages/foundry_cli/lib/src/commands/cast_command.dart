@@ -16,6 +16,18 @@ typedef CastVariableGatherer = Future<Map<String, Object?>?> Function({
   required String moldDescription,
 });
 
+/// Runs the cast pipeline for a loaded mold.
+///
+/// Production code uses [castMold]; tests inject a fake implementation to
+/// exercise error handling without building special-case molds.
+typedef CastRunner = Future<CastOutcome> Function({
+  required Mold mold,
+  required String outputPath,
+  required Map<String, Object?> values,
+  bool force,
+  bool noHooks,
+});
+
 /// {@template foundry_cli.cast_command}
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
 ///
@@ -30,8 +42,10 @@ class CastCommand extends Command<int> {
     required this.logger,
     Directory? workingDirectory,
     CastVariableGatherer? gatherVariables,
+    CastRunner? runCast,
   })  : workingDirectory = workingDirectory ?? Directory.current,
-        _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively {
+        _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively,
+        _runCast = runCast ?? castMold {
     argParser
       ..addOption(
         outputOptionName,
@@ -67,6 +81,7 @@ class CastCommand extends Command<int> {
   final Directory workingDirectory;
 
   final CastVariableGatherer _gatherVariables;
+  final CastRunner _runCast;
 
   @override
   String get name => 'cast';
@@ -135,7 +150,7 @@ class CastCommand extends Command<int> {
 
     final CastOutcome outcome;
     try {
-      outcome = await castMold(
+      outcome = await _runCast(
         mold: mold,
         outputPath: outputPath,
         values: values,

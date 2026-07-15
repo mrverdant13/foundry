@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
-import 'package:foundry_core/foundry_core.dart' show Logger;
+import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -26,6 +26,7 @@ void main() {
   CommandRunner<int> buildRunner({
     required Directory workingDirectory,
     CastVariableGatherer? gatherVariables,
+    CastRunner? runCast,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
   }) {
@@ -35,6 +36,7 @@ void main() {
           logger: Logger(onInfo: onInfo, onError: onError),
           workingDirectory: workingDirectory,
           gatherVariables: gatherVariables,
+          runCast: runCast,
         ),
       );
   }
@@ -276,6 +278,107 @@ void main() {
       expect(exitCode, FoundryExitCode.success.code);
       final state = readCastState(workDir);
       expect((state['vars']! as Map)['from_prepare'], 'yes');
+    });
+
+    test(
+      'fails with a user error when cast-time variable validation fails',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+          }) async =>
+              {'project_name': 'Ada'},
+          runCast: ({
+            required mold,
+            required outputPath,
+            required values,
+            force = false,
+            noHooks = false,
+          }) async {
+            throw const CastVariablesInvalidException(
+              FoundryVariableGroupValidation(
+                fieldErrors: {
+                  'project_name': ['project_name is invalid at cast time'],
+                },
+                groupErrors: ['group validation failed at cast time'],
+              ),
+            );
+          },
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('Cast variables are invalid:')),
+        );
+        expect(
+          errorMessages,
+          contains(
+            contains('project_name: project_name is invalid at cast time'),
+          ),
+        );
+        expect(
+          errorMessages,
+          contains(contains('group validation failed at cast time')),
+        );
+      },
+    );
+
+    test('fails with a user error when a mold hook throws', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeHookFailingMold(directory: moldDir, name: 'demo_app');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+        }) async =>
+            {'project_name': 'Ada'},
+      );
+
+      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(
+        errorMessages,
+        contains(contains('MoldHookException(prepare,')),
+      );
+    });
+
+    test('fails with a user error when template rendering fails', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeBrokenTemplateMold(directory: moldDir, name: 'demo_app');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+        }) async =>
+            {'project_name': 'Ada'},
+      );
+
+      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(
+        errorMessages,
+        contains(contains('Failed to render contents of template file')),
+      );
     });
   });
 }

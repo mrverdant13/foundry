@@ -79,43 +79,54 @@ class _CastVariableFormState extends State<CastVariableForm> {
       onKeyEvent: (event) => _handleKeyEvent(event, entries.length),
       child: Container(
         padding: const EdgeInsets.all(1),
+        // The form's contents live in a single [Column] child so that the
+        // enclosing [ListView] only ever diffs one (freshly built) child.
+        // Nocterm's `ListView` re-`update`s cached children in place and
+        // asserts the new component differs from the old one, which breaks
+        // for canonicalized `const` children reused across rebuilds. `Column`
+        // diffs its children safely, so nesting keeps the `const` literals.
         child: ListView(
           children: [
-            Text(
-              'FOUNDRY // ${component.moldName}',
-              style: const TextStyle(
-                color: Colors.cyan,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(component.moldDescription),
-            const SizedBox(height: 1),
-            for (var index = 0; index < entries.length; index++) ...[
-              _buildField(
-                entry: entries[index],
-                fieldErrors:
-                    validation.fieldErrors[entries[index].key] ?? const [],
-                focused: index == _focusedIndex,
-                onSubmitted: () {
-                  if (index < entries.length - 1) {
-                    setState(() => _focusedIndex = index + 1);
-                    return;
-                  }
-                  _attemptSubmit(evaluation, validation);
-                },
-              ),
-              const SizedBox(height: 1),
-            ],
-            if (_showErrors && validation.groupErrors.isNotEmpty)
-              ...validation.groupErrors.map(
-                (error) => Text(
-                  error,
-                  style: const TextStyle(color: Colors.red),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FOUNDRY // ${component.moldName}',
+                  style: const TextStyle(
+                    color: Colors.cyan,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            const Text(
-              'Tab/Shift+Tab to move, Enter on the last field to confirm, '
-              'Esc to cancel.',
+                Text(component.moldDescription),
+                const SizedBox(height: 1),
+                for (var index = 0; index < entries.length; index++) ...[
+                  _buildField(
+                    entry: entries[index],
+                    fieldErrors:
+                        validation.fieldErrors[entries[index].key] ?? const [],
+                    focused: index == _focusedIndex,
+                    onSubmitted: () {
+                      if (index < entries.length - 1) {
+                        setState(() => _focusedIndex = index + 1);
+                        return;
+                      }
+                      _attemptSubmit(evaluation, validation);
+                    },
+                  ),
+                  const SizedBox(height: 1),
+                ],
+                if (_showErrors && validation.groupErrors.isNotEmpty)
+                  ...validation.groupErrors.map(
+                    (error) => Text(
+                      error,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                const Text(
+                  'Tab/Shift+Tab to move, Enter on the last field to confirm, '
+                  'Esc to cancel.',
+                ),
+              ],
             ),
           ],
         ),
