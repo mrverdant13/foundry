@@ -1,0 +1,10 @@
+name: hello_mold
+description: Minimal mold bundled with the foundry_cli example
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core: ^0.0.1-dev.1
