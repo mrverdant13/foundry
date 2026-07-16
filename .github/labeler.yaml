@@ -1,0 +1,64 @@
+foundry_core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - packages/foundry_core/**
+  - head-branch:
+      - ^foundry_core(/|$)
+
+foundry_cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - packages/foundry_cli/**
+  - head-branch:
+      - ^foundry_cli(/|$)
+
+bot:
+  - head-branch:
+      - ^dependabot/.+
+
+build:
+  - head-branch:
+      - ^dependabot/pub/.+
+
+chore:
+  - head-branch:
+      - ^chore(/|$)
+      - ^(foundry_core|foundry_cli)/chore/release-
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+  - head-branch:
+      - ^ci(/|$)
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/CHANGELOG.md"
+          - "**/README.md"
+          - CONTRIBUTING.md
+          - doc/**
+  - head-branch:
+      - ^docs(/|$)
+
+feat:
+  - head-branch:
+      - ^feat(/|$)
+
+fix:
+  - head-branch:
+      - ^fix(/|$)
+
+refactor:
+  - head-branch:
+      - ^refactor(/|$)
+
+test:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/test/**"
+          - "**/e2e/**"
+          - "**/*_test.dart"
+  - head-branch:
+      - ^test(/|$)
