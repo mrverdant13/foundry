@@ -4,14 +4,14 @@
 (Dart packages with Liquid templates, variables, and hooks); users **cast** a mold to
 produce an **Artifact** — a generated project or file tree at `--output`.
 
-> [!WARNING]
-> **Under development.** Foundry is pre-release and has not published to pub.dev yet.
-> The CLI and library API may still change before the first stable release.
+> [!NOTE]
+> **Pre-release.** Packages are published on pub.dev as `0.0.1-dev.x`. The CLI and
+> library API may still change before the first stable release.
 
 | Item | Value |
 | --- | --- |
 | Repository | Standalone monorepo (Melos workspace) |
-| Pub packages | [`foundry_core`](packages/foundry_core/), [`foundry_cli`](packages/foundry_cli/) |
+| Pub packages | [`foundry_core`](https://pub.dev/packages/foundry_core), [`foundry_cli`](https://pub.dev/packages/foundry_cli) |
 | Executable | `foundry` |
 | License | MIT |
 
@@ -258,9 +258,10 @@ Monorepo setup, Melos scripts, CI/CD, and release workflows are covered in
 
 ## Programmatic API
 
-Core logic lives in the [`foundry_core`](packages/foundry_core/) library package.
-Public APIs for mold loading, variable resolution, template rendering, and cast
-orchestration are exported from `package:foundry_core/foundry_core.dart`.
+Core logic lives in the [`foundry_core`](https://pub.dev/packages/foundry_core)
+library package. Public APIs for mold loading, variable resolution, template
+rendering, and cast orchestration are exported from
+`package:foundry_core/foundry_core.dart`.
 
 Mold hooks depend on **`foundry_core`** (not `foundry_cli`). See
 [`doc/hooks.md`](doc/hooks.md) for the full hook contract.
@@ -287,5 +288,7 @@ expectations, commit conventions, and pull request guidelines.
 
 | Resource | URL |
 | --- | --- |
+| foundry_core | [pub.dev/packages/foundry_core](https://pub.dev/packages/foundry_core) |
+| foundry_cli | [pub.dev/packages/foundry_cli](https://pub.dev/packages/foundry_cli) |
 | liquify (Liquid for Dart) | [pub.dev/packages/liquify](https://pub.dev/packages/liquify) |
 | Melos | [melos.invertase.dev](https://melos.invertase.dev/) |
