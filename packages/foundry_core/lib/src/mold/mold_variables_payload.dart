@@ -34,17 +34,30 @@ FoundryVariableGroup deserializeMoldVariableGroup(
 
     switch (definition['kind']) {
       case 'string':
-        final label = definition['label']?.toString();
-        if (label == null || label.isEmpty) {
-          throw MoldLoadException([
-            MoldIssue(
-              severity: MoldIssueSeverity.error,
-              path: 'variables.dart',
-              message: 'String variable "$key" is missing a label.',
-            ),
-          ]);
-        }
-        variables[key] = FoundryStringVariable(label: label);
+        variables[key] = FoundryStringVariable(
+          label:
+              _requireLabel(key: key, kind: 'String', definition: definition),
+        );
+      case 'boolean':
+        variables[key] = FoundryBooleanVariable(
+          label: _requireLabel(
+            key: key,
+            kind: 'Boolean',
+            definition: definition,
+          ),
+        );
+      case 'int':
+        variables[key] = FoundryIntVariable(
+          label: _requireLabel(key: key, kind: 'Int', definition: definition),
+        );
+      case 'double':
+        variables[key] = FoundryDoubleVariable(
+          label: _requireLabel(
+            key: key,
+            kind: 'Double',
+            definition: definition,
+          ),
+        );
       default:
         throw MoldLoadException([
           MoldIssue(
@@ -57,4 +70,22 @@ FoundryVariableGroup deserializeMoldVariableGroup(
   }
 
   return FoundryVariableGroup(variables: variables);
+}
+
+String _requireLabel({
+  required String key,
+  required String kind,
+  required Map<dynamic, dynamic> definition,
+}) {
+  final label = definition['label']?.toString();
+  if (label == null || label.isEmpty) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: '$kind variable "$key" is missing a label.',
+      ),
+    ]);
+  }
+  return label;
 }

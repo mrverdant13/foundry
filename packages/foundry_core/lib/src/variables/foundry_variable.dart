@@ -42,9 +42,9 @@ typedef FoundryGroupValidator = String? Function(
 
 /// Base type for variables declared in a mold's `variables.dart`.
 ///
-/// Concrete variable kinds are added incrementally as the runtime expands;
-/// this release only requires a minimal contract so molds can export the
-/// required variable group symbol.
+/// Concrete kinds include [FoundryStringVariable], [FoundryBooleanVariable],
+/// [FoundryIntVariable], and [FoundryDoubleVariable]; additional kinds are
+/// added as the runtime expands.
 @immutable
 sealed class FoundryVariable<T> {
   /// Creates a [FoundryVariable].
@@ -160,6 +160,51 @@ sealed class FoundryVariable<T> {
 final class FoundryStringVariable extends FoundryVariable<String> {
   /// Creates a [FoundryStringVariable].
   const FoundryStringVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
+
+/// A boolean toggle variable.
+final class FoundryBooleanVariable extends FoundryVariable<bool> {
+  /// Creates a [FoundryBooleanVariable].
+  const FoundryBooleanVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
+
+/// An integer variable.
+final class FoundryIntVariable extends FoundryVariable<int> {
+  /// Creates a [FoundryIntVariable].
+  const FoundryIntVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
+
+/// A floating-point variable.
+final class FoundryDoubleVariable extends FoundryVariable<double> {
+  /// Creates a [FoundryDoubleVariable].
+  const FoundryDoubleVariable({
     required super.label,
     super.visibleWhen,
     super.enabledWhen,

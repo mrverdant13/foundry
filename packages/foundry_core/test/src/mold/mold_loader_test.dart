@@ -77,6 +77,38 @@ void main() {
       expect(mold.finishHook, isNull);
     });
 
+    test('round-trips boolean, int, and double variables from a fixture',
+        () async {
+      final mold = await loadMold(p.join(fixtures.path, 'scalar_kinds_mold'));
+
+      expect(mold.name, 'scalar_kinds');
+      expect(mold.variableGroup.variables, hasLength(3));
+      expect(
+        mold.variableGroup.variables['use_null_safety'],
+        isA<FoundryBooleanVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Use null safety',
+        ),
+      );
+      expect(
+        mold.variableGroup.variables['port'],
+        isA<FoundryIntVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Port',
+        ),
+      );
+      expect(
+        mold.variableGroup.variables['scale'],
+        isA<FoundryDoubleVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Scale',
+        ),
+      );
+    });
+
     test('resolves standard hook files when present', () async {
       final tempDir =
           await Directory.systemTemp.createTemp('foundry_with_hooks_');
