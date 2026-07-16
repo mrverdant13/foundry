@@ -1,0 +1,12 @@
+# See https://dart.dev/guides/libraries/private-files
+
+/.dart_tool/
+/.packages
+/build/
+/pubspec.lock
+
+# Cast output and mold resolution artifacts
+/output/
+/mold/.dart_tool/
+/mold/pubspec.lock
+/.foundry/
