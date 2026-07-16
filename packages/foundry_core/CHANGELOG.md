@@ -1,4 +1,4 @@
-## 0.0.1-dev.2
+## 0.0.1-dev.1
 
  - **FEAT**: add mold package model and definition loader ([#14](https://github.com/mrverdant13/foundry/issues/14)). ([f2cff9de](https://github.com/mrverdant13/foundry/commit/f2cff9def8d3ff6197af4652edb0e0ff4d896114))
  - **FEAT**: add mold inspection and validation ([#15](https://github.com/mrverdant13/foundry/issues/15)). ([1112a805](https://github.com/mrverdant13/foundry/commit/1112a80513fb59659d3a0590eaed6da20f313673))
@@ -13,7 +13,3 @@
  - **FEAT**: add mold import git and local transports ([#24](https://github.com/mrverdant13/foundry/issues/24)). ([72f60591](https://github.com/mrverdant13/foundry/commit/72f60591b306c153b9b0f9e2debbcc3d5c35c1b8))
  - **TEST**: add cast pipeline e2e tests ([#31](https://github.com/mrverdant13/foundry/issues/31)). ([a8e5a5fb](https://github.com/mrverdant13/foundry/commit/a8e5a5fb7061c3eddd220a1648c39a6345bdd23f))
  - **DOCS**: expand README for pub.dev release. ([7435aae7](https://github.com/mrverdant13/foundry/commit/7435aae7643d07fbab69d5b91c20d3fe1532bab3))
-
-## 0.0.1-dev.1
-
-- Initial scaffold.

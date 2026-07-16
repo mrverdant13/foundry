@@ -32,7 +32,7 @@ Add `foundry_core` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  foundry_core: ^0.0.1-dev.2
+  foundry_core: ^0.0.1-dev.1
 ```
 
 Requires Dart SDK `>=3.5.0 <4.0.0`.
