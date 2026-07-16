@@ -423,6 +423,41 @@ void main() {
     );
 
     test(
+      'Enter on a non-last boolean field moves focus to the next field',
+      () => testNocterm(
+        'enter on boolean moves focus',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab(); // publish (boolean, not last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          // Focus should now be on port; typing replaces its default.
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('3000');
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(tester.terminalState.getText(), contains('3000'));
+        },
+      ),
+    );
+
+    test(
       'Space toggles an enabled boolean and submits typed scalar values',
       () => testNocterm(
         'toggle boolean and submit scalars',
