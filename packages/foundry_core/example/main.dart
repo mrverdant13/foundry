@@ -22,8 +22,9 @@ Future<void> main() async {
     return;
   }
 
-  stdout.writeln('Inspection passed.');
-  stdout.writeln();
+  stdout
+    ..writeln('Inspection passed.')
+    ..writeln();
 
   final mold = report.mold!;
   final outputDirectory = Directory(outputPath);
@@ -43,10 +44,11 @@ Future<void> main() async {
     noHooks: true,
   );
 
-  stdout.writeln(
-    'Cast completed: ${outcome.artifactCount} file(s) written.',
-  );
-  stdout.writeln();
+  stdout
+    ..writeln(
+      'Cast completed: ${outcome.artifactCount} file(s) written.',
+    )
+    ..writeln();
 
   final readme = File(p.join(outputPath, 'README.md'));
   if (readme.existsSync()) {
