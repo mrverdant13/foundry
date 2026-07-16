@@ -170,3 +170,48 @@ final class FoundryStringVariable extends FoundryVariable<String> {
     super.help,
   });
 }
+
+/// A boolean toggle variable.
+final class FoundryBooleanVariable extends FoundryVariable<bool> {
+  /// Creates a [FoundryBooleanVariable].
+  const FoundryBooleanVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
+
+/// An integer variable.
+final class FoundryIntVariable extends FoundryVariable<int> {
+  /// Creates a [FoundryIntVariable].
+  const FoundryIntVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
+
+/// A floating-point variable.
+final class FoundryDoubleVariable extends FoundryVariable<double> {
+  /// Creates a [FoundryDoubleVariable].
+  const FoundryDoubleVariable({
+    required super.label,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+}
