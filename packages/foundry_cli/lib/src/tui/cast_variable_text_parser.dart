@@ -5,7 +5,8 @@ sealed class CastVariableTextParseResult {
   const CastVariableTextParseResult();
 }
 
-/// Successful parse of field text into [value] (which may be `null` when empty).
+/// Successful parse of field text into [value]
+/// (which may be `null` when empty).
 final class CastVariableTextParseSuccess extends CastVariableTextParseResult {
   /// Creates a [CastVariableTextParseSuccess].
   const CastVariableTextParseSuccess(this.value);
