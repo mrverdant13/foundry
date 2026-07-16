@@ -207,6 +207,18 @@ Map<String, Object?> _serializeVariable(FoundryVariable<dynamic> variable) {
       'kind': 'string',
       'label': label,
     },
+  FoundryBooleanVariable(:final label) => {
+      'kind': 'boolean',
+      'label': label,
+    },
+  FoundryIntVariable(:final label) => {
+      'kind': 'int',
+      'label': label,
+    },
+  FoundryDoubleVariable(:final label) => {
+      'kind': 'double',
+      'label': label,
+    },
   _ => throw UnsupportedError(
       'Unsupported variable type: \${variable.runtimeType}',
     ),
