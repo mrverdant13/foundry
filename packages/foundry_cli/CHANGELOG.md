@@ -7,3 +7,4 @@
  - **FEAT**: add cast command ([#29](https://github.com/mrverdant13/foundry/issues/29)). ([88241e1d](https://github.com/mrverdant13/foundry/commit/88241e1df52bacf367f189cf8d3f9a948947afa9))
  - **FEAT**: add recast and finish commands ([#30](https://github.com/mrverdant13/foundry/issues/30)). ([73b5272b](https://github.com/mrverdant13/foundry/commit/73b5272bb5aa4eb5e0578d5859162526af4e5fb0))
  - **TEST**: add cli e2e tests with fixtures ([#32](https://github.com/mrverdant13/foundry/issues/32)). ([5b1c25ea](https://github.com/mrverdant13/foundry/commit/5b1c25ea74445e27aaac315f290903e49bec06c0))
+ - **DOCS**: expand README for pub.dev release. ([664e0485](https://github.com/mrverdant13/foundry/commit/664e0485f043c3b2da937f5f97945d51391fa030))
