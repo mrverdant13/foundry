@@ -51,10 +51,9 @@ flutter_app/
 
 ### Install the CLI
 
-After the first pub.dev release:
-
 ```bash
 dart install foundry_cli
+foundry --version
 ```
 
 The global binary is **`foundry`** (`executables: foundry:` in `foundry_cli`), even
