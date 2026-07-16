@@ -1,0 +1,11 @@
+name: foundry_core_example
+description: Example program for the foundry_core package.
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ..
+  path: ^1.9.1

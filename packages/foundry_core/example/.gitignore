@@ -1,0 +1,13 @@
+# See https://dart.dev/guides/libraries/private-files
+
+/.dart_tool/
+/.packages
+/build/
+/pubspec.lock
+
+# Example cast output
+/output/
+
+# Mold fixture resolution artifacts
+/mold/.dart_tool/
+/mold/pubspec.lock
