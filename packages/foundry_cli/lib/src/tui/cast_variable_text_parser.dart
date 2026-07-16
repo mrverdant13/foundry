@@ -5,7 +5,7 @@ sealed class CastVariableTextParseResult {
   const CastVariableTextParseResult();
 }
 
-/// [text] parsed successfully into [value] (which may be `null` when empty).
+/// Successful parse of field text into [value] (which may be `null` when empty).
 final class CastVariableTextParseSuccess extends CastVariableTextParseResult {
   /// Creates a [CastVariableTextParseSuccess].
   const CastVariableTextParseSuccess(this.value);
@@ -14,7 +14,7 @@ final class CastVariableTextParseSuccess extends CastVariableTextParseResult {
   final Object? value;
 }
 
-/// [text] could not be parsed for the target variable kind.
+/// Failed parse of field text for the target variable kind.
 final class CastVariableTextParseFailure extends CastVariableTextParseResult {
   /// Creates a [CastVariableTextParseFailure].
   const CastVariableTextParseFailure(this.message);
