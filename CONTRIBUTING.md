@@ -63,8 +63,8 @@ From the repo root:
 dart run packages/foundry_cli/bin/foundry.dart
 ```
 
-The command runner and subcommands are under active development; use `dart run`
-against the workspace package until `foundry_cli` is published to pub.dev.
+Use `dart run` against the workspace package so local changes are exercised
+without relying on a globally installed `foundry` binary from pub.dev.
 
 ### Common Melos commands
 
