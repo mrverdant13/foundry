@@ -274,8 +274,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
     required FoundryVariableEvaluationEntry entry,
     required bool focused,
   }) {
-    final checked = entry.value == true;
-    final label = checked ? '[x] yes' : '[ ] no';
+    final label = switch (entry.value) {
+      null => '[-] unset',
+      true => '[x] yes',
+      _ => '[ ] no',
+    };
 
     return Container(
       decoration: BoxDecoration(
