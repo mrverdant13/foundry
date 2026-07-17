@@ -258,16 +258,13 @@ final class FoundrySingleChoiceVariable<T> extends FoundryVariable<T> {
     }
 
     final typed = value as T?;
-    final errors = <String>[
+    return [
       if (typed != null && !options.contains(typed))
         'Value is not a valid option.',
-    ];
-    errors.addAll(
-      validators
+      ...validators
           .map((validator) => validator(typed, context))
           .whereType<String>(),
-    );
-    return errors;
+    ];
   }
 }
 
@@ -341,16 +338,13 @@ final class FoundryMultipleChoiceVariable<T> extends FoundryVariable<List<T>> {
     }
 
     final selection = _coerceSelection(value);
-    final errors = <String>[
+    return [
       if (selection.any((element) => !options.contains(element)))
         'Value is not a valid option.',
-    ];
-    errors.addAll(
-      validators
+      ...validators
           .map((validator) => validator(selection, context))
           .whereType<String>(),
-    );
-    return errors;
+    ];
   }
 
   List<T> _normalizeSelection({
