@@ -1,0 +1,11 @@
+name: choice_kinds
+description: Mold fixture covering single and multiple choice variables
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ../../..
