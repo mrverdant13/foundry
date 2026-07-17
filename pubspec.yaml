@@ -69,11 +69,11 @@ melos:
       exec:
         concurrency: 1
         orderDependents: true
-        packageFilters:
-          dependsOn:
-            - test
-          dirExists:
-            - test
+      packageFilters:
+        dependsOn:
+          - test
+        dirExists:
+          - test
     test.all:
       description: Run tests for all packages
       steps:
@@ -145,11 +145,11 @@ melos:
         e2e/optimized_test.dart
       exec:
         concurrency: 1
-        packageFilters:
-          category:
-            - e2e
-          dirExists:
-            - e2e
+      packageFilters:
+        category:
+          - e2e
+        dirExists:
+          - e2e
     test.e2e.all:
       description: Run E2E tests for all packages
       steps:
@@ -186,9 +186,9 @@ melos:
         --threshold 10
       exec:
         concurrency: 1
-        packageFilters:
-          category:
-            - publishable
+      packageFilters:
+        category:
+          - publishable
     pub-score.remote:
       description: Check remote pub.dev score for publishable packages
       run: >
@@ -198,9 +198,9 @@ melos:
         --threshold 10
       exec:
         concurrency: 1
-        packageFilters:
-          category:
-            - publishable
+      packageFilters:
+        category:
+          - publishable
 
     release.check:
       description: >
