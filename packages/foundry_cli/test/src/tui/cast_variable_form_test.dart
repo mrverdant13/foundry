@@ -40,6 +40,51 @@ FoundryVariableGroup _buildVariableGroup() => FoundryVariableGroup(
       ],
     );
 
+FoundryVariableGroup _buildScalarVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(
+          label: 'Project name',
+          validators: [
+            (value, context) => (value == null || value.isEmpty)
+                ? 'project_name is required'
+                : null,
+          ],
+        ),
+        'publish': FoundryBooleanVariable(
+          label: 'Publish',
+          description: 'Upload the package.',
+          help: 'Space toggles this field.',
+          defaultValue: (context) => false,
+        ),
+        'port': FoundryIntVariable(
+          label: 'Port',
+          placeholder: '8080',
+          help: 'Listening port.',
+          defaultValue: (context) => 8080,
+        ),
+        'ratio': FoundryDoubleVariable(
+          label: 'Ratio',
+          description: 'Scaling factor.',
+          defaultValue: (context) => 1.5,
+        ),
+        'locked_flag': FoundryBooleanVariable(
+          label: 'Locked flag',
+          enabledWhen: (context) => false,
+          defaultValue: (context) => true,
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildUnsetBooleanVariableGroup() =>
+    const FoundryVariableGroup(
+      variables: {
+        'flag': FoundryBooleanVariable(
+          label: 'Flag',
+          description: 'Optional flag without a default.',
+        ),
+      },
+    );
+
 void main() {
   group('CastVariableForm', () {
     test(
@@ -351,6 +396,308 @@ void main() {
 
         expect(tester.terminalState.getText(), isNot(contains('extra: Extra')));
       }),
+    );
+
+    test(
+      'renders boolean and numeric fields with metadata',
+      () => testNocterm(
+        'renders scalar fields',
+        size: const Size(80, 40),
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('publish: Publish'));
+          expect(output, contains('Upload the package.'));
+          expect(output, contains('Space toggles this field.'));
+          expect(output, contains('[ ] no'));
+          expect(output, contains('port: Port'));
+          expect(output, contains('Listening port.'));
+          expect(output, contains('8080'));
+          expect(output, contains('ratio: Ratio'));
+          expect(output, contains('Scaling factor.'));
+          expect(output, contains('1.5'));
+          expect(output, contains('locked_flag: Locked flag'));
+          expect(output, contains('[x] yes (read-only)'));
+          expect(output, contains('project_name: Project name'));
+        },
+      ),
+    );
+
+    test(
+      'Enter on a non-last boolean field moves focus to the next field',
+      () => testNocterm(
+        'enter on boolean moves focus',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab(); // publish (boolean, not last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          // Focus should now be on port; typing replaces its default.
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('3000');
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(tester.terminalState.getText(), contains('3000'));
+        },
+      ),
+    );
+
+    test(
+      'Space toggles an enabled boolean and submits typed scalar values',
+      () => testNocterm(
+        'toggle boolean and submit scalars',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab(); // publish
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          expect(tester.terminalState.getText(), contains('[x] yes'));
+
+          await tester.sendTab(); // port
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('3000');
+          await tester.sendTab(); // ratio
+          for (var i = 0; i < '1.5'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('2.25');
+          await tester.sendTab(); // locked_flag (last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_name'], 'my_app');
+          expect(submitted!['publish'], isTrue);
+          expect(submitted!['port'], 3000);
+          expect(submitted!['ratio'], 2.25);
+          expect(submitted!['locked_flag'], isTrue);
+        },
+      ),
+    );
+
+    test(
+      'Space does not toggle a disabled boolean field',
+      () => testNocterm(
+        'disabled boolean stays put',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab();
+          await tester.sendTab();
+          await tester.sendTab();
+          await tester.sendTab(); // locked_flag
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            contains('[x] yes (read-only)'),
+          );
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['locked_flag'], isTrue);
+          expect(submitted!['publish'], isFalse);
+        },
+      ),
+    );
+
+    test(
+      'renders an explicit unset label for a boolean without a default',
+      () => testNocterm(
+        'unset boolean label',
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildUnsetBooleanVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('flag: Flag'));
+          expect(output, contains('[-] unset'));
+          expect(output, isNot(contains('[ ] no')));
+        },
+      ),
+    );
+
+    test(
+      'submitting an untouched boolean without a default yields null',
+      () => testNocterm(
+        'unset boolean submits null',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildUnsetBooleanVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('[-] unset'));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!.containsKey('flag'), isTrue);
+          expect(submitted!['flag'], isNull);
+        },
+      ),
+    );
+
+    test(
+      'invalid int input stays in-form with a parse error and does not '
+      'submit',
+      () => testNocterm(
+        'invalid int stays in form',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab(); // publish
+          await tester.sendTab(); // port
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('abc');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            contains('Enter a valid integer'),
+          );
+
+          await tester.sendTab(); // ratio
+          await tester.sendTab(); // locked_flag
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(
+            tester.terminalState.getText(),
+            contains('Enter a valid integer'),
+          );
+          expect(tester.terminalState.getText(), contains('abc'));
+        },
+      ),
+    );
+
+    test(
+      'invalid double input stays in-form with a parse error and does not '
+      'submit',
+      () => testNocterm(
+        'invalid double stays in form',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildScalarVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.enterText('my_app');
+          await tester.sendTab(); // publish
+          await tester.sendTab(); // port
+          await tester.sendTab(); // ratio
+          for (var i = 0; i < '1.5'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('pi');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            contains('Enter a valid number'),
+          );
+
+          await tester.sendTab(); // locked_flag
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(
+            tester.terminalState.getText(),
+            contains('Enter a valid number'),
+          );
+          expect(tester.terminalState.getText(), contains('pi'));
+        },
+      ),
     );
   });
 }
