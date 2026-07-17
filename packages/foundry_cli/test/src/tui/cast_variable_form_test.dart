@@ -75,6 +75,15 @@ FoundryVariableGroup _buildScalarVariableGroup() => FoundryVariableGroup(
       },
     );
 
+FoundryVariableGroup _buildUnsetBooleanVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'flag': FoundryBooleanVariable(
+          label: 'Flag',
+          description: 'Optional flag without a default.',
+        ),
+      },
+    );
+
 void main() {
   group('CastVariableForm', () {
     test(
@@ -541,6 +550,59 @@ void main() {
           expect(submitted, isNotNull);
           expect(submitted!['locked_flag'], isTrue);
           expect(submitted!['publish'], isFalse);
+        },
+      ),
+    );
+
+    test(
+      'renders an explicit unset label for a boolean without a default',
+      () => testNocterm(
+        'unset boolean label',
+        size: const Size(80, 24),
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildUnsetBooleanVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('flag: Flag'));
+          expect(output, contains('[-] unset'));
+          expect(output, isNot(contains('[ ] no')));
+        },
+      ),
+    );
+
+    test(
+      'submitting an untouched boolean without a default yields null',
+      () => testNocterm(
+        'unset boolean submits null',
+        size: const Size(80, 24),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildUnsetBooleanVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('[-] unset'));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!.containsKey('flag'), isTrue);
+          expect(submitted!['flag'], isNull);
         },
       ),
     );
