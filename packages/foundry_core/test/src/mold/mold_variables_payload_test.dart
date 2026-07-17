@@ -85,29 +85,29 @@ void main() {
         group.variables['project_type'],
         isA<FoundrySingleChoiceVariable<String>>()
             .having(
-              (variable) => variable.label,
-              'label',
-              'Project type',
-            )
+          (variable) => variable.label,
+          'label',
+          'Project type',
+        )
             .having(
-              (variable) => variable.options,
-              'options',
-              ['app', 'package'],
-            ),
+          (variable) => variable.options,
+          'options',
+          ['app', 'package'],
+        ),
       );
       expect(
         group.variables['platforms'],
         isA<FoundryMultipleChoiceVariable<String>>()
             .having(
-              (variable) => variable.label,
-              'label',
-              'Platforms',
-            )
+          (variable) => variable.label,
+          'label',
+          'Platforms',
+        )
             .having(
-              (variable) => variable.options,
-              'options',
-              ['android', 'ios', 'web'],
-            ),
+          (variable) => variable.options,
+          'options',
+          ['android', 'ios', 'web'],
+        ),
       );
     });
 
