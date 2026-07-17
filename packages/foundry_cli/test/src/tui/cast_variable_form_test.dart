@@ -75,7 +75,8 @@ FoundryVariableGroup _buildScalarVariableGroup() => FoundryVariableGroup(
       },
     );
 
-FoundryVariableGroup _buildUnsetBooleanVariableGroup() => FoundryVariableGroup(
+FoundryVariableGroup _buildUnsetBooleanVariableGroup() =>
+    const FoundryVariableGroup(
       variables: {
         'flag': FoundryBooleanVariable(
           label: 'Flag',
@@ -558,7 +559,6 @@ void main() {
       'renders an explicit unset label for a boolean without a default',
       () => testNocterm(
         'unset boolean label',
-        size: const Size(80, 24),
         (tester) async {
           await tester.pumpComponent(
             CastVariableForm(
@@ -582,7 +582,6 @@ void main() {
       'submitting an untouched boolean without a default yields null',
       () => testNocterm(
         'unset boolean submits null',
-        size: const Size(80, 24),
         (tester) async {
           Map<String, Object?>? submitted;
           await tester.pumpComponent(
