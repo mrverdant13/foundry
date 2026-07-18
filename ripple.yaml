@@ -1,0 +1,109 @@
+name: foundry
+
+packages:
+  include:
+    - packages/*
+    - packages/*/e2e
+    - tool
+  exclude:
+    - '**/example/**'
+    - '**/test/fixtures/**'
+    - '**/e2e/fixtures/**'
+    - '**/e2e/e2e/fixtures/**'
+  groups:
+    e2e:
+      - packages/foundry_core/e2e
+      - packages/foundry_cli/e2e
+    publishable:
+      - packages/foundry_core
+      - packages/foundry_cli
+
+scripts:
+  format:
+    description: Format a package
+    exec: dart format .
+  format.ci:
+    description: Format all packages (CI)
+    run: dart format --set-exit-if-changed .
+
+  analyze:
+    description: Analyze a package
+    exec: dart analyze .
+  analyze.ci:
+    description: Analyze all packages (CI)
+    exec: dart analyze --fatal-infos --fatal-warnings .
+
+  test:
+    description: Run tests for a package
+    exec:
+      - dart run coverde@0.4.0 optimize-tests --include test/**_test.dart --output test/optimized_test.dart
+      - dart test --color --coverage-path coverage/lcov.info --coverage-package ${RIPPLE_PACKAGE_NAME} --exclude-tags ci-only --reporter expanded --test-randomize-ordering-seed random test/optimized_test.dart
+    filters:
+      dependsOn: [test]
+      dirExists: [test]
+  test.ci:
+    description: Run tests for all packages (CI)
+    exec:
+      - dart run coverde@0.4.0 optimize-tests --include test/**_test.dart --output test/optimized_test.dart
+      - dart test --coverage-path coverage/lcov.info --coverage-package ${RIPPLE_PACKAGE_NAME} --exclude-tags ci-only --reporter expanded --test-randomize-ordering-seed random test/optimized_test.dart
+    filters:
+      dependsOn: [test]
+      dirExists: [test]
+
+  coverage.merge:
+    description: Merge all packages coverage trace files
+    run:
+      - dart run coverde rm --no-dry-run ${RIPPLE_ROOT_PATH}/coverage/filtered.lcov.info
+      - ripple exec --file-exists coverage/lcov.info -- dart run coverde@0.4.0 transform --input coverage/lcov.info --output ${RIPPLE_ROOT_PATH}/coverage/filtered.lcov.info --transformations relative=${RIPPLE_ROOT_PATH}
+  coverage.check:
+    description: Check test coverage
+    run: dart run coverde check --input ${RIPPLE_ROOT_PATH}/coverage/filtered.lcov.info 100
+
+  test.e2e:
+    description: Run E2E tests
+    exec:
+      - dart run coverde@0.4.0 optimize-tests --include e2e/**_test.dart --output e2e/optimized_test.dart
+      - dart test --color --tags e2e --reporter expanded --test-randomize-ordering-seed random e2e/optimized_test.dart
+    filters:
+      group: e2e
+      dirExists: [e2e]
+  test.e2e.ci:
+    description: Run E2E tests for all packages (CI)
+    exec:
+      - dart run coverde@0.4.0 optimize-tests --include e2e/**_test.dart --output e2e/optimized_test.dart
+      - dart test --tags e2e --reporter expanded --test-randomize-ordering-seed random e2e/optimized_test.dart
+    filters:
+      group: e2e
+      dirExists: [e2e]
+
+  pub-score.local:
+    description: Check local pub.dev score for publishable packages
+    exec: dart run pub_score_checker check_pub_score local --markdown-output ${RIPPLE_PACKAGE_PATH}/.dart_tool/local_pub_score.md --package-path ${RIPPLE_PACKAGE_PATH} --threshold 10
+    filters:
+      group: publishable
+  pub-score.remote:
+    description: Check remote pub.dev score for publishable packages
+    exec: dart run pub_score_checker check_pub_score remote --markdown-output ${RIPPLE_PACKAGE_PATH}/.dart_tool/remote_pub_score.md --package-name ${RIPPLE_PACKAGE_NAME} --threshold 10
+    filters:
+      group: publishable
+
+  release.prepare:
+    description: >
+      Bump version and changelog for a single package release. Set
+      RIPPLE_PACKAGES=<package> to scope to one package.
+    exec:
+      - dart run ${RIPPLE_ROOT_PATH}/tool/prepare_package_release.dart --cwd ${RIPPLE_PACKAGE_PATH} --tag-format {name}/{version} --commit-types feat,fix,docs,refactor,test,build --bump build --apply
+      - dart run ${RIPPLE_ROOT_PATH}/tool/sync_package_version.dart --cwd ${RIPPLE_PACKAGE_PATH}
+    filters:
+      group: publishable
+
+  # Unscoped full gate. For a single package, run the package-filtered steps with
+  # RIPPLE_PACKAGES=<package> (format.ci / analyze.ci stay repo-wide).
+  release.check:
+    description: Pre-publish gate for all publishable packages
+    run:
+      - ripple run format.ci
+      - ripple run analyze.ci --fail-fast
+      - ripple run test.ci --fail-fast
+      - ripple run pub-score.local --fail-fast
+      - ripple exec --group publishable --fail-fast -- dart pub publish --dry-run
