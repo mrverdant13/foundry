@@ -27,19 +27,16 @@ FoundryObjectVariable _publishSettings({
         'port': FoundryIntVariable(
           label: 'Port',
           defaultValue: (_) => 8080,
-          visibleWhen: (context) =>
-              context.optionalString('host') != 'hidden',
+          visibleWhen: (context) => context.optionalString('host') != 'hidden',
           validators: [
-            (value, _) => (value == null || value <= 0)
-                ? 'Port must be positive.'
-                : null,
+            (value, _) =>
+                (value == null || value <= 0) ? 'Port must be positive.' : null,
           ],
         ),
         'secure': FoundryBooleanVariable(
           label: 'Secure',
           defaultValue: (_) => true,
-          enabledWhen: (context) =>
-              context.optionalString('host') != 'locked',
+          enabledWhen: (context) => context.optionalString('host') != 'locked',
         ),
       },
     ),
