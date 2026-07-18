@@ -1,5 +1,6 @@
 import 'package:foundry_core/src/context/foundry_context_exception.dart';
 import 'package:foundry_core/src/context/snapshot_foundry_context.dart';
+import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 import 'package:meta/meta.dart';
 
 /// Callback that decides whether a variable is visible for the current cast
@@ -47,8 +48,8 @@ typedef FoundryDisplayLabel<T> = String Function(T value);
 ///
 /// Concrete kinds include [FoundryStringVariable], [FoundryBooleanVariable],
 /// [FoundryIntVariable], [FoundryDoubleVariable],
-/// [FoundrySingleChoiceVariable], and [FoundryMultipleChoiceVariable];
-/// additional kinds are added as the runtime expands.
+/// [FoundrySingleChoiceVariable], [FoundryMultipleChoiceVariable], and
+/// [FoundryObjectVariable]; additional kinds are added as the runtime expands.
 @immutable
 sealed class FoundryVariable<T> {
   /// Creates a [FoundryVariable].
@@ -412,5 +413,98 @@ final class FoundryMultipleChoiceVariable<T> extends FoundryVariable<List<T>> {
       }
     }
     return [...orderedKnown, ...unknowns];
+  }
+}
+
+/// A nested object variable whose fields are declared by [group].
+///
+/// The resolved value type is [Map<String, Object?>], with keys matching the
+/// nested variable map. Nested visibility, defaults, and validation run
+/// recursively through [group].
+final class FoundryObjectVariable
+    extends FoundryVariable<Map<String, Object?>> {
+  /// Creates a [FoundryObjectVariable].
+  const FoundryObjectVariable({
+    required super.label,
+    required this.group,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+
+  /// Nested variable schema evaluated as this object's fields.
+  final FoundryVariableGroup group;
+
+  @override
+  Object? resolveValue({
+    required String key,
+    required Map<String, Object?> rawValues,
+    required Set<String> dirtyKeys,
+    required Map<String, Object?> resolvedValues,
+  }) {
+    final hasRawValue = rawValues.containsKey(key) && rawValues[key] != null;
+    if (dirtyKeys.contains(key) || hasRawValue) {
+      final rawValue = rawValues[key];
+      if (rawValue == null) {
+        return null;
+      }
+      final nestedRaw = _coerceMap(key: key, value: rawValue);
+      return group.evaluate(rawValues: nestedRaw).resolvedValues;
+    }
+
+    final derive = defaultValue;
+    if (derive != null) {
+      final derived = derive(
+        SnapshotFoundryContext({...resolvedValues, ...rawValues}),
+      );
+      return group.evaluate(rawValues: derived).resolvedValues;
+    }
+
+    return group.evaluate().resolvedValues;
+  }
+
+  @override
+  List<String> validate(Object? value, SnapshotFoundryContext context) {
+    if (value == null) {
+      return validators
+          .map((validator) => validator(null, context))
+          .whereType<String>()
+          .toList(growable: false);
+    }
+
+    final nestedRaw = _coerceMap(value: value);
+    final nestedEvaluation = group.evaluate(rawValues: nestedRaw);
+    final nestedValidation = group.validate(nestedEvaluation);
+    final typed = Map<String, Object?>.from(nestedEvaluation.resolvedValues);
+
+    return [
+      for (final fieldEntry in nestedValidation.fieldErrors.entries)
+        for (final error in fieldEntry.value) '${fieldEntry.key}: $error',
+      ...nestedValidation.groupErrors,
+      ...validators
+          .map((validator) => validator(typed, context))
+          .whereType<String>(),
+    ].toList(growable: false);
+  }
+
+  Map<String, Object?> _coerceMap({
+    required Object value,
+    String? key,
+  }) {
+    if (value is! Map) {
+      final keyClause = key == null ? '' : ' for key "$key"';
+      throw FoundryContextException(
+        'Expected a value of type Map<String, Object?>$keyClause but found '
+        'a value of type ${value.runtimeType}.',
+      );
+    }
+
+    return {
+      for (final entry in value.entries) entry.key.toString(): entry.value,
+    };
   }
 }

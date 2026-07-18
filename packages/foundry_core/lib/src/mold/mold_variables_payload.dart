@@ -86,6 +86,18 @@ FoundryVariableGroup deserializeMoldVariableGroup(
           ),
           displayLabel: _identityDisplayLabel,
         );
+      case 'object':
+        variables[key] = FoundryObjectVariable(
+          label: _requireLabel(
+            key: key,
+            kind: 'Object',
+            definition: definition,
+          ),
+          group: _requireNestedGroup(
+            key: key,
+            definition: definition,
+          ),
+        );
       default:
         throw MoldLoadException([
           MoldIssue(
@@ -118,6 +130,36 @@ String _requireLabel({
     ]);
   }
   return label;
+}
+
+FoundryVariableGroup _requireNestedGroup({
+  required String key,
+  required Map<dynamic, dynamic> definition,
+}) {
+  final groupNode = definition['group'];
+  if (groupNode == null) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: 'Object variable "$key" is missing a nested group.',
+      ),
+    ]);
+  }
+  if (groupNode is! Map) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: 'Object variable "$key" has an invalid nested group '
+            '(${groupNode.runtimeType}).',
+      ),
+    ]);
+  }
+
+  return deserializeMoldVariableGroup(
+    Map<String, Object?>.from(groupNode),
+  );
 }
 
 List<String> _requireStringOptions({

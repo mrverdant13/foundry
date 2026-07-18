@@ -145,6 +145,49 @@ void main() {
       );
     });
 
+    test('round-trips nested object variables from a fixture', () async {
+      final mold = await loadMold(p.join(fixtures.path, 'object_kind_mold'));
+
+      expect(mold.name, 'object_kind');
+      expect(mold.variableGroup.variables, hasLength(1));
+      final publish = mold.variableGroup.variables['publish'];
+      expect(
+        publish,
+        isA<FoundryObjectVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Publish settings',
+        ),
+      );
+
+      final nested = (publish! as FoundryObjectVariable).group;
+      expect(nested.variables, hasLength(3));
+      expect(
+        nested.variables['host'],
+        isA<FoundryStringVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Host',
+        ),
+      );
+      expect(
+        nested.variables['port'],
+        isA<FoundryIntVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Port',
+        ),
+      );
+      expect(
+        nested.variables['secure'],
+        isA<FoundryBooleanVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Secure',
+        ),
+      );
+    });
+
     test('resolves standard hook files when present', () async {
       final tempDir =
           await Directory.systemTemp.createTemp('foundry_with_hooks_');

@@ -229,6 +229,11 @@ Map<String, Object?> _serializeVariable(FoundryVariable<dynamic> variable) {
       'label': label,
       'options': _serializeStringOptions(options),
     },
+  FoundryObjectVariable(:final label, :final group) => {
+      'kind': 'object',
+      'label': label,
+      'group': _serializeVariableGroup(group),
+    },
   _ => throw UnsupportedError(
       'Unsupported variable type: \${variable.runtimeType}',
     ),
