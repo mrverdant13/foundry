@@ -174,6 +174,84 @@ FoundryVariableGroup _buildHidableChoiceVariableGroup() => FoundryVariableGroup(
       },
     );
 
+FoundryVariableGroup _buildChoiceFieldGroup() => FoundryVariableGroup(
+      variables: {
+        'field': FoundrySingleChoiceVariable<String>(
+          label: 'Field',
+          options: const ['app', 'package'],
+          displayLabel: (value) => value,
+          defaultValue: (_) => 'package',
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildTextFieldGroup({String defaultText = 'typed'}) =>
+    FoundryVariableGroup(
+      variables: {
+        'field': FoundryStringVariable(
+          label: 'Field',
+          defaultValue: (_) => defaultText,
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildDerivedChoiceVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'mode': const FoundryStringVariable(label: 'Mode'),
+        'kind': FoundrySingleChoiceVariable<String>(
+          label: 'Kind',
+          options: const ['a', 'b'],
+          displayLabel: (value) => value,
+          defaultValue: (context) =>
+              context.optionalString('mode') == 'b' ? 'b' : 'a',
+        ),
+      },
+    );
+
+/// Host that can swap [CastVariableForm.variableGroup] while preserving form
+/// state, so kind-transition behavior is testable.
+class _CastVariableFormHost extends StatefulComponent {
+  const _CastVariableFormHost({
+    required this.initialVariableGroup,
+    required this.onBindSwap,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final FoundryVariableGroup initialVariableGroup;
+  final void Function(void Function(FoundryVariableGroup group) swap)
+      onBindSwap;
+  final void Function(Map<String, Object?> values) onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_CastVariableFormHost> createState() => _CastVariableFormHostState();
+}
+
+class _CastVariableFormHostState extends State<_CastVariableFormHost> {
+  late FoundryVariableGroup _variableGroup;
+
+  @override
+  void initState() {
+    super.initState();
+    _variableGroup = component.initialVariableGroup;
+    component.onBindSwap((group) {
+      setState(() => _variableGroup = group);
+    });
+  }
+
+  @override
+  Component build(BuildContext context) {
+    return CastVariableForm(
+      variableGroup: _variableGroup,
+      moldName: 'demo_app',
+      moldDescription: 'A demo mold.',
+      onSubmit: component.onSubmit,
+      onCancel: component.onCancel,
+    );
+  }
+}
+
 void main() {
   group('CastVariableForm', () {
     test(
@@ -1129,6 +1207,128 @@ void main() {
             isNot(contains('kind: Kind')),
           );
           expect(tester.terminalState.getText(), contains('done: Done'));
+        },
+      ),
+    );
+
+    test(
+      'choice-to-text kind change drops stale choice values',
+      () => testNocterm(
+        'choice to text kind change',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildChoiceFieldGroup(),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('(•) package'));
+
+          // Dirty the choice field so a stale raw value exists before the swap.
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) app'));
+
+          swapGroup(_buildTextFieldGroup(defaultText: 'typed-default'));
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('typed-default'));
+          expect(output, isNot(contains('(•)')));
+
+          for (var i = 0; i < 'typed-default'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('hello');
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], 'hello');
+        },
+      ),
+    );
+
+    test(
+      'text-to-choice kind change drops stale text controllers',
+      () => testNocterm(
+        'text to choice kind change',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildTextFieldGroup(defaultText: 'stale'),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          for (var i = 0; i < 'stale'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('keep-me');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('keep-me'));
+
+          swapGroup(_buildChoiceFieldGroup());
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('(•) package'));
+          expect(output, isNot(contains('keep-me')));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], 'package');
+        },
+      ),
+    );
+
+    test(
+      'resyncs a non-dirty single-choice cursor when the default changes',
+      () => testNocterm(
+        'cursor tracks derived default',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDerivedChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('(•) a'));
+
+          await tester.enterText('b');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) b'));
+
+          await tester.sendTab(); // kind
+          expect(tester.terminalState.getText(), contains('> (•) b'));
+
+          // Space should keep the synced selection, not the old cursor option.
+          await tester.sendKey(LogicalKey.space);
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['mode'], 'b');
+          expect(submitted!['kind'], 'b');
         },
       ),
     );
