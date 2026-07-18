@@ -143,8 +143,7 @@ List<String> _requireStringOptions({
         MoldIssue(
           severity: MoldIssueSeverity.error,
           path: 'variables.dart',
-          message:
-              '$kind variable "$key" has a non-string or empty option.',
+          message: '$kind variable "$key" has a non-string or empty option.',
         ),
       ]);
     }
