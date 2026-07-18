@@ -157,11 +157,52 @@ ignore:
       );
     });
 
+    test('returns a structured error when the marker file cannot be read',
+        () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'foundry_pattern_unreadable_marker_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await Directory(p.join(tempDir.path, '.foundry')).create();
+      await File(p.join(tempDir.path, patternMarkerRelativePath)).writeAsString(
+        'name: locked',
+      );
+      await File(p.join(tempDir.path, 'README.md')).writeAsString('# Pattern');
+
+      final previous = readPatternMarkerFile;
+      addTearDown(() => readPatternMarkerFile = previous);
+      readPatternMarkerFile = (file) {
+        throw FileSystemException('Permission denied', file.path);
+      };
+
+      final report = await inspectPattern(tempDir.path);
+
+      expect(report.isValid, isFalse);
+      expect(report.hasMarker, isTrue);
+      expect(
+        report.issues,
+        contains(
+          isA<PatternIssue>()
+              .having(
+                (issue) => issue.severity,
+                'severity',
+                PatternIssueSeverity.error,
+              )
+              .having(
+                (issue) => issue.message,
+                'message',
+                'Could not read pattern marker: Permission denied',
+              ),
+        ),
+      );
+    });
+
     test(
-      'returns a structured error when the marker file cannot be read',
+      'surfaces a real unreadable marker file on POSIX hosts',
       () async {
         final tempDir = await Directory.systemTemp.createTemp(
-          'foundry_pattern_unreadable_marker_',
+          'foundry_pattern_chmod_marker_',
         );
         addTearDown(() {
           Process.runSync('chmod', ['-R', 'u+rwX', tempDir.path]);
@@ -187,17 +228,11 @@ ignore:
         expect(
           report.issues,
           contains(
-            isA<PatternIssue>()
-                .having(
-                  (issue) => issue.severity,
-                  'severity',
-                  PatternIssueSeverity.error,
-                )
-                .having(
-                  (issue) => issue.message,
-                  'message',
-                  contains('Could not read pattern marker'),
-                ),
+            isA<PatternIssue>().having(
+              (issue) => issue.message,
+              'message',
+              contains('Could not read pattern marker'),
+            ),
           ),
         );
       },

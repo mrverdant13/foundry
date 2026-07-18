@@ -69,6 +69,18 @@ FileSystemEntityType _defaultResolvePatternEntityType(String path) {
   return FileSystemEntity.typeSync(path, followLinks: false);
 }
 
+/// Reads the contents of a pattern marker file.
+///
+/// Overridable in tests to exercise [FileSystemException] handling that is
+/// difficult to trigger reliably across platforms.
+@visibleForTesting
+String Function(File file) readPatternMarkerFile =
+    _defaultReadPatternMarkerFile;
+
+String _defaultReadPatternMarkerFile(File file) {
+  return file.readAsStringSync();
+}
+
 /// Inspects the pattern directory at [patternPath].
 ///
 /// A pattern is any filesystem directory. When
@@ -130,7 +142,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   if (hasMarker) {
     try {
       marker = parsePatternMarker(
-        yamlContent: markerFile.readAsStringSync(),
+        yamlContent: readPatternMarkerFile(markerFile),
         sourcePath: markerFile.path,
       );
     } on PatternMarkerException catch (exception) {
