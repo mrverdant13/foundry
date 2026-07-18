@@ -126,6 +126,79 @@ void main() {
       );
     });
 
+    test('deserializes nested object variables', () {
+      final group = deserializeMoldVariableGroup({
+        'variables': {
+          'publish': {
+            'kind': 'object',
+            'label': 'Publish settings',
+            'group': {
+              'variables': {
+                'host': {
+                  'kind': 'string',
+                  'label': 'Host',
+                },
+                'port': {
+                  'kind': 'int',
+                  'label': 'Port',
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(group.variables, hasLength(1));
+      final publish = group.variables['publish'];
+      expect(
+        publish,
+        isA<FoundryObjectVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Publish settings',
+        ),
+      );
+
+      final nested = (publish! as FoundryObjectVariable).group;
+      expect(nested.variables, hasLength(2));
+      expect(
+        nested.variables['host'],
+        isA<FoundryStringVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Host',
+        ),
+      );
+      expect(
+        nested.variables['port'],
+        isA<FoundryIntVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Port',
+        ),
+      );
+    });
+
+    test('throws when object variable nested group is missing', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'publish': {
+              'kind': 'object',
+              'label': 'Publish settings',
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'Object variable "publish" is missing a nested group.',
+          ),
+        ),
+      );
+    });
+
     test('throws when choice variable options are missing', () {
       expect(
         () => deserializeMoldVariableGroup({
