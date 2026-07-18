@@ -264,7 +264,7 @@ final class FoundrySingleChoiceVariable<T> extends FoundryVariable<T> {
       ...validators
           .map((validator) => validator(typed, context))
           .whereType<String>(),
-    ];
+    ].toList(growable: false);
   }
 }
 
@@ -344,7 +344,7 @@ final class FoundryMultipleChoiceVariable<T> extends FoundryVariable<List<T>> {
       ...validators
           .map((validator) => validator(selection, context))
           .whereType<String>(),
-    ];
+    ].toList(growable: false);
   }
 
   List<T> _normalizeSelection({
