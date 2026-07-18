@@ -530,32 +530,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
           style: const TextStyle(color: Colors.yellow),
         ),
         if (entry.description != null) Text('$indent${entry.description!}'),
-        switch (entry.variable) {
-          FoundryBooleanVariable() => _buildBooleanControl(
-              entry: enabledEntry,
-              focused: focused,
-            ),
-          FoundrySingleChoiceVariable() => _buildSingleChoiceControl(
-              entry: enabledEntry,
-              pathKey: pathKey,
-              focused: focused,
-            ),
-          FoundryMultipleChoiceVariable() => _buildMultipleChoiceControl(
-              entry: enabledEntry,
-              pathKey: pathKey,
-              focused: focused,
-            ),
-          FoundryStringVariable() ||
-          FoundryIntVariable() ||
-          FoundryDoubleVariable() =>
-            _buildTextControl(
-              entry: enabledEntry,
-              pathKey: pathKey,
-              focused: focused,
-              onSubmitted: onSubmitted,
-            ),
-          FoundryObjectVariable() => const SizedBox(),
-        },
+        _buildLeafControl(
+          entry: enabledEntry,
+          pathKey: pathKey,
+          focused: focused,
+          onSubmitted: onSubmitted,
+        ),
         if (entry.help != null)
           Text(
             '$indent${entry.help!}',
@@ -574,6 +554,42 @@ class _CastVariableFormState extends State<CastVariableForm> {
             ),
           ),
       ],
+    );
+  }
+
+  /// Builds the interactive control for a non-object leaf field.
+  ///
+  /// Object variables are rendered as sections in [_buildGroupFields] and never
+  /// reach this helper.
+  Component _buildLeafControl({
+    required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
+    required bool focused,
+    required VoidCallback onSubmitted,
+  }) {
+    final variable = entry.variable;
+    if (variable is FoundryBooleanVariable) {
+      return _buildBooleanControl(entry: entry, focused: focused);
+    }
+    if (variable is FoundrySingleChoiceVariable) {
+      return _buildSingleChoiceControl(
+        entry: entry,
+        pathKey: pathKey,
+        focused: focused,
+      );
+    }
+    if (variable is FoundryMultipleChoiceVariable) {
+      return _buildMultipleChoiceControl(
+        entry: entry,
+        pathKey: pathKey,
+        focused: focused,
+      );
+    }
+    return _buildTextControl(
+      entry: entry,
+      pathKey: pathKey,
+      focused: focused,
+      onSubmitted: onSubmitted,
     );
   }
 
