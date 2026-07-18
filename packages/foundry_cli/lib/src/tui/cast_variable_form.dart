@@ -588,21 +588,31 @@ class _CastVariableFormState extends State<CastVariableForm> {
       if (_isChoiceVariable(variable)) {
         _clearTextFieldState(entry.key);
 
+        final options = _choiceOptions(variable);
         if (!_dirtyKeys.contains(entry.key)) {
           _choiceRawValues[entry.key] = entry.value;
-        }
-
-        final options = _choiceOptions(variable);
-        _optionCursorByKey.putIfAbsent(entry.key, () {
-          if (variable is! FoundrySingleChoiceVariable) {
-            return 0;
+          if (variable is FoundrySingleChoiceVariable) {
+            final selectedIndex = options.indexOf(entry.value);
+            _optionCursorByKey[entry.key] =
+                options.isEmpty ? 0 : (selectedIndex >= 0 ? selectedIndex : 0);
+          } else {
+            _optionCursorByKey.putIfAbsent(entry.key, () => 0);
+            final cursor = _optionCursorByKey[entry.key]!;
+            _optionCursorByKey[entry.key] =
+                options.isEmpty ? 0 : cursor % options.length;
           }
-          final selectedIndex = options.indexOf(entry.value);
-          return selectedIndex >= 0 ? selectedIndex : 0;
-        });
-        final cursor = _optionCursorByKey[entry.key]!;
-        _optionCursorByKey[entry.key] =
-            options.isEmpty ? 0 : cursor % options.length;
+        } else {
+          _optionCursorByKey.putIfAbsent(entry.key, () {
+            if (variable is! FoundrySingleChoiceVariable) {
+              return 0;
+            }
+            final selectedIndex = options.indexOf(entry.value);
+            return selectedIndex >= 0 ? selectedIndex : 0;
+          });
+          final cursor = _optionCursorByKey[entry.key]!;
+          _optionCursorByKey[entry.key] =
+              options.isEmpty ? 0 : cursor % options.length;
+        }
         continue;
       }
 
