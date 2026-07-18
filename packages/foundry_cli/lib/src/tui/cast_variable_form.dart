@@ -603,20 +603,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
             _optionCursorByKey[entry.key] =
                 options.isEmpty ? 0 : (selectedIndex >= 0 ? selectedIndex : 0);
           } else {
-            _optionCursorByKey.putIfAbsent(entry.key, () => 0);
-            final cursor = _optionCursorByKey[entry.key]!;
+            final cursor = _optionCursorByKey[entry.key] ?? 0;
             _optionCursorByKey[entry.key] =
                 options.isEmpty ? 0 : cursor % options.length;
           }
         } else {
-          _optionCursorByKey.putIfAbsent(entry.key, () {
-            if (variable is! FoundrySingleChoiceVariable) {
-              return 0;
-            }
-            final selectedIndex = options.indexOf(entry.value);
-            return selectedIndex >= 0 ? selectedIndex : 0;
-          });
-          final cursor = _optionCursorByKey[entry.key]!;
+          final cursor = _optionCursorByKey[entry.key] ?? 0;
           _optionCursorByKey[entry.key] =
               options.isEmpty ? 0 : cursor % options.length;
         }
