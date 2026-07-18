@@ -187,9 +187,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   }
 
   final ignoreGlobs = List<String>.unmodifiable(marker.ignore);
-  final compiledIgnores = [
-    for (final pattern in ignoreGlobs) Glob(pattern, context: p.posix),
-  ];
+  final ignoreMatchers = _compileIgnoreMatchers(ignoreGlobs);
 
   final List<String> topLevelEntries;
   try {
@@ -241,7 +239,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   for (final file in files) {
     final relative = p.relative(file.path, from: rootPath);
     final relativePosix = p.posix.joinAll(p.split(relative));
-    if (_isIgnored(relativePosix, compiledIgnores)) {
+    if (_isIgnored(relativePosix, ignoreMatchers)) {
       ignoredPaths.add(relativePosix);
       continue;
     }
@@ -261,25 +259,44 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   );
 }
 
-/// Whether [relativePosix] matches any [globs].
+/// Precompiled ignore matchers for a pattern inspection.
 ///
-/// Patterns that start with `**/` also match at the pattern root without a
-/// directory prefix (`**/*.tmp` matches `scratch.tmp`), matching common
-/// gitignore-style expectations while still using [Glob] matching.
-bool _isIgnored(String relativePosix, List<Glob> globs) {
-  for (final glob in globs) {
-    if (glob.matches(relativePosix)) {
+/// Patterns that start with `**/` also keep a stripped form so root-level
+/// paths match (`**/*.tmp` matches `scratch.tmp`) without rebuilding [Glob]s
+/// per file.
+final class _IgnoreMatcher {
+  const _IgnoreMatcher({
+    required this.primary,
+    this.withoutPrefix,
+  });
+
+  final Glob primary;
+  final Glob? withoutPrefix;
+
+  bool matches(String relativePosix) {
+    if (primary.matches(relativePosix)) {
       return true;
     }
-    final pattern = glob.pattern;
-    if (pattern.startsWith('**/')) {
-      final withoutPrefix = Glob(
-        pattern.substring(3),
-        context: p.posix,
-      );
-      if (withoutPrefix.matches(relativePosix)) {
-        return true;
-      }
+    return withoutPrefix?.matches(relativePosix) ?? false;
+  }
+}
+
+List<_IgnoreMatcher> _compileIgnoreMatchers(List<String> ignoreGlobs) {
+  return [
+    for (final pattern in ignoreGlobs)
+      _IgnoreMatcher(
+        primary: Glob(pattern, context: p.posix),
+        withoutPrefix: pattern.startsWith('**/')
+            ? Glob(pattern.substring(3), context: p.posix)
+            : null,
+      ),
+  ];
+}
+
+bool _isIgnored(String relativePosix, List<_IgnoreMatcher> matchers) {
+  for (final matcher in matchers) {
+    if (matcher.matches(relativePosix)) {
+      return true;
     }
   }
   return false;
