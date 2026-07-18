@@ -169,6 +169,10 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     for (final choiceEntry in _choiceRawValues.entries) {
+      final variable = component.variableGroup.variables[choiceEntry.key];
+      if (variable == null || !_isChoiceVariable(variable)) {
+        continue;
+      }
       rawValues[choiceEntry.key] = choiceEntry.value;
     }
 
