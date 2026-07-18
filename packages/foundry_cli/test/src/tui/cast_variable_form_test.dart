@@ -208,6 +208,68 @@ FoundryVariableGroup _buildDerivedChoiceVariableGroup() => FoundryVariableGroup(
       },
     );
 
+FoundryVariableGroup _buildObjectVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(
+          label: 'Project name',
+          defaultValue: (_) => 'demo',
+        ),
+        'publish': FoundryObjectVariable(
+          label: 'Publish settings',
+          description: 'Where to publish.',
+          help: 'Nested host, port, and secure flag.',
+          group: FoundryVariableGroup(
+            variables: {
+              'host': FoundryStringVariable(
+                label: 'Host',
+                defaultValue: (_) => 'localhost',
+                validators: [
+                  (value, _) => (value == null || value.isEmpty)
+                      ? 'Host is required.'
+                      : null,
+                ],
+              ),
+              'port': FoundryIntVariable(
+                label: 'Port',
+                defaultValue: (_) => 8080,
+                visibleWhen: (context) =>
+                    context.optionalString('host') != 'hidden',
+              ),
+              'secure': FoundryBooleanVariable(
+                label: 'Secure',
+                defaultValue: (_) => true,
+                enabledWhen: (context) =>
+                    context.optionalString('host') != 'locked',
+              ),
+            },
+          ),
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildDisabledObjectVariableGroup() {
+  return FoundryVariableGroup(
+    variables: {
+      'publish': FoundryObjectVariable(
+        label: 'Publish settings',
+        enabledWhen: (_) => false,
+        group: FoundryVariableGroup(
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => 'localhost',
+            ),
+            'secure': FoundryBooleanVariable(
+              label: 'Secure',
+              defaultValue: (_) => true,
+            ),
+          },
+        ),
+      ),
+    },
+  );
+}
+
 /// Host that can swap [CastVariableForm.variableGroup] while preserving form
 /// state, so kind-transition behavior is testable.
 class _CastVariableFormHost extends StatefulComponent {
@@ -1329,6 +1391,185 @@ void main() {
           expect(submitted, isNotNull);
           expect(submitted!['mode'], 'b');
           expect(submitted!['kind'], 'b');
+        },
+      ),
+    );
+
+    test(
+      'gathers a nested object map from nested field widgets',
+      () => testNocterm(
+        'gather nested object map',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('publish: Publish settings'));
+          expect(output, contains('host: Host'));
+          expect(output, contains('port: Port'));
+          expect(output, contains('secure: Secure'));
+
+          await tester.sendTab(); // publish.host
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('api.example.com');
+          await tester.sendTab(); // publish.port
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('443');
+          await tester.sendTab(); // publish.secure
+          await tester.sendKey(LogicalKey.space); // true -> false
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_name'], 'demo');
+          expect(submitted!['publish'], {
+            'host': 'api.example.com',
+            'port': 443,
+            'secure': false,
+          });
+        },
+      ),
+    );
+
+    test(
+      'honors nested visibleWhen by hiding nested fields',
+      () => testNocterm(
+        'nested visibleWhen',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('port: Port'));
+
+          await tester.sendTab(); // publish.host
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('hidden');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            isNot(contains('port: Port')),
+          );
+          expect(tester.terminalState.getText(), contains('secure: Secure'));
+
+          await tester.sendTab(); // publish.secure
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {
+            'host': 'hidden',
+            'secure': true,
+          });
+          expect(
+            (submitted!['publish']! as Map).containsKey('port'),
+            isFalse,
+          );
+        },
+      ),
+    );
+
+    test(
+      'honors nested enabledWhen with a read-only nested boolean',
+      () => testNocterm(
+        'nested enabledWhen',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // publish.host
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('locked');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            contains('[x] yes (read-only)'),
+          );
+
+          await tester.sendTab(); // publish.port
+          await tester.sendTab(); // publish.secure
+          await tester.sendKey(LogicalKey.space); // ignored
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {
+            'host': 'locked',
+            'port': 8080,
+            'secure': true,
+          });
+        },
+      ),
+    );
+
+    test(
+      'marks nested fields read-only when the parent object is disabled',
+      () => testNocterm(
+        'disabled parent object',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDisabledObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('publish: Publish settings'));
+          expect(output, contains('(read-only)'));
+          expect(output, contains('[x] yes (read-only)'));
+
+          await tester.sendKey(LogicalKey.space); // ignored on nested boolean
+          await tester.sendTab(); // host -> secure
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {
+            'host': 'localhost',
+            'secure': true,
+          });
         },
       ),
     );

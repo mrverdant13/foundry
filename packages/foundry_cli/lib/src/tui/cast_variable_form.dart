@@ -201,7 +201,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                       style: const TextStyle(color: Colors.red),
                     ),
                   ),
-                  // Object-level validators (and any remaining flattened errors)
+                  // Object-level validators (and remaining flattened errors)
                   // surface on the section when submit is attempted.
                   ...(validation.fieldErrors[entry.key] ?? const [])
                       .where(
