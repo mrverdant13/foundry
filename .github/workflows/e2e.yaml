@@ -27,18 +27,21 @@ jobs:
         uses: actions/checkout@v6
       - name: Install dart
         uses: dart-lang/setup-dart@v1
-      - name: Install melos
+      - name: Install ripple
         uses: ./.github/actions/install-dart-cli
         with:
-          package: melos 7.5.1
-      - name: Initialize melos
-        run: melos bs
+          package: >-
+            ripple_cli@{git: {url: https://github.com/mrverdant13/ripple.git, ref: 74c8fe4c0e246c818071e1f83b207a0616c5f1d2}}
+      - name: Bootstrap packages
+        run: |
+          dart pub get
+          ripple exec --fail-fast -- dart pub get
       - name: Run E2E tests
         id: e2e
         run: |
           set +e
           start_epoch=$(date +%s)
-          timeout "${E2E_TIMEOUT_SECONDS}" melos run test.e2e.all
+          timeout "${E2E_TIMEOUT_SECONDS}" ripple run test.e2e.ci --fail-fast
           exit_code=$?
           elapsed=$(( $(date +%s) - start_epoch ))
           echo "elapsed_seconds=${elapsed}" >> "$GITHUB_OUTPUT"

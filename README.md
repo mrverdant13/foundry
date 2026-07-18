@@ -10,7 +10,7 @@ produce an **Artifact** — a generated project or file tree at `--output`.
 
 | Item | Value |
 | --- | --- |
-| Repository | Standalone monorepo (Melos workspace) |
+| Repository | Standalone monorepo (Ripple scripts) |
 | Pub packages | [`foundry_core`](https://pub.dev/packages/foundry_core), [`foundry_cli`](https://pub.dev/packages/foundry_cli) |
 | Executable | `foundry` |
 | License | MIT |
@@ -59,7 +59,7 @@ foundry --version
 The global binary is **`foundry`** (`executables: foundry:` in `foundry_cli`), even
 though the pub.dev package is **`foundry_cli`**.
 
-During local development in this repository, run the CLI via Melos or `dart run`
+During local development in this repository, run the CLI via `dart run`
 (see [Contributing](CONTRIBUTING.md)).
 
 ### Scaffold a new mold
@@ -241,7 +241,8 @@ foundry/
 ├── doc/
 │   ├── mold-pubspec.schema.json # JSON Schema for mold pubspec.yaml
 │   └── hooks.md                 # Mold lifecycle hooks reference
-├── pubspec.yaml                 # Melos workspace root
+├── pubspec.yaml                 # Root tooling package
+├── ripple.yaml                  # Ripple package discovery and scripts
 ├── packages/
 │   ├── foundry_core/            # Core library (mold parsing, cast pipeline)
 │   │   └── e2e/                 # Library integration tests
@@ -250,7 +251,7 @@ foundry/
 └── analysis_options.yaml
 ```
 
-Monorepo setup, Melos scripts, CI/CD, and release workflows are covered in
+Monorepo setup, Ripple scripts, CI/CD, and release workflows are covered in
 [Contributing](CONTRIBUTING.md).
 
 ---
@@ -278,7 +279,7 @@ Future<void> run(FoundryContext context) async {
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, Melos commands, testing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, Ripple commands, testing
 expectations, commit conventions, and pull request guidelines.
 
 ---
@@ -290,4 +291,4 @@ expectations, commit conventions, and pull request guidelines.
 | foundry_core | [pub.dev/packages/foundry_core](https://pub.dev/packages/foundry_core) |
 | foundry_cli | [pub.dev/packages/foundry_cli](https://pub.dev/packages/foundry_cli) |
 | liquify (Liquid for Dart) | [pub.dev/packages/liquify](https://pub.dev/packages/liquify) |
-| Melos | [melos.invertase.dev](https://melos.invertase.dev/) |
+| Ripple | [github.com/mrverdant13/ripple](https://github.com/mrverdant13/ripple) |

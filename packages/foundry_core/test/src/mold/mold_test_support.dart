@@ -23,8 +23,8 @@ Directory foundryCorePackageRoot({Directory? start}) {
   }
 }
 
-/// Returns the workspace `package_config.json` used to resolve `foundry_core`.
-String workspacePackageConfigPath({Directory? start}) {
+/// Returns the nearest `package_config.json` used to resolve `foundry_core`.
+String nearestPackageConfigPath({Directory? start}) {
   var current = start ?? foundryCorePackageRoot();
   while (true) {
     final config =
@@ -36,7 +36,7 @@ String workspacePackageConfigPath({Directory? start}) {
     final parent = current.parent;
     if (parent.path == current.path) {
       throw StateError(
-        'Could not locate workspace package_config.json from ${current.path}',
+        'Could not locate package_config.json from ${current.path}',
       );
     }
     current = parent;

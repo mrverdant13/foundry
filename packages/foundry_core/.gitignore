@@ -13,7 +13,6 @@
 /test/fixtures/**/.dart_tool/
 /test/fixtures/**/pubspec.lock
 
-# Melos
+# IDE
 /melos_*.iml
 /.idea/
-/pubspec_overrides.yaml
