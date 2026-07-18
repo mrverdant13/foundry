@@ -199,6 +199,27 @@ void main() {
       );
     });
 
+    test('throws when object variable nested group has the wrong type', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'publish': {
+              'kind': 'object',
+              'label': 'Publish settings',
+              'group': 'not-a-map',
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'Object variable "publish" has an invalid nested group (String).',
+          ),
+        ),
+      );
+    });
+
     test('throws when choice variable options are missing', () {
       expect(
         () => deserializeMoldVariableGroup({
