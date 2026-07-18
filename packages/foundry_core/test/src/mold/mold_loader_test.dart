@@ -109,6 +109,42 @@ void main() {
       );
     });
 
+    test('round-trips single and multiple choice variables from a fixture',
+        () async {
+      final mold = await loadMold(p.join(fixtures.path, 'choice_kinds_mold'));
+
+      expect(mold.name, 'choice_kinds');
+      expect(mold.variableGroup.variables, hasLength(2));
+      expect(
+        mold.variableGroup.variables['project_type'],
+        isA<FoundrySingleChoiceVariable<String>>()
+            .having(
+          (variable) => variable.label,
+          'label',
+          'Project type',
+        )
+            .having(
+          (variable) => variable.options,
+          'options',
+          ['app', 'package'],
+        ),
+      );
+      expect(
+        mold.variableGroup.variables['platforms'],
+        isA<FoundryMultipleChoiceVariable<String>>()
+            .having(
+          (variable) => variable.label,
+          'label',
+          'Platforms',
+        )
+            .having(
+          (variable) => variable.options,
+          'options',
+          ['android', 'ios', 'web'],
+        ),
+      );
+    });
+
     test('resolves standard hook files when present', () async {
       final tempDir =
           await Directory.systemTemp.createTemp('foundry_with_hooks_');

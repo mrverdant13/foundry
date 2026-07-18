@@ -58,6 +58,34 @@ FoundryVariableGroup deserializeMoldVariableGroup(
             definition: definition,
           ),
         );
+      case 'single-choice':
+        variables[key] = FoundrySingleChoiceVariable<String>(
+          label: _requireLabel(
+            key: key,
+            kind: 'SingleChoice',
+            definition: definition,
+          ),
+          options: _requireStringOptions(
+            key: key,
+            kind: 'SingleChoice',
+            definition: definition,
+          ),
+          displayLabel: _identityDisplayLabel,
+        );
+      case 'multiple-choice':
+        variables[key] = FoundryMultipleChoiceVariable<String>(
+          label: _requireLabel(
+            key: key,
+            kind: 'MultipleChoice',
+            definition: definition,
+          ),
+          options: _requireStringOptions(
+            key: key,
+            kind: 'MultipleChoice',
+            definition: definition,
+          ),
+          displayLabel: _identityDisplayLabel,
+        );
       default:
         throw MoldLoadException([
           MoldIssue(
@@ -71,6 +99,8 @@ FoundryVariableGroup deserializeMoldVariableGroup(
 
   return FoundryVariableGroup(variables: variables);
 }
+
+String _identityDisplayLabel(String value) => value;
 
 String _requireLabel({
   required String key,
@@ -88,4 +118,36 @@ String _requireLabel({
     ]);
   }
   return label;
+}
+
+List<String> _requireStringOptions({
+  required String key,
+  required String kind,
+  required Map<dynamic, dynamic> definition,
+}) {
+  final optionsNode = definition['options'];
+  if (optionsNode is! List || optionsNode.isEmpty) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: '$kind variable "$key" is missing string options.',
+      ),
+    ]);
+  }
+
+  final options = <String>[];
+  for (final option in optionsNode) {
+    if (option is! String || option.isEmpty) {
+      throw MoldLoadException([
+        MoldIssue(
+          severity: MoldIssueSeverity.error,
+          path: 'variables.dart',
+          message: '$kind variable "$key" has a non-string or empty option.',
+        ),
+      ]);
+    }
+    options.add(option);
+  }
+  return options;
 }

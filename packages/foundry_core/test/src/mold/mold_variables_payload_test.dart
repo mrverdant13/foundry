@@ -64,6 +64,132 @@ void main() {
       );
     });
 
+    test('deserializes single and multiple choice variables', () {
+      final group = deserializeMoldVariableGroup({
+        'variables': {
+          'project_type': {
+            'kind': 'single-choice',
+            'label': 'Project type',
+            'options': ['app', 'package'],
+          },
+          'platforms': {
+            'kind': 'multiple-choice',
+            'label': 'Platforms',
+            'options': ['android', 'ios', 'web'],
+          },
+        },
+      });
+
+      expect(group.variables, hasLength(2));
+      final projectType = group.variables['project_type'];
+      expect(
+        projectType,
+        isA<FoundrySingleChoiceVariable<String>>()
+            .having(
+          (variable) => variable.label,
+          'label',
+          'Project type',
+        )
+            .having(
+          (variable) => variable.options,
+          'options',
+          ['app', 'package'],
+        ),
+      );
+      expect(
+        (projectType! as FoundrySingleChoiceVariable<String>).displayLabel(
+          'app',
+        ),
+        'app',
+      );
+
+      final platforms = group.variables['platforms'];
+      expect(
+        platforms,
+        isA<FoundryMultipleChoiceVariable<String>>()
+            .having(
+          (variable) => variable.label,
+          'label',
+          'Platforms',
+        )
+            .having(
+          (variable) => variable.options,
+          'options',
+          ['android', 'ios', 'web'],
+        ),
+      );
+      expect(
+        (platforms! as FoundryMultipleChoiceVariable<String>).displayLabel(
+          'ios',
+        ),
+        'ios',
+      );
+    });
+
+    test('throws when choice variable options are missing', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'project_type': {
+              'kind': 'single-choice',
+              'label': 'Project type',
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'SingleChoice variable "project_type" is missing string options.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when choice variable options are not strings', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'platforms': {
+              'kind': 'multiple-choice',
+              'label': 'Platforms',
+              'options': ['android', 1],
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'MultipleChoice variable "platforms" has a non-string or '
+                'empty option.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when choice variable options include an empty string', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'project_type': {
+              'kind': 'single-choice',
+              'label': 'Project type',
+              'options': ['app', ''],
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'SingleChoice variable "project_type" has a non-string or '
+                'empty option.',
+          ),
+        ),
+      );
+    });
+
     test('throws when variables node is missing', () {
       expect(
         () => deserializeMoldVariableGroup({}),

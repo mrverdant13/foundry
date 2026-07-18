@@ -40,11 +40,15 @@ typedef FoundryGroupValidator = String? Function(
   SnapshotFoundryContext context,
 );
 
+/// Maps a choice option to the label shown in the variable TUI.
+typedef FoundryDisplayLabel<T> = String Function(T value);
+
 /// Base type for variables declared in a mold's `variables.dart`.
 ///
 /// Concrete kinds include [FoundryStringVariable], [FoundryBooleanVariable],
-/// [FoundryIntVariable], and [FoundryDoubleVariable]; additional kinds are
-/// added as the runtime expands.
+/// [FoundryIntVariable], [FoundryDoubleVariable],
+/// [FoundrySingleChoiceVariable], and [FoundryMultipleChoiceVariable];
+/// additional kinds are added as the runtime expands.
 @immutable
 sealed class FoundryVariable<T> {
   /// Creates a [FoundryVariable].
@@ -214,4 +218,199 @@ final class FoundryDoubleVariable extends FoundryVariable<double> {
     super.placeholder,
     super.help,
   });
+}
+
+/// A single-select choice from a fixed set of [options].
+///
+/// The resolved value type is [T]. [displayLabel] is required so the TUI can
+/// render non-string options.
+final class FoundrySingleChoiceVariable<T> extends FoundryVariable<T> {
+  /// Creates a [FoundrySingleChoiceVariable].
+  ///
+  /// [options] may be a [Set] or [List]; declaration order is preserved for
+  /// TUI rendering.
+  FoundrySingleChoiceVariable({
+    required super.label,
+    required Iterable<T> options,
+    required this.displayLabel,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  }) : options = List<T>.unmodifiable(options);
+
+  /// Allowed values for this variable, in declaration order.
+  final List<T> options;
+
+  /// Maps an option to the label shown in the variable TUI.
+  final FoundryDisplayLabel<T> displayLabel;
+
+  @override
+  List<String> validate(Object? value, SnapshotFoundryContext context) {
+    if (value != null && value is! T) {
+      throw FoundryContextException(
+        'Expected a value of type $T but found a value of type '
+        '${value.runtimeType}.',
+      );
+    }
+
+    final typed = value as T?;
+    return [
+      if (typed != null && !options.contains(typed))
+        'Value is not a valid option.',
+      ...validators
+          .map((validator) => validator(typed, context))
+          .whereType<String>(),
+    ].toList(growable: false);
+  }
+}
+
+/// A multi-select choice from a fixed set of [options].
+///
+/// The resolved value type is [List<T>]. Selected values are normalized to
+/// [options] declaration order (duplicates removed). An empty selection is
+/// allowed unless [validators] reject it. [displayLabel] is required so the
+/// TUI can render non-string options.
+final class FoundryMultipleChoiceVariable<T> extends FoundryVariable<List<T>> {
+  /// Creates a [FoundryMultipleChoiceVariable].
+  ///
+  /// [options] may be a [Set] or [List]; declaration order is preserved for
+  /// TUI rendering and for the resolved [List] order.
+  FoundryMultipleChoiceVariable({
+    required super.label,
+    required Iterable<T> options,
+    required this.displayLabel,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  }) : options = List<T>.unmodifiable(options);
+
+  /// Allowed values for this variable, in declaration order.
+  final List<T> options;
+
+  /// Maps an option to the label shown in the variable TUI.
+  final FoundryDisplayLabel<T> displayLabel;
+
+  @override
+  Object? resolveValue({
+    required String key,
+    required Map<String, Object?> rawValues,
+    required Set<String> dirtyKeys,
+    required Map<String, Object?> resolvedValues,
+  }) {
+    final hasRawValue = rawValues.containsKey(key) && rawValues[key] != null;
+    if (dirtyKeys.contains(key) || hasRawValue) {
+      final rawValue = rawValues[key];
+      if (rawValue == null) {
+        return null;
+      }
+      return _normalizeSelection(
+        key: key,
+        rawValue: rawValue,
+      );
+    }
+
+    final derive = defaultValue;
+    if (derive == null) {
+      return null;
+    }
+    return _orderSelection(
+      derive(
+        SnapshotFoundryContext({...resolvedValues, ...rawValues}),
+      ),
+    );
+  }
+
+  @override
+  List<String> validate(Object? value, SnapshotFoundryContext context) {
+    if (value == null) {
+      return validators
+          .map((validator) => validator(null, context))
+          .whereType<String>()
+          .toList(growable: false);
+    }
+
+    final selection = _coerceSelection(value);
+    return [
+      if (selection.any((element) => !options.contains(element)))
+        'Value is not a valid option.',
+      ...validators
+          .map((validator) => validator(selection, context))
+          .whereType<String>(),
+    ].toList(growable: false);
+  }
+
+  List<T> _normalizeSelection({
+    required String key,
+    required Object rawValue,
+  }) {
+    if (rawValue is! List) {
+      throw FoundryContextException(
+        'Expected a value of type List<$T> for key "$key" but found a value '
+        'of type ${rawValue.runtimeType}.',
+      );
+    }
+
+    final selected = <T>[];
+    for (final element in rawValue) {
+      if (element is! T) {
+        throw FoundryContextException(
+          'Expected list elements of type $T for key "$key" but found a '
+          'value of type ${element.runtimeType}.',
+        );
+      }
+      selected.add(element);
+    }
+    return _orderSelection(selected);
+  }
+
+  List<T> _coerceSelection(Object value) {
+    if (value is! List) {
+      throw FoundryContextException(
+        'Expected a value of type List<$T> but found a value of type '
+        '${value.runtimeType}.',
+      );
+    }
+
+    final selected = <T>[];
+    for (final element in value) {
+      if (element is! T) {
+        throw FoundryContextException(
+          'Expected list elements of type $T but found a value of type '
+          '${element.runtimeType}.',
+        );
+      }
+      selected.add(element);
+    }
+    return selected;
+  }
+
+  /// Returns [selected] in [options] declaration order.
+  ///
+  /// Unknown values (not in [options]) are appended in first-seen order so
+  /// [validate] can reject them instead of silently dropping them.
+  List<T> _orderSelection(Iterable<T> selected) {
+    final selectedList = List<T>.of(selected);
+    final selectedSet = selectedList.toSet();
+    final orderedKnown = [
+      for (final option in options)
+        if (selectedSet.contains(option)) option,
+    ];
+    final knownSet = orderedKnown.toSet();
+    final unknowns = <T>[];
+    final seenUnknown = <T>{};
+    for (final value in selectedList) {
+      if (!knownSet.contains(value) && seenUnknown.add(value)) {
+        unknowns.add(value);
+      }
+    }
+    return [...orderedKnown, ...unknowns];
+  }
 }

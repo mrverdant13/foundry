@@ -219,10 +219,33 @@ Map<String, Object?> _serializeVariable(FoundryVariable<dynamic> variable) {
       'kind': 'double',
       'label': label,
     },
+  FoundrySingleChoiceVariable(:final label, :final options) => {
+      'kind': 'single-choice',
+      'label': label,
+      'options': _serializeStringOptions(options),
+    },
+  FoundryMultipleChoiceVariable(:final label, :final options) => {
+      'kind': 'multiple-choice',
+      'label': label,
+      'options': _serializeStringOptions(options),
+    },
   _ => throw UnsupportedError(
       'Unsupported variable type: \${variable.runtimeType}',
     ),
   };
+}
+
+List<String> _serializeStringOptions(List<Object?> options) {
+  return [
+    for (final option in options)
+      if (option is String)
+        option
+      else
+        throw UnsupportedError(
+          'Choice variable options must be String for isolate load; '
+          'found \${option.runtimeType}.',
+        ),
+  ];
 }
 ''');
   return wrapper;
