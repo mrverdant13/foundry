@@ -57,6 +57,18 @@ final class PatternInspectionReport {
   bool get isValid => !hasErrors;
 }
 
+/// Resolves the filesystem entity type for a pattern path.
+///
+/// Overridable in tests to exercise [FileSystemException] handling that is
+/// difficult to trigger reliably across platforms.
+@visibleForTesting
+FileSystemEntityType Function(String path) resolvePatternEntityType =
+    _defaultResolvePatternEntityType;
+
+FileSystemEntityType _defaultResolvePatternEntityType(String path) {
+  return FileSystemEntity.typeSync(path, followLinks: false);
+}
+
 /// Inspects the pattern directory at [patternPath].
 ///
 /// A pattern is any filesystem directory. When
@@ -68,7 +80,7 @@ final class PatternInspectionReport {
 Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   final FileSystemEntityType entityType;
   try {
-    entityType = FileSystemEntity.typeSync(patternPath, followLinks: false);
+    entityType = resolvePatternEntityType(patternPath);
   } on FileSystemException catch (error) {
     return PatternInspectionReport(
       rootPath: patternPath,

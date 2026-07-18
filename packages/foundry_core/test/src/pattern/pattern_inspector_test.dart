@@ -136,5 +136,72 @@ ignore:
         PatternIssueSeverity.error,
       );
     });
+
+    test('returns a structured error when the path cannot be inspected',
+        () async {
+      final previous = resolvePatternEntityType;
+      addTearDown(() => resolvePatternEntityType = previous);
+
+      resolvePatternEntityType = (path) {
+        throw FileSystemException('Permission denied', path);
+      };
+
+      const path = '/tmp/unreadable-pattern';
+      final report = await inspectPattern(path);
+
+      expect(report.isValid, isFalse);
+      expect(report.rootPath, path);
+      expect(
+        report.issues.single.message,
+        'Could not inspect pattern path: Permission denied',
+      );
+    });
+
+    test(
+      'returns a structured error when the marker file cannot be read',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'foundry_pattern_unreadable_marker_',
+        );
+        addTearDown(() {
+          Process.runSync('chmod', ['-R', 'u+rwX', tempDir.path]);
+          tempDir.deleteSync(recursive: true);
+        });
+
+        await Directory(p.join(tempDir.path, '.foundry')).create();
+        final markerFile = File(
+          p.join(tempDir.path, patternMarkerRelativePath),
+        );
+        await markerFile.writeAsString('name: locked');
+        await File(p.join(tempDir.path, 'README.md')).writeAsString(
+          '# Pattern',
+        );
+
+        final chmod = Process.runSync('chmod', ['a=', markerFile.path]);
+        expect(chmod.exitCode, 0);
+
+        final report = await inspectPattern(tempDir.path);
+
+        expect(report.isValid, isFalse);
+        expect(report.hasMarker, isTrue);
+        expect(
+          report.issues,
+          contains(
+            isA<PatternIssue>()
+                .having(
+                  (issue) => issue.severity,
+                  'severity',
+                  PatternIssueSeverity.error,
+                )
+                .having(
+                  (issue) => issue.message,
+                  'message',
+                  contains('Could not read pattern marker'),
+                ),
+          ),
+        );
+      },
+      skip: !Platform.isLinux && !Platform.isMacOS,
+    );
   });
 }

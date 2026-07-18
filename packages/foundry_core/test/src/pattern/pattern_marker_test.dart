@@ -44,6 +44,48 @@ ignore:
       );
     });
 
+    test('parses a null YAML document as an empty marker', () {
+      final marker = parsePatternMarker(
+        yamlContent: '',
+        sourcePath: '/tmp/.foundry/pattern.yaml',
+      );
+
+      expect(marker.name, isNull);
+      expect(marker.ignore, isEmpty);
+    });
+
+    test('rejects an empty name', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: "name: '   '",
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('name'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects ignore when it is not a list', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: 'ignore: build/**',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('ignore'),
+          ),
+        ),
+      );
+    });
+
     test('rejects ignore values that are not strings', () {
       expect(
         () => parsePatternMarker(
@@ -57,13 +99,38 @@ ignore:
       );
     });
 
+    test('rejects empty ignore entries', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '''
+ignore:
+  - '   '
+''',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('non-empty'),
+          ),
+        ),
+      );
+    });
+
     test('rejects invalid YAML', () {
       expect(
         () => parsePatternMarker(
           yamlContent: 'name: [unterminated',
           sourcePath: '/tmp/.foundry/pattern.yaml',
         ),
-        throwsA(isA<PatternMarkerException>()),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.toString(),
+            'toString',
+            contains('Failed to parse pattern marker'),
+          ),
+        ),
       );
     });
   });
