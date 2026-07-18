@@ -137,12 +137,22 @@ FoundryVariableGroup _requireNestedGroup({
   required Map<dynamic, dynamic> definition,
 }) {
   final groupNode = definition['group'];
-  if (groupNode is! Map) {
+  if (groupNode == null) {
     throw MoldLoadException([
       MoldIssue(
         severity: MoldIssueSeverity.error,
         path: 'variables.dart',
         message: 'Object variable "$key" is missing a nested group.',
+      ),
+    ]);
+  }
+  if (groupNode is! Map) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: 'Object variable "$key" has an invalid nested group '
+            '(${groupNode.runtimeType}).',
       ),
     ]);
   }
