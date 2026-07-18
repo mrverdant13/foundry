@@ -30,6 +30,9 @@ final class CastVariableTextParseFailure extends CastVariableTextParseResult {
 /// and validators can run. Invalid numeric or boolean text yields a
 /// [CastVariableTextParseFailure] instead of a mistyped raw value that would
 /// throw during evaluation.
+///
+/// Choice kinds are not entered as free text; callers should keep typed option
+/// values out of band and must not rely on this parser for them.
 CastVariableTextParseResult parseCastVariableText(
   FoundryVariable<dynamic> variable,
   String text,
@@ -40,6 +43,11 @@ CastVariableTextParseResult parseCastVariableText(
     FoundryBooleanVariable() => _parseBoolean(trimmed),
     FoundryIntVariable() => _parseInt(trimmed),
     FoundryDoubleVariable() => _parseDouble(trimmed),
+    FoundrySingleChoiceVariable() ||
+    FoundryMultipleChoiceVariable() =>
+      const CastVariableTextParseFailure(
+        'Choice values are selected from options, not typed',
+      ),
   };
 }
 

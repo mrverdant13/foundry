@@ -8,8 +8,9 @@ import 'package:nocterm/nocterm.dart';
 /// Renders one field per visible entry of [variableGroup], recomputing
 /// visibility, defaults, and validation as the user edits values. String,
 /// int, and double kinds use text fields (with in-form parse feedback for
-/// numbers); boolean kinds use a Space-to-toggle control. Submitting the
-/// last field with all values valid calls [onSubmit] with the resolved
+/// numbers); boolean kinds use a Space-to-toggle control; single- and
+/// multiple-choice kinds use option lists driven by ↑/↓ and Space. Submitting
+/// the last field with all values valid calls [onSubmit] with the resolved
 /// values; pressing Escape calls [onCancel]. This component only gathers
 /// values — it does not run the cast pipeline itself.
 /// {@endtemplate}
@@ -46,6 +47,8 @@ class CastVariableForm extends StatefulComponent {
 
 class _CastVariableFormState extends State<CastVariableForm> {
   final Map<String, TextEditingController> _controllers = {};
+  final Map<String, Object?> _choiceRawValues = {};
+  final Map<String, int> _optionCursorByKey = {};
   final Set<String> _dirtyKeys = {};
   int _focusedIndex = 0;
   bool _showErrors = false;
@@ -65,7 +68,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
       rawValues: collected.rawValues,
       dirtyKeys: _dirtyKeys,
     );
-    _syncControllers(evaluation);
+    _syncFieldState(evaluation);
     final validation = component.variableGroup.validate(evaluation);
     final entries = evaluation.entries;
 
@@ -133,8 +136,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
                     ),
                   ),
                 const Text(
-                  'Tab/Shift+Tab to move, Space toggles yes/no, Enter on the '
-                  'last field to confirm, Esc to cancel.',
+                  'Tab/Shift+Tab to move, ↑/↓ for choices, Space toggles, '
+                  'Enter on the last field to confirm, Esc to cancel.',
                 ),
               ],
             ),
@@ -152,7 +155,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
     for (final controllerEntry in _controllers.entries) {
       final key = controllerEntry.key;
       final variable = component.variableGroup.variables[key];
-      if (variable == null) continue;
+      if (variable == null || _isChoiceVariable(variable)) {
+        continue;
+      }
 
       switch (parseCastVariableText(variable, controllerEntry.value.text)) {
         case CastVariableTextParseSuccess(:final value):
@@ -161,6 +166,10 @@ class _CastVariableFormState extends State<CastVariableForm> {
           rawValues[key] = null;
           parseErrors[key] = message;
       }
+    }
+
+    for (final choiceEntry in _choiceRawValues.entries) {
+      rawValues[choiceEntry.key] = choiceEntry.value;
     }
 
     return (rawValues: rawValues, parseErrors: parseErrors);
@@ -203,16 +212,129 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     final focusedEntry = entries[_focusedIndex];
-    if (focusedEntry.variable is! FoundryBooleanVariable) {
-      return false;
+    final variable = focusedEntry.variable;
+
+    if (variable is FoundryBooleanVariable) {
+      return _handleBooleanKeyEvent(
+        event,
+        focusedEntry: focusedEntry,
+        entries: entries,
+        evaluation: evaluation,
+        validation: validation,
+        parseErrors: parseErrors,
+      );
     }
 
+    if (variable is FoundrySingleChoiceVariable ||
+        variable is FoundryMultipleChoiceVariable) {
+      return _handleChoiceKeyEvent(
+        event,
+        focusedEntry: focusedEntry,
+        entries: entries,
+        evaluation: evaluation,
+        validation: validation,
+        parseErrors: parseErrors,
+      );
+    }
+
+    return false;
+  }
+
+  bool _handleBooleanKeyEvent(
+    KeyboardEvent event, {
+    required FoundryVariableEvaluationEntry focusedEntry,
+    required List<FoundryVariableEvaluationEntry> entries,
+    required FoundryVariableGroupEvaluation evaluation,
+    required FoundryVariableGroupValidation validation,
+    required Map<String, String> parseErrors,
+  }) {
     if (event.logicalKey == LogicalKey.space && focusedEntry.isEnabled) {
       setState(() {
         _dirtyKeys.add(focusedEntry.key);
         final controller = _controllers[focusedEntry.key]!;
         final currentlyChecked = focusedEntry.value == true;
         controller.text = (!currentlyChecked).toString();
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.enter) {
+      if (_focusedIndex < entries.length - 1) {
+        setState(() => _focusedIndex = _focusedIndex + 1);
+        return true;
+      }
+      _attemptSubmit(evaluation, validation, parseErrors);
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _handleChoiceKeyEvent(
+    KeyboardEvent event, {
+    required FoundryVariableEvaluationEntry focusedEntry,
+    required List<FoundryVariableEvaluationEntry> entries,
+    required FoundryVariableGroupEvaluation evaluation,
+    required FoundryVariableGroupValidation validation,
+    required Map<String, String> parseErrors,
+  }) {
+    final options = _choiceOptions(focusedEntry.variable);
+    if (options.isEmpty) {
+      if (event.logicalKey == LogicalKey.enter) {
+        if (_focusedIndex < entries.length - 1) {
+          setState(() => _focusedIndex = _focusedIndex + 1);
+          return true;
+        }
+        _attemptSubmit(evaluation, validation, parseErrors);
+        return true;
+      }
+      return false;
+    }
+
+    final cursor = _optionCursorByKey[focusedEntry.key] ?? 0;
+
+    if (event.logicalKey == LogicalKey.arrowUp && focusedEntry.isEnabled) {
+      setState(() {
+        final nextCursor = (cursor - 1 + options.length) % options.length;
+        _optionCursorByKey[focusedEntry.key] = nextCursor;
+        if (focusedEntry.variable is FoundrySingleChoiceVariable) {
+          _dirtyKeys.add(focusedEntry.key);
+          _choiceRawValues[focusedEntry.key] = options[nextCursor];
+        }
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.arrowDown && focusedEntry.isEnabled) {
+      setState(() {
+        final nextCursor = (cursor + 1) % options.length;
+        _optionCursorByKey[focusedEntry.key] = nextCursor;
+        if (focusedEntry.variable is FoundrySingleChoiceVariable) {
+          _dirtyKeys.add(focusedEntry.key);
+          _choiceRawValues[focusedEntry.key] = options[nextCursor];
+        }
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.space && focusedEntry.isEnabled) {
+      setState(() {
+        _dirtyKeys.add(focusedEntry.key);
+        final option = options[cursor];
+        switch (focusedEntry.variable) {
+          case FoundrySingleChoiceVariable():
+            _choiceRawValues[focusedEntry.key] = option;
+          case FoundryMultipleChoiceVariable():
+            final current = _selectedOptions(focusedEntry);
+            if (current.contains(option)) {
+              current.remove(option);
+            } else {
+              current.add(option);
+            }
+            _choiceRawValues[focusedEntry.key] = current;
+          default:
+            break;
+        }
       });
       return true;
     }
@@ -246,6 +368,14 @@ class _CastVariableFormState extends State<CastVariableForm> {
         if (entry.description != null) Text(entry.description!),
         switch (entry.variable) {
           FoundryBooleanVariable() => _buildBooleanControl(
+              entry: entry,
+              focused: focused,
+            ),
+          FoundrySingleChoiceVariable() => _buildSingleChoiceControl(
+              entry: entry,
+              focused: focused,
+            ),
+          FoundryMultipleChoiceVariable() => _buildMultipleChoiceControl(
               entry: entry,
               focused: focused,
             ),
@@ -295,6 +425,94 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
   }
 
+  Component _buildSingleChoiceControl({
+    required FoundryVariableEvaluationEntry entry,
+    required bool focused,
+  }) {
+    final variable = entry.variable as FoundrySingleChoiceVariable<dynamic>;
+    final cursor = _optionCursorByKey[entry.key] ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: BoxBorder.all(
+          color: focused ? Colors.cyan : Colors.gray,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var index = 0; index < variable.options.length; index++)
+            Text(
+              _formatChoiceOptionLine(
+                marker: entry.value == variable.options[index] ? '(•)' : '( )',
+                label: variable.displayLabel(variable.options[index]),
+                showCursor: focused && entry.isEnabled && index == cursor,
+                enabled: entry.isEnabled,
+              ),
+              style: TextStyle(
+                color: entry.isEnabled ? null : Colors.gray,
+              ),
+            ),
+          if (!entry.isEnabled)
+            const Text(
+              '(read-only)',
+              style: TextStyle(color: Colors.gray),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Component _buildMultipleChoiceControl({
+    required FoundryVariableEvaluationEntry entry,
+    required bool focused,
+  }) {
+    final variable = entry.variable as FoundryMultipleChoiceVariable<dynamic>;
+    final cursor = _optionCursorByKey[entry.key] ?? 0;
+    final selected = _selectedOptions(entry).toSet();
+
+    return Container(
+      decoration: BoxDecoration(
+        border: BoxBorder.all(
+          color: focused ? Colors.cyan : Colors.gray,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var index = 0; index < variable.options.length; index++)
+            Text(
+              _formatChoiceOptionLine(
+                marker:
+                    selected.contains(variable.options[index]) ? '[x]' : '[ ]',
+                label: variable.displayLabel(variable.options[index]),
+                showCursor: focused && entry.isEnabled && index == cursor,
+                enabled: entry.isEnabled,
+              ),
+              style: TextStyle(
+                color: entry.isEnabled ? null : Colors.gray,
+              ),
+            ),
+          if (!entry.isEnabled)
+            const Text(
+              '(read-only)',
+              style: TextStyle(color: Colors.gray),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatChoiceOptionLine({
+    required String marker,
+    required String label,
+    required bool showCursor,
+    required bool enabled,
+  }) {
+    final prefix = showCursor && enabled ? '>' : ' ';
+    return '$prefix $marker $label';
+  }
+
   Component _buildTextControl({
     required FoundryVariableEvaluationEntry entry,
     required bool focused,
@@ -324,11 +542,34 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
   }
 
-  void _syncControllers(FoundryVariableGroupEvaluation evaluation) {
+  void _syncFieldState(FoundryVariableGroupEvaluation evaluation) {
     final activeKeys = evaluation.entries.map((entry) => entry.key).toSet();
 
     for (final entry in evaluation.entries) {
-      final displayValue = switch (entry.variable) {
+      final variable = entry.variable;
+      if (_isChoiceVariable(variable)) {
+        if (!_dirtyKeys.contains(entry.key)) {
+          _choiceRawValues[entry.key] = entry.value;
+        }
+
+        final options = _choiceOptions(variable);
+        _optionCursorByKey.putIfAbsent(entry.key, () {
+          if (variable is! FoundrySingleChoiceVariable) {
+            return 0;
+          }
+          final selectedIndex = options.indexOf(entry.value);
+          return selectedIndex >= 0 ? selectedIndex : 0;
+        });
+        final cursor = _optionCursorByKey[entry.key]!;
+        if (options.isEmpty) {
+          _optionCursorByKey[entry.key] = 0;
+        } else if (cursor >= options.length) {
+          _optionCursorByKey[entry.key] = options.length - 1;
+        }
+        continue;
+      }
+
+      final displayValue = switch (variable) {
         FoundryBooleanVariable() =>
           entry.value == null ? '' : (entry.value == true).toString(),
         _ => entry.value?.toString() ?? '',
@@ -343,12 +584,45 @@ class _CastVariableFormState extends State<CastVariableForm> {
       }
     }
 
-    final removedKeys =
+    final removedControllerKeys =
         _controllers.keys.where((key) => !activeKeys.contains(key)).toList();
-    for (final key in removedKeys) {
+    for (final key in removedControllerKeys) {
       _controllers.remove(key)?.dispose();
       _dirtyKeys.remove(key);
     }
+
+    final removedChoiceKeys = _choiceRawValues.keys
+        .where((key) => !activeKeys.contains(key))
+        .toList();
+    for (final key in removedChoiceKeys) {
+      _choiceRawValues.remove(key);
+      _dirtyKeys.remove(key);
+    }
+
+    _optionCursorByKey.removeWhere((key, _) => !activeKeys.contains(key));
+  }
+
+  List<Object?> _choiceOptions(FoundryVariable<dynamic> variable) {
+    return switch (variable) {
+      FoundrySingleChoiceVariable(:final options) =>
+        List<Object?>.from(options),
+      FoundryMultipleChoiceVariable(:final options) =>
+        List<Object?>.from(options),
+      _ => const <Object?>[],
+    };
+  }
+
+  List<Object?> _selectedOptions(FoundryVariableEvaluationEntry entry) {
+    final raw = _choiceRawValues[entry.key] ?? entry.value;
+    if (raw is! List) {
+      return <Object?>[];
+    }
+    return List<Object?>.from(raw);
+  }
+
+  bool _isChoiceVariable(FoundryVariable<dynamic> variable) {
+    return variable is FoundrySingleChoiceVariable ||
+        variable is FoundryMultipleChoiceVariable;
   }
 
   void _attemptSubmit(
