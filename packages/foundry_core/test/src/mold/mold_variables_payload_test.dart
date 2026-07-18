@@ -161,7 +161,30 @@ void main() {
           isA<MoldLoadException>().having(
             (error) => error.issues.single.message,
             'message',
-            'MultipleChoice variable "platforms" has a non-string option.',
+            'MultipleChoice variable "platforms" has a non-string or '
+                'empty option.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when choice variable options include an empty string', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'project_type': {
+              'kind': 'single-choice',
+              'label': 'Project type',
+              'options': ['app', ''],
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'SingleChoice variable "project_type" has a non-string or '
+                'empty option.',
           ),
         ),
       );
