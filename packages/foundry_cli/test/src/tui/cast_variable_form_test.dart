@@ -85,6 +85,173 @@ FoundryVariableGroup _buildUnsetBooleanVariableGroup() =>
       },
     );
 
+FoundryVariableGroup _buildChoiceVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'project_type': FoundrySingleChoiceVariable<String>(
+          label: 'Project type',
+          description: 'What to generate.',
+          help: 'Arrow keys move the selection.',
+          options: const ['app', 'package'],
+          displayLabel: (value) => value.toUpperCase(),
+          defaultValue: (_) => 'app',
+        ),
+        'platforms': FoundryMultipleChoiceVariable<String>(
+          label: 'Platforms',
+          description: 'Target platforms.',
+          help: 'Space toggles each option.',
+          options: const ['android', 'ios', 'web'],
+          displayLabel: (value) => value,
+          defaultValue: (_) => const ['android'],
+        ),
+        'locked_type': FoundrySingleChoiceVariable<String>(
+          label: 'Locked type',
+          options: const ['app', 'package'],
+          displayLabel: (value) => value,
+          enabledWhen: (_) => false,
+          defaultValue: (_) => 'package',
+        ),
+        'locked_platforms': FoundryMultipleChoiceVariable<String>(
+          label: 'Locked platforms',
+          options: const ['android', 'ios'],
+          displayLabel: (value) => value,
+          enabledWhen: (_) => false,
+          defaultValue: (_) => const ['ios'],
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildEmptyChoiceVariableGroup({
+  required bool emptyChoiceLast,
+}) {
+  final emptyChoice = FoundrySingleChoiceVariable<String>(
+    label: 'Empty choice',
+    options: const <String>[],
+    displayLabel: (value) => value,
+  );
+  final companion = FoundryStringVariable(
+    label: 'Companion',
+    defaultValue: (_) => 'ok',
+  );
+
+  return FoundryVariableGroup(
+    variables: emptyChoiceLast
+        ? {
+            'companion': companion,
+            'empty_choice': emptyChoice,
+          }
+        : {
+            'empty_choice': emptyChoice,
+            'companion': companion,
+          },
+  );
+}
+
+FoundryVariableGroup _buildOptionalMultiChoiceVariableGroup() =>
+    FoundryVariableGroup(
+      variables: {
+        'platforms': FoundryMultipleChoiceVariable<String>(
+          label: 'Platforms',
+          options: const ['android', 'ios'],
+          displayLabel: (value) => value,
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildHidableChoiceVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'mode': const FoundryStringVariable(label: 'Mode'),
+        'kind': FoundrySingleChoiceVariable<String>(
+          label: 'Kind',
+          options: const ['a', 'b'],
+          displayLabel: (value) => value,
+          defaultValue: (_) => 'a',
+          visibleWhen: (context) => context.optionalString('mode') != 'hide',
+        ),
+        'done': FoundryStringVariable(
+          label: 'Done',
+          defaultValue: (_) => 'x',
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildChoiceFieldGroup() => FoundryVariableGroup(
+      variables: {
+        'field': FoundrySingleChoiceVariable<String>(
+          label: 'Field',
+          options: const ['app', 'package'],
+          displayLabel: (value) => value,
+          defaultValue: (_) => 'package',
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildTextFieldGroup({String defaultText = 'typed'}) =>
+    FoundryVariableGroup(
+      variables: {
+        'field': FoundryStringVariable(
+          label: 'Field',
+          defaultValue: (_) => defaultText,
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildDerivedChoiceVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'mode': const FoundryStringVariable(label: 'Mode'),
+        'kind': FoundrySingleChoiceVariable<String>(
+          label: 'Kind',
+          options: const ['a', 'b'],
+          displayLabel: (value) => value,
+          defaultValue: (context) =>
+              context.optionalString('mode') == 'b' ? 'b' : 'a',
+        ),
+      },
+    );
+
+/// Host that can swap [CastVariableForm.variableGroup] while preserving form
+/// state, so kind-transition behavior is testable.
+class _CastVariableFormHost extends StatefulComponent {
+  const _CastVariableFormHost({
+    required this.initialVariableGroup,
+    required this.onBindSwap,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final FoundryVariableGroup initialVariableGroup;
+  final void Function(void Function(FoundryVariableGroup group) swap)
+      onBindSwap;
+  final void Function(Map<String, Object?> values) onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_CastVariableFormHost> createState() => _CastVariableFormHostState();
+}
+
+class _CastVariableFormHostState extends State<_CastVariableFormHost> {
+  late FoundryVariableGroup _variableGroup;
+
+  @override
+  void initState() {
+    super.initState();
+    _variableGroup = component.initialVariableGroup;
+    component.onBindSwap((group) {
+      setState(() => _variableGroup = group);
+    });
+  }
+
+  @override
+  Component build(BuildContext context) {
+    return CastVariableForm(
+      variableGroup: _variableGroup,
+      moldName: 'demo_app',
+      moldDescription: 'A demo mold.',
+      onSubmit: component.onSubmit,
+      onCancel: component.onCancel,
+    );
+  }
+}
+
 void main() {
   group('CastVariableForm', () {
     test(
@@ -696,6 +863,472 @@ void main() {
             contains('Enter a valid number'),
           );
           expect(tester.terminalState.getText(), contains('pi'));
+        },
+      ),
+    );
+
+    test(
+      'renders single and multiple choice fields with displayLabel metadata',
+      () => testNocterm(
+        'renders choice fields',
+        size: const Size(80, 40),
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('project_type: Project type'));
+          expect(output, contains('What to generate.'));
+          expect(output, contains('Arrow keys move the selection.'));
+          expect(output, contains('(•) APP'));
+          expect(output, contains('( ) PACKAGE'));
+          expect(output, contains('platforms: Platforms'));
+          expect(output, contains('Target platforms.'));
+          expect(output, contains('Space toggles each option.'));
+          expect(output, contains('[x] android'));
+          expect(output, contains('[ ] ios'));
+          expect(output, contains('[ ] web'));
+          expect(output, contains('locked_type: Locked type'));
+          expect(output, contains('(•) package'));
+          expect(output, contains('(read-only)'));
+          expect(output, contains('locked_platforms: Locked platforms'));
+          expect(output, contains('[x] ios'));
+        },
+      ),
+    );
+
+    test(
+      'selects one and many options and submits resolved choice values',
+      () => testNocterm(
+        'select and submit choices',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          // project_type: move from app -> package
+          await tester.sendKey(LogicalKey.arrowDown);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) PACKAGE'));
+
+          await tester.sendTab(); // platforms
+          // Leave android checked; toggle ios and web on.
+          await tester.sendKey(LogicalKey.arrowDown); // ios
+          await tester.sendKey(LogicalKey.space);
+          await tester.sendKey(LogicalKey.arrowDown); // web
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('[x] android'));
+          expect(output, contains('[x] ios'));
+          expect(output, contains('[x] web'));
+
+          await tester.sendTab(); // locked_type
+          await tester.sendTab(); // locked_platforms (last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_type'], 'package');
+          expect(submitted!['platforms'], ['android', 'ios', 'web']);
+          expect(submitted!['locked_type'], 'package');
+          expect(submitted!['locked_platforms'], ['ios']);
+        },
+      ),
+    );
+
+    test(
+      'Space and arrows do not edit disabled choice fields',
+      () => testNocterm(
+        'disabled choices stay put',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // platforms
+          await tester.sendTab(); // locked_type
+          await tester.sendKey(LogicalKey.arrowDown);
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            contains('(•) package'),
+          );
+          expect(
+            tester.terminalState.getText(),
+            contains('(read-only)'),
+          );
+
+          await tester.sendTab(); // locked_platforms
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          expect(tester.terminalState.getText(), contains('[x] ios'));
+          expect(tester.terminalState.getText(), contains('[ ] android'));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['locked_type'], 'package');
+          expect(submitted!['locked_platforms'], ['ios']);
+          expect(submitted!['project_type'], 'app');
+          expect(submitted!['platforms'], ['android']);
+        },
+      ),
+    );
+
+    test(
+      'Enter on a non-last choice field moves focus to the next field',
+      () => testNocterm(
+        'enter on choice moves focus',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendEnter(); // project_type -> platforms
+          await tester.sendKey(LogicalKey.arrowDown); // ios
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(tester.terminalState.getText(), contains('[x] ios'));
+        },
+      ),
+    );
+
+    test(
+      'arrow up wraps a single-choice selection and Space selects it',
+      () => testNocterm(
+        'arrow up and space on single choice',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          // Default is app (index 0); arrow up wraps to package.
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) PACKAGE'));
+
+          await tester.sendKey(LogicalKey.arrowDown); // back to app
+          await tester.sendKey(LogicalKey.space); // select app via Space
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) APP'));
+
+          await tester.sendTab(); // platforms
+          // Toggle the default android selection off.
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('[ ] android'));
+
+          await tester.sendTab(); // locked_type
+          await tester.sendTab(); // locked_platforms
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_type'], 'app');
+          expect(submitted!['platforms'], equals(<String>[]));
+        },
+      ),
+    );
+
+    test(
+      'Enter on a non-last empty choice field moves focus',
+      () => testNocterm(
+        'enter on empty choice moves focus',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildEmptyChoiceVariableGroup(
+                emptyChoiceLast: false,
+              ),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(
+            tester.terminalState.getText(),
+            contains('empty_choice: Empty choice'),
+          );
+
+          await tester.sendKey(LogicalKey.space); // ignored for empty options
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+
+          // Focus should now be on companion; typing replaces its default.
+          for (var i = 0; i < 'ok'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('next');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('next'));
+        },
+      ),
+    );
+
+    test(
+      'Enter on a last empty choice field submits',
+      () => testNocterm(
+        'enter on empty choice submits',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildEmptyChoiceVariableGroup(
+                emptyChoiceLast: true,
+              ),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // empty_choice (last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['companion'], 'ok');
+          expect(submitted!.containsKey('empty_choice'), isTrue);
+          expect(submitted!['empty_choice'], isNull);
+        },
+      ),
+    );
+
+    test(
+      'renders an optional multi-choice with no selection',
+      () => testNocterm(
+        'optional multi choice unset',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildOptionalMultiChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('[ ] android'));
+          expect(output, contains('[ ] ios'));
+
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('[x] android'));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['platforms'], ['android']);
+        },
+      ),
+    );
+
+    test(
+      'drops choice state when a choice field becomes hidden',
+      () => testNocterm(
+        'hidden choice cleanup',
+        size: const Size(80, 40),
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildHidableChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('kind: Kind'));
+
+          await tester.enterText('hide');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            isNot(contains('kind: Kind')),
+          );
+          expect(tester.terminalState.getText(), contains('done: Done'));
+        },
+      ),
+    );
+
+    test(
+      'choice-to-text kind change drops stale choice values',
+      () => testNocterm(
+        'choice to text kind change',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildChoiceFieldGroup(),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('(•) package'));
+
+          // Dirty the choice field so a stale raw value exists before the swap.
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) app'));
+
+          swapGroup(_buildTextFieldGroup(defaultText: 'typed-default'));
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('typed-default'));
+          expect(output, isNot(contains('(•)')));
+
+          for (var i = 0; i < 'typed-default'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('hello');
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], 'hello');
+        },
+      ),
+    );
+
+    test(
+      'text-to-choice kind change drops stale text controllers',
+      () => testNocterm(
+        'text to choice kind change',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildTextFieldGroup(defaultText: 'stale'),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          for (var i = 0; i < 'stale'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('keep-me');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('keep-me'));
+
+          swapGroup(_buildChoiceFieldGroup());
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('(•) package'));
+          expect(output, isNot(contains('keep-me')));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], 'package');
+        },
+      ),
+    );
+
+    test(
+      'resyncs a non-dirty single-choice cursor when the default changes',
+      () => testNocterm(
+        'cursor tracks derived default',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDerivedChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('(•) a'));
+
+          await tester.enterText('b');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) b'));
+
+          await tester.sendTab(); // kind
+          expect(tester.terminalState.getText(), contains('> (•) b'));
+
+          // Space should keep the synced selection, not the old cursor option.
+          await tester.sendKey(LogicalKey.space);
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['mode'], 'b');
+          expect(submitted!['kind'], 'b');
         },
       ),
     );

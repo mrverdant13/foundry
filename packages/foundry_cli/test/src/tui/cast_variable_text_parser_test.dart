@@ -114,5 +114,39 @@ void main() {
         );
       });
     });
+
+    group('choice variables', () {
+      test('rejects typed text for single-choice variables', () {
+        final variable = FoundrySingleChoiceVariable<String>(
+          label: 'Project type',
+          options: const ['app', 'package'],
+          displayLabel: (value) => value,
+        );
+
+        final result = parseCastVariableText(variable, 'app');
+
+        expect(result, isA<CastVariableTextParseFailure>());
+        expect(
+          (result as CastVariableTextParseFailure).message,
+          'Choice values are selected from options, not typed',
+        );
+      });
+
+      test('rejects typed text for multiple-choice variables', () {
+        final variable = FoundryMultipleChoiceVariable<String>(
+          label: 'Platforms',
+          options: const ['android', 'ios'],
+          displayLabel: (value) => value,
+        );
+
+        final result = parseCastVariableText(variable, 'android,ios');
+
+        expect(result, isA<CastVariableTextParseFailure>());
+        expect(
+          (result as CastVariableTextParseFailure).message,
+          'Choice values are selected from options, not typed',
+        );
+      });
+    });
   });
 }
