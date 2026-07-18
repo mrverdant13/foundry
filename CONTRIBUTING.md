@@ -11,25 +11,25 @@ expectations, and collaboration conventions for this repository.
 
 - **Dart SDK** — stable channel (3.5+). [Install Dart](https://dart.dev/get-dart) or
   use Flutter's bundled SDK.
-- **Melos** — workspace orchestration for this monorepo. Install globally:
+- **Ripple** — package discovery and script runner for this monorepo. Install
+  globally (pinned git SHA):
   ```bash
-  dart install melos
+  dart install 'ripple_cli@{git: {url: https://github.com/mrverdant13/ripple.git, ref: 74c8fe4c0e246c818071e1f83b207a0616c5f1d2}}'
   ```
 - **Git**
-
-Optional:
-
-- **coverde** — coverage reporting in CI (`dart install coverde`)
 
 ### Clone and bootstrap
 
 ```bash
 git clone https://github.com/mrverdant13/foundry.git
 cd foundry
-melos bootstrap
+dart pub get
+ripple exec --fail-fast -- dart pub get
 ```
 
-`melos bootstrap` links workspace packages and runs `pub get` across `packages/`.
+Packages are isolated (no Dart workspace). Local path links for unpublished
+sibling packages live in committed `pubspec_overrides.yaml` files. Named scripts
+are defined in [`ripple.yaml`](ripple.yaml).
 
 ### Repository layout
 
@@ -40,6 +40,7 @@ foundry/
 │   │   └── e2e/            # End-to-end library tests
 │   └── foundry_cli/        # Publishable CLI
 │       └── e2e/            # End-to-end CLI tests
+├── ripple.yaml             # Ripple package discovery and scripts
 ├── README.md               # User-facing overview
 └── CONTRIBUTING.md         # This file
 ```
@@ -63,21 +64,25 @@ From the repo root:
 dart run packages/foundry_cli/bin/foundry.dart
 ```
 
-Use `dart run` against the workspace package so local changes are exercised
+Use `dart run` against the local package so local changes are exercised
 without relying on a globally installed `foundry` binary from pub.dev.
 
-### Common Melos commands
+### Common Ripple commands
 
 ```bash
-melos run format.ci      # Verify formatting (CI)
-melos run analyze.ci     # Analyze entire workspace (CI)
-melos run test.ci        # Unit tests + coverage
-melos run coverage.merge && melos run coverage.check
-melos run test.e2e.ci    # E2E packages only
+ripple run format.ci      # Verify formatting (CI)
+ripple run analyze.ci     # Analyze all packages (CI)
+ripple run test.ci        # Unit tests + coverage
+ripple run coverage.merge && ripple run coverage.check
+ripple run test.e2e.ci    # E2E packages only
 ```
 
-Additional Melos scripts (`release.check`, `release.prepare`, and others) are
-defined in the root `pubspec.yaml` as they are added to the workspace.
+Additional scripts (`release.check`, `release.prepare`, and others) are defined
+in [`ripple.yaml`](ripple.yaml). Scope package-filtered `exec:` steps with
+`RIPPLE_PACKAGES=<package>`. `release.check` is an unscoped `run:` gate; for a
+single package, run `format.ci` / `analyze.ci` repo-wide, then scope
+`test.ci`, `pub-score.local`, and `dart pub publish --dry-run` with
+`RIPPLE_PACKAGES=<package>`.
 
 ### CI secrets
 
@@ -163,7 +168,7 @@ Guidelines:
 ### Examples
 
 ```
-chore: scaffold melos workspace and package skeletons
+chore: scaffold ripple scripts and package skeletons
 ci: add format and analyze workflow
 feat(foundry_core): add mold manifest model and yaml loader
 feat(foundry_cli): add command runner and version flag
@@ -203,7 +208,7 @@ sync with its `pubspec.yaml`:
    titled `chore(<package>): release <version>` on branch
    `<package>/chore/release-<version>`.
 2. **Verify** — the **Dart release PR check** workflow (`release-pr.yaml`) runs
-   `melos run release.check` when the PR title and branch match the release
+   `ripple run release.check` when the PR title and branch match the release
    pattern.
 3. **Tag** — merge the release PR. **Release tag on merge**
    (`release-tag.yaml`) creates an annotated git tag `<package>/<version>` on
@@ -231,9 +236,9 @@ the same pattern (for example `foundry_core/{{version}}`).
 
 - [ ] Behavior matches documented CLI and API contracts (or documents intentional deviation)
 - [ ] Tests added or updated
-- [ ] Formatting verified (`melos run format.ci`)
-- [ ] Analysis verified (`melos run analyze.ci`)
-- [ ] Tests verified (`melos run test.ci`)
+- [ ] Formatting verified (`ripple run format.ci`)
+- [ ] Analysis verified (`ripple run analyze.ci`)
+- [ ] Tests verified (`ripple run test.ci`)
 - [ ] No imports from monorepo-only tooling packages in `foundry_cli`
 - [ ] Public API changes reflected in `README.md` or `doc/` when user-facing
 

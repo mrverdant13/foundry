@@ -3,8 +3,8 @@
 End-to-end tests for the `foundry_core` library. Tests call the public API
 directly and assert on outputs — no CLI subprocess.
 
-Run from the repository root once Melos e2e scripts are configured:
+Run from the repository root:
 
 ```bash
-melos run test.e2e
+ripple run test.e2e
 ```
