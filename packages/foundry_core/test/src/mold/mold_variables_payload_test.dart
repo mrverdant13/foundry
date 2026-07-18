@@ -81,8 +81,9 @@ void main() {
       });
 
       expect(group.variables, hasLength(2));
+      final projectType = group.variables['project_type'];
       expect(
-        group.variables['project_type'],
+        projectType,
         isA<FoundrySingleChoiceVariable<String>>()
             .having(
           (variable) => variable.label,
@@ -96,7 +97,15 @@ void main() {
         ),
       );
       expect(
-        group.variables['platforms'],
+        (projectType! as FoundrySingleChoiceVariable<String>).displayLabel(
+          'app',
+        ),
+        'app',
+      );
+
+      final platforms = group.variables['platforms'];
+      expect(
+        platforms,
         isA<FoundryMultipleChoiceVariable<String>>()
             .having(
           (variable) => variable.label,
@@ -108,6 +117,12 @@ void main() {
           'options',
           ['android', 'ios', 'web'],
         ),
+      );
+      expect(
+        (platforms! as FoundryMultipleChoiceVariable<String>).displayLabel(
+          'ios',
+        ),
+        'ios',
       );
     });
 

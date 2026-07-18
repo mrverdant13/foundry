@@ -332,6 +332,23 @@ void main() {
       expect(errors, ['Pick at least one.']);
     });
 
+    test('runs validators when validate receives null', () {
+      final variable = FoundryMultipleChoiceVariable<String>(
+        label: 'Platforms',
+        options: const ['android', 'ios', 'web'],
+        displayLabel: (value) => value,
+        validators: [
+          (value, _) => value == null ? 'Required.' : null,
+          (value, _) => value == null ? 'Still required.' : null,
+        ],
+      );
+
+      expect(
+        variable.validate(null, SnapshotFoundryContext(const {})),
+        ['Required.', 'Still required.'],
+      );
+    });
+
     test('throws when validate receives the wrong type', () {
       final variable = FoundryMultipleChoiceVariable<String>(
         label: 'Platforms',
@@ -347,6 +364,30 @@ void main() {
             'message',
             'Expected a value of type List<String> but found a value of '
                 'type String.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when validate receives a list with the wrong element type',
+        () {
+      final variable = FoundryMultipleChoiceVariable<String>(
+        label: 'Platforms',
+        options: const ['android', 'ios', 'web'],
+        displayLabel: (value) => value,
+      );
+
+      expect(
+        () => variable.validate(
+          const ['android', 1],
+          SnapshotFoundryContext(const {}),
+        ),
+        throwsA(
+          isA<FoundryContextException>().having(
+            (exception) => exception.message,
+            'message',
+            'Expected list elements of type String but found a value of '
+                'type int.',
           ),
         ),
       );
