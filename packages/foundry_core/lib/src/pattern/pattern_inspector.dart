@@ -22,9 +22,11 @@ final class PatternInspectionReport {
     this.ignoredPaths = const [],
   });
 
-  /// Absolute path to the inspected pattern root, when it exists.
+  /// Path of the inspected pattern root.
   ///
-  /// For missing paths this is the unresolved input path.
+  /// Absolute when [inspectPattern] successfully resolves a directory.
+  /// Otherwise the unresolved input path (missing, non-directory, or early
+  /// filesystem errors before directory resolution).
   final String rootPath;
 
   /// Optional name from [patternMarkerRelativePath], when present and valid.
