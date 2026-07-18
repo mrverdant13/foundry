@@ -1,0 +1,3 @@
+dependency_overrides:
+  foundry_core:
+    path: ../foundry_core

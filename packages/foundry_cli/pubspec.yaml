@@ -11,7 +11,6 @@ topics:
   - codegen
   - cli
   - liquid
-resolution: workspace
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -23,6 +22,10 @@ dependencies:
   path: ^1.9.1
 
 dev_dependencies:
+  pub_score_checker:
+    git:
+      url: https://github.com/mrverdant13/pub_score_checker.git
+      ref: 526653ebf1ea09b3376550edc0ce03a153ca62f2
   test: ^1.31.1
   very_good_analysis: ^10.0.0
   yaml: ^3.1.3
