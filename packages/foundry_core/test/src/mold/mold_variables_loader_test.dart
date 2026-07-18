@@ -53,7 +53,7 @@ void main(List<String> args, Object? message) {
 }
 ''');
 
-    final packageConfigPath = workspacePackageConfigPath();
+    final packageConfigPath = nearestPackageConfigPath();
 
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
@@ -81,7 +81,7 @@ void main(List<String> args, Object? message) {
 }
 ''');
 
-    final packageConfigPath = workspacePackageConfigPath();
+    final packageConfigPath = nearestPackageConfigPath();
 
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
@@ -111,7 +111,7 @@ Future<void> main(List<String> args, Object? message) async {
 }
 ''');
 
-    final packageConfigPath = workspacePackageConfigPath();
+    final packageConfigPath = nearestPackageConfigPath();
 
     await expectLater(
       spawnMoldVariablesWrapperForTesting(
