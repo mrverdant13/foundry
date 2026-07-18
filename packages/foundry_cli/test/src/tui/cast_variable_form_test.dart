@@ -270,6 +270,72 @@ FoundryVariableGroup _buildDisabledObjectVariableGroup() {
   );
 }
 
+FoundryVariableGroup _buildValidatedObjectVariableGroup() {
+  return FoundryVariableGroup(
+    variables: {
+      'publish': FoundryObjectVariable(
+        label: 'Publish settings',
+        validators: [
+          (value, _) {
+            final host = value?['host'];
+            if (host == 'blocked') {
+              return 'Host is blocked.';
+            }
+            return null;
+          },
+        ],
+        group: FoundryVariableGroup(
+          groupValidators: [
+            (context) {
+              final host = context.optionalString('host');
+              final port = context.optionalInt('port');
+              if (host == 'localhost' && port == 80) {
+                return 'Localhost cannot use port 80.';
+              }
+              return null;
+            },
+          ],
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => 'localhost',
+              validators: [
+                (value, _) => (value == null || value.isEmpty)
+                    ? 'Host is required.'
+                    : null,
+              ],
+            ),
+            'port': FoundryIntVariable(
+              label: 'Port',
+              defaultValue: (_) => 8080,
+            ),
+          },
+        ),
+      ),
+    },
+  );
+}
+
+FoundryVariableGroup _buildObjectFieldGroup({
+  String hostDefault = 'localhost',
+}) {
+  return FoundryVariableGroup(
+    variables: {
+      'field': FoundryObjectVariable(
+        label: 'Field',
+        group: FoundryVariableGroup(
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => hostDefault,
+            ),
+          },
+        ),
+      ),
+    },
+  );
+}
+
 /// Host that can swap [CastVariableForm.variableGroup] while preserving form
 /// state, so kind-transition behavior is testable.
 class _CastVariableFormHost extends StatefulComponent {
@@ -1570,6 +1636,189 @@ void main() {
             'host': 'localhost',
             'secure': true,
           });
+        },
+      ),
+    );
+
+    test(
+      'shows nested field errors when object submit is invalid',
+      () => testNocterm(
+        'nested field validation errors',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildValidatedObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.sendTab(); // port
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(
+            tester.terminalState.getText(),
+            contains('Host is required.'),
+          );
+        },
+      ),
+    );
+
+    test(
+      'shows nested group errors on the object section',
+      () => testNocterm(
+        'nested group validation errors',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildValidatedObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // port
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('80');
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(
+            tester.terminalState.getText(),
+            contains('Localhost cannot use port 80.'),
+          );
+        },
+      ),
+    );
+
+    test(
+      'shows object-level validator errors on the object section',
+      () => testNocterm(
+        'object validator errors',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildValidatedObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('blocked');
+          await tester.sendTab(); // port
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+          expect(
+            tester.terminalState.getText(),
+            contains('Host is blocked.'),
+          );
+        },
+      ),
+    );
+
+    test(
+      'text-to-object kind change drops stale text controllers',
+      () => testNocterm(
+        'text to object kind change',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildTextFieldGroup(defaultText: 'stale'),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          for (var i = 0; i < 'stale'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('keep-me');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('keep-me'));
+
+          swapGroup(_buildObjectFieldGroup(hostDefault: 'nested-host'));
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('field: Field'));
+          expect(output, contains('host: Host'));
+          expect(output, contains('nested-host'));
+          expect(output, isNot(contains('keep-me')));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], {'host': 'nested-host'});
+        },
+      ),
+    );
+
+    test(
+      'choice-to-object kind change drops stale choice values',
+      () => testNocterm(
+        'choice to object kind change',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          late void Function(FoundryVariableGroup group) swapGroup;
+
+          await tester.pumpComponent(
+            _CastVariableFormHost(
+              initialVariableGroup: _buildChoiceFieldGroup(),
+              onBindSwap: (swap) => swapGroup = swap,
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) app'));
+
+          swapGroup(_buildObjectFieldGroup(hostDefault: 'from-object'));
+          await tester.pump();
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('field: Field'));
+          expect(output, contains('from-object'));
+          expect(output, isNot(contains('(•)')));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['field'], {'host': 'from-object'});
         },
       ),
     );
