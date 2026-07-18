@@ -429,7 +429,13 @@ class _CastVariableFormState extends State<CastVariableForm> {
     required FoundryVariableEvaluationEntry entry,
     required bool focused,
   }) {
-    final variable = entry.variable as FoundrySingleChoiceVariable<dynamic>;
+    if (entry.variable is! FoundrySingleChoiceVariable) {
+      return const SizedBox();
+    }
+
+    final choiceUi = _choiceUiParts(entry.variable);
+    final options = choiceUi.options;
+    final displayLabel = choiceUi.displayLabel;
     final cursor = _optionCursorByKey[entry.key] ?? 0;
 
     return Container(
@@ -441,11 +447,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var index = 0; index < variable.options.length; index++)
+          for (var index = 0; index < options.length; index++)
             Text(
               _formatChoiceOptionLine(
-                marker: entry.value == variable.options[index] ? '(•)' : '( )',
-                label: variable.displayLabel(variable.options[index]),
+                marker: entry.value == options[index] ? '(•)' : '( )',
+                label: _choiceDisplayLabel(displayLabel, options[index]),
                 showCursor: focused && entry.isEnabled && index == cursor,
                 enabled: entry.isEnabled,
               ),
@@ -467,7 +473,13 @@ class _CastVariableFormState extends State<CastVariableForm> {
     required FoundryVariableEvaluationEntry entry,
     required bool focused,
   }) {
-    final variable = entry.variable as FoundryMultipleChoiceVariable<dynamic>;
+    if (entry.variable is! FoundryMultipleChoiceVariable) {
+      return const SizedBox();
+    }
+
+    final choiceUi = _choiceUiParts(entry.variable);
+    final options = choiceUi.options;
+    final displayLabel = choiceUi.displayLabel;
     final cursor = _optionCursorByKey[entry.key] ?? 0;
     final selected = _selectedOptions(entry).toSet();
 
@@ -480,12 +492,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var index = 0; index < variable.options.length; index++)
+          for (var index = 0; index < options.length; index++)
             Text(
               _formatChoiceOptionLine(
-                marker:
-                    selected.contains(variable.options[index]) ? '[x]' : '[ ]',
-                label: variable.displayLabel(variable.options[index]),
+                marker: selected.contains(options[index]) ? '[x]' : '[ ]',
+                label: _choiceDisplayLabel(displayLabel, options[index]),
                 showCursor: focused && entry.isEnabled && index == cursor,
                 enabled: entry.isEnabled,
               ),
@@ -501,6 +512,29 @@ class _CastVariableFormState extends State<CastVariableForm> {
         ],
       ),
     );
+  }
+
+  /// Invokes a choice [displayLabel] without requiring `T` == `dynamic`.
+  String _choiceDisplayLabel(Function displayLabel, Object? option) {
+    return Function.apply(displayLabel, [option]) as String;
+  }
+
+  /// Reads choice options/labels without viewing the variable as `<dynamic>`.
+  ///
+  /// A typed `FoundrySingleChoiceVariable<String>` exposed as
+  /// `FoundrySingleChoiceVariable<dynamic>` rejects its own
+  /// `String Function(String)` displayLabel callback at runtime.
+  ({List<Object?> options, Function displayLabel}) _choiceUiParts(
+    FoundryVariable<dynamic> variable,
+  ) {
+    final dynamic choice = variable;
+    // Keep concrete displayLabel function types (avoid `<dynamic>` view).
+    // ignore: avoid_dynamic_calls
+    final options = List<Object?>.from(choice.options as List);
+    // Keep concrete displayLabel function types (avoid `<dynamic>` view).
+    // ignore: avoid_dynamic_calls
+    final displayLabel = choice.displayLabel as Function;
+    return (options: options, displayLabel: displayLabel);
   }
 
   String _formatChoiceOptionLine({
