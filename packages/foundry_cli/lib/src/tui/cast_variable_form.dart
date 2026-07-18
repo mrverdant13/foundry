@@ -595,11 +595,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
           return selectedIndex >= 0 ? selectedIndex : 0;
         });
         final cursor = _optionCursorByKey[entry.key]!;
-        if (options.isEmpty) {
-          _optionCursorByKey[entry.key] = 0;
-        } else if (cursor >= options.length) {
-          _optionCursorByKey[entry.key] = options.length - 1;
-        }
+        _optionCursorByKey[entry.key] =
+            options.isEmpty ? 0 : cursor % options.length;
         continue;
       }
 
