@@ -133,5 +133,21 @@ ignore:
         ),
       );
     });
+
+    test('rejects a non-map YAML document', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '[]',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('Not a map'),
+          ),
+        ),
+      );
+    });
   });
 }
