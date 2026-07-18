@@ -83,14 +83,40 @@ String _defaultReadPatternMarkerFile(File file) {
   return file.readAsStringSync();
 }
 
+/// Lists immediate children of a pattern directory.
+///
+/// Overridable in tests to exercise [FileSystemException] handling that is
+/// difficult to trigger reliably across platforms.
+@visibleForTesting
+List<FileSystemEntity> Function(Directory directory) listPatternTopLevel =
+    _defaultListPatternTopLevel;
+
+List<FileSystemEntity> _defaultListPatternTopLevel(Directory directory) {
+  return directory.listSync(followLinks: false);
+}
+
+/// Lists files under a pattern root recursively.
+///
+/// Overridable in tests to exercise [FileSystemException] handling that is
+/// difficult to trigger reliably across platforms.
+@visibleForTesting
+Iterable<File> Function(String rootPath) listPatternFiles =
+    _defaultListPatternFiles;
+
+Iterable<File> _defaultListPatternFiles(String rootPath) {
+  return Glob('**', recursive: true)
+      .listSync(root: rootPath, followLinks: false)
+      .whereType<File>();
+}
+
 /// Inspects the pattern directory at [patternPath].
 ///
 /// A pattern is any filesystem directory. When
 /// [patternMarkerRelativePath] is present it is parsed for an optional name
 /// and ignore globs; missing marker files are allowed.
 ///
-/// Missing or non-directory paths return a report with structured errors
-/// instead of throwing.
+/// Missing paths, non-directory paths, and filesystem errors while reading or
+/// listing return a report with structured issues instead of throwing.
 Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   final FileSystemEntityType entityType;
   try {
@@ -165,18 +191,52 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
     for (final pattern in ignoreGlobs) Glob(pattern, context: p.posix),
   ];
 
-  final topLevelEntries = directory
-      .listSync(followLinks: false)
-      .map((entity) => p.basename(entity.path))
-      .toList()
-    ..sort();
+  final List<String> topLevelEntries;
+  try {
+    topLevelEntries = listPatternTopLevel(directory)
+        .map((entity) => p.basename(entity.path))
+        .toList()
+      ..sort();
+  } on FileSystemException catch (error) {
+    return PatternInspectionReport(
+      rootPath: rootPath,
+      name: marker.name,
+      hasMarker: hasMarker,
+      ignoreGlobs: ignoreGlobs,
+      issues: [
+        ...issues,
+        PatternIssue(
+          severity: PatternIssueSeverity.error,
+          path: rootPath,
+          message: 'Could not list pattern directory: ${error.message}',
+        ),
+      ],
+    );
+  }
+
+  final Iterable<File> files;
+  try {
+    files = listPatternFiles(rootPath);
+  } on FileSystemException catch (error) {
+    return PatternInspectionReport(
+      rootPath: rootPath,
+      name: marker.name,
+      hasMarker: hasMarker,
+      ignoreGlobs: ignoreGlobs,
+      topLevelEntries: List<String>.unmodifiable(topLevelEntries),
+      issues: [
+        ...issues,
+        PatternIssue(
+          severity: PatternIssueSeverity.error,
+          path: rootPath,
+          message: 'Could not enumerate pattern files: ${error.message}',
+        ),
+      ],
+    );
+  }
 
   final ignoredPaths = <String>[];
   var fileCount = 0;
-
-  final files = Glob('**', recursive: true)
-      .listSync(root: rootPath, followLinks: false)
-      .whereType<File>();
 
   for (final file in files) {
     final relative = p.relative(file.path, from: rootPath);

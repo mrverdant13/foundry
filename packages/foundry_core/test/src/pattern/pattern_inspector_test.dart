@@ -157,6 +157,58 @@ ignore:
       );
     });
 
+    test('returns a structured error when the top-level listing fails',
+        () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'foundry_pattern_list_top_level_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      await File(p.join(tempDir.path, 'README.md')).writeAsString('# Pattern');
+
+      final previous = listPatternTopLevel;
+      addTearDown(() => listPatternTopLevel = previous);
+      listPatternTopLevel = (directory) {
+        throw FileSystemException('Permission denied', directory.path);
+      };
+
+      final report = await inspectPattern(tempDir.path);
+
+      expect(report.isValid, isFalse);
+      expect(report.rootPath, tempDir.absolute.path);
+      expect(report.topLevelEntries, isEmpty);
+      expect(report.fileCount, 0);
+      expect(
+        report.issues.single.message,
+        'Could not list pattern directory: Permission denied',
+      );
+    });
+
+    test('returns a structured error when recursive file listing fails',
+        () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'foundry_pattern_list_files_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      await File(p.join(tempDir.path, 'README.md')).writeAsString('# Pattern');
+
+      final previous = listPatternFiles;
+      addTearDown(() => listPatternFiles = previous);
+      listPatternFiles = (rootPath) {
+        throw FileSystemException('Permission denied', rootPath);
+      };
+
+      final report = await inspectPattern(tempDir.path);
+
+      expect(report.isValid, isFalse);
+      expect(report.rootPath, tempDir.absolute.path);
+      expect(report.topLevelEntries, ['README.md']);
+      expect(report.fileCount, 0);
+      expect(
+        report.issues.single.message,
+        'Could not enumerate pattern files: Permission denied',
+      );
+    });
+
     test('returns a structured error when the marker file cannot be read',
         () async {
       final tempDir = await Directory.systemTemp.createTemp(
