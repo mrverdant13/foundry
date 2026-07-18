@@ -63,6 +63,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   @override
   Component build(BuildContext context) {
+    _reconcileFieldKinds();
     final collected = _collectRawValues();
     final evaluation = component.variableGroup.evaluate(
       rawValues: collected.rawValues,
@@ -169,11 +170,17 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     for (final choiceEntry in _choiceRawValues.entries) {
-      final variable = component.variableGroup.variables[choiceEntry.key];
+      final key = choiceEntry.key;
+      final variable = component.variableGroup.variables[key];
       if (variable == null || !_isChoiceVariable(variable)) {
         continue;
       }
-      rawValues[choiceEntry.key] = choiceEntry.value;
+      // Only dirty choice values are raw input. Non-dirty cached values must
+      // not pin defaults, or dependent defaultValue callbacks cannot recompute.
+      if (!_dirtyKeys.contains(key)) {
+        continue;
+      }
+      rawValues[key] = choiceEntry.value;
     }
 
     return (rawValues: rawValues, parseErrors: parseErrors);
@@ -649,6 +656,29 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     _optionCursorByKey.removeWhere((key, _) => !activeKeys.contains(key));
+  }
+
+  /// Drops text/choice state that no longer matches each key's current kind.
+  ///
+  /// Runs before raw-value collection so a schema change cannot leave a stale
+  /// dirty flag or raw value that would skew evaluation for the new kind.
+  void _reconcileFieldKinds() {
+    final keys = <String>{
+      ..._controllers.keys,
+      ..._choiceRawValues.keys,
+      ..._optionCursorByKey.keys,
+    };
+    for (final key in keys) {
+      final variable = component.variableGroup.variables[key];
+      if (variable == null) {
+        continue;
+      }
+      if (_isChoiceVariable(variable)) {
+        _clearTextFieldState(key);
+      } else {
+        _clearChoiceFieldState(key);
+      }
+    }
   }
 
   void _clearTextFieldState(String key) {
