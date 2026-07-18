@@ -120,6 +120,60 @@ FoundryVariableGroup _buildChoiceVariableGroup() => FoundryVariableGroup(
       },
     );
 
+FoundryVariableGroup _buildEmptyChoiceVariableGroup({
+  required bool emptyChoiceLast,
+}) {
+  final emptyChoice = FoundrySingleChoiceVariable<String>(
+    label: 'Empty choice',
+    options: const <String>[],
+    displayLabel: (value) => value,
+  );
+  final companion = FoundryStringVariable(
+    label: 'Companion',
+    defaultValue: (_) => 'ok',
+  );
+
+  return FoundryVariableGroup(
+    variables: emptyChoiceLast
+        ? {
+            'companion': companion,
+            'empty_choice': emptyChoice,
+          }
+        : {
+            'empty_choice': emptyChoice,
+            'companion': companion,
+          },
+  );
+}
+
+FoundryVariableGroup _buildOptionalMultiChoiceVariableGroup() =>
+    FoundryVariableGroup(
+      variables: {
+        'platforms': FoundryMultipleChoiceVariable<String>(
+          label: 'Platforms',
+          options: const ['android', 'ios'],
+          displayLabel: (value) => value,
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildHidableChoiceVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'mode': const FoundryStringVariable(label: 'Mode'),
+        'kind': FoundrySingleChoiceVariable<String>(
+          label: 'Kind',
+          options: const ['a', 'b'],
+          displayLabel: (value) => value,
+          defaultValue: (_) => 'a',
+          visibleWhen: (context) => context.optionalString('mode') != 'hide',
+        ),
+        'done': FoundryStringVariable(
+          label: 'Done',
+          defaultValue: (_) => 'x',
+        ),
+      },
+    );
+
 void main() {
   group('CastVariableForm', () {
     test(
@@ -897,6 +951,184 @@ void main() {
 
           expect(submitted, isNull);
           expect(tester.terminalState.getText(), contains('[x] ios'));
+        },
+      ),
+    );
+
+    test(
+      'arrow up wraps a single-choice selection and Space selects it',
+      () => testNocterm(
+        'arrow up and space on single choice',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          // Default is app (index 0); arrow up wraps to package.
+          await tester.sendKey(LogicalKey.arrowUp);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) PACKAGE'));
+
+          await tester.sendKey(LogicalKey.arrowDown); // back to app
+          await tester.sendKey(LogicalKey.space); // select app via Space
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('(•) APP'));
+
+          await tester.sendTab(); // platforms
+          // Toggle the default android selection off.
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('[ ] android'));
+
+          await tester.sendTab(); // locked_type
+          await tester.sendTab(); // locked_platforms
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_type'], 'app');
+          expect(submitted!['platforms'], equals(<String>[]));
+        },
+      ),
+    );
+
+    test(
+      'Enter on a non-last empty choice field moves focus',
+      () => testNocterm(
+        'enter on empty choice moves focus',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildEmptyChoiceVariableGroup(
+                emptyChoiceLast: false,
+              ),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(
+            tester.terminalState.getText(),
+            contains('empty_choice: Empty choice'),
+          );
+
+          await tester.sendKey(LogicalKey.space); // ignored for empty options
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNull);
+
+          // Focus should now be on companion; typing replaces its default.
+          for (var i = 0; i < 'ok'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('next');
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('next'));
+        },
+      ),
+    );
+
+    test(
+      'Enter on a last empty choice field submits',
+      () => testNocterm(
+        'enter on empty choice submits',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildEmptyChoiceVariableGroup(
+                emptyChoiceLast: true,
+              ),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // empty_choice (last)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['companion'], 'ok');
+          expect(submitted!.containsKey('empty_choice'), isTrue);
+          expect(submitted!['empty_choice'], isNull);
+        },
+      ),
+    );
+
+    test(
+      'renders an optional multi-choice with no selection',
+      () => testNocterm(
+        'optional multi choice unset',
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildOptionalMultiChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('[ ] android'));
+          expect(output, contains('[ ] ios'));
+
+          await tester.sendKey(LogicalKey.space);
+          await tester.pump();
+          expect(tester.terminalState.getText(), contains('[x] android'));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['platforms'], ['android']);
+        },
+      ),
+    );
+
+    test(
+      'drops choice state when a choice field becomes hidden',
+      () => testNocterm(
+        'hidden choice cleanup',
+        size: const Size(80, 40),
+        (tester) async {
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildHidableChoiceVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (_) {},
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('kind: Kind'));
+
+          await tester.enterText('hide');
+          await tester.pump();
+
+          expect(
+            tester.terminalState.getText(),
+            isNot(contains('kind: Kind')),
+          );
+          expect(tester.terminalState.getText(), contains('done: Done'));
         },
       ),
     );
