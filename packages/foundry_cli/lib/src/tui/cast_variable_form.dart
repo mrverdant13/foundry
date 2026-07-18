@@ -586,6 +586,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
     for (final entry in evaluation.entries) {
       final variable = entry.variable;
       if (_isChoiceVariable(variable)) {
+        _clearTextFieldState(entry.key);
+
         if (!_dirtyKeys.contains(entry.key)) {
           _choiceRawValues[entry.key] = entry.value;
         }
@@ -603,6 +605,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
             options.isEmpty ? 0 : cursor % options.length;
         continue;
       }
+
+      _clearChoiceFieldState(entry.key);
 
       final displayValue = switch (variable) {
         FoundryBooleanVariable() =>
@@ -635,6 +639,24 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     _optionCursorByKey.removeWhere((key, _) => !activeKeys.contains(key));
+  }
+
+  void _clearTextFieldState(String key) {
+    if (!_controllers.containsKey(key)) {
+      return;
+    }
+    _controllers.remove(key)?.dispose();
+    _dirtyKeys.remove(key);
+  }
+
+  void _clearChoiceFieldState(String key) {
+    if (!_choiceRawValues.containsKey(key) &&
+        !_optionCursorByKey.containsKey(key)) {
+      return;
+    }
+    _choiceRawValues.remove(key);
+    _optionCursorByKey.remove(key);
+    _dirtyKeys.remove(key);
   }
 
   List<Object?> _choiceOptions(FoundryVariable<dynamic> variable) {
