@@ -19,7 +19,7 @@ void main() {
     test('accepts Set options while preserving iteration order', () {
       final variable = FoundrySingleChoiceVariable<String>(
         label: 'Project type',
-        options: {'app', 'package'},
+        options: const {'app', 'package'},
         displayLabel: (value) => value,
       );
 
