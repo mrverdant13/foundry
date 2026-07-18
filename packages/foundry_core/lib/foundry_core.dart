@@ -25,6 +25,7 @@ export 'src/mold/mold_loader.dart' show loadMold;
 export 'src/mold/mold_local_import.dart' show importMoldFromLocal;
 export 'src/mold/mold_pubspec.dart';
 export 'src/mold/mold_pubspec_parser.dart' show parseMoldPubspec;
+export 'src/pattern/pattern_inspector.dart';
 export 'src/pattern/pattern_issue.dart';
 export 'src/pattern/pattern_marker.dart';
 export 'src/rendering/template_render_exception.dart';
