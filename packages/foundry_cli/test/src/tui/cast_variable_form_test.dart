@@ -2080,9 +2080,9 @@ void main() {
     );
 
     test(
-      'reorders values list items with Ctrl+arrow keys',
+      'reorders values list items with Shift+arrow keys',
       () => testNocterm(
-        'reorder values list items',
+        'reorder values list with Shift+arrow',
         size: const Size(80, 40),
         (tester) async {
           Map<String, Object?>? submitted;
@@ -2100,9 +2100,41 @@ void main() {
           await tester.sendKeyEvent(
             const KeyboardEvent(
               logicalKey: LogicalKey.arrowDown,
-              modifiers: ModifierKeys(ctrl: true),
+              modifiers: ModifierKeys(shift: true),
             ),
           );
+          await tester.pump();
+
+          await tester.sendTab(); // item 0 (now beta)
+          await tester.sendTab(); // item 1 (now alpha)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['dependents'], ['beta', 'alpha']);
+        },
+      ),
+    );
+
+    test(
+      'reorders values list items with k/j keys',
+      () => testNocterm(
+        'reorder values list with k/j',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDefaultedValuesVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          // Cursor on [0] (alpha); j moves it down past beta.
+          await tester.sendKey(LogicalKey.keyJ);
           await tester.pump();
 
           await tester.sendTab(); // item 0 (now beta)

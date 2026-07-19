@@ -151,7 +151,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                   ),
                 const Text(
                   'Tab/Shift+Tab to move, ↑/↓ for choices/lists, Space toggles, '
-                  'a/d add/remove list items, Ctrl+↑/↓ reorder, '
+                  'a/d add/remove list items, Shift+↑/↓ or k/j reorder, '
                   'Enter on the last field to confirm, Esc to cancel.',
                 ),
               ],
@@ -482,7 +482,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             ),
           ),
           Text(
-            '$indent[a] add  [d] remove  ↑/↓ select  Ctrl+↑/↓ reorder',
+            '$indent[a] add  [d] remove  ↑/↓ select  Shift+↑/↓ or k/j reorder',
             style: const TextStyle(color: Colors.gray),
           ),
         ],
@@ -884,20 +884,18 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return true;
     }
 
+    // Reorder: Shift/Ctrl+arrows, or k/j (Ctrl+arrows are often captured by the
+    // OS / terminal, especially macOS Mission Control).
+    if (_isValuesReorderUp(event)) {
+      return _reorderValuesItem(pathKey, delta: -1);
+    }
+    if (_isValuesReorderDown(event)) {
+      return _reorderValuesItem(pathKey, delta: 1);
+    }
+
     if (event.logicalKey == LogicalKey.arrowUp) {
       final length = _valuesLengths[pathKey] ?? 0;
       if (length == 0) {
-        return true;
-      }
-      if (event.isControlPressed) {
-        setState(() {
-          _dirtyKeys.add(pathKey);
-          final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
-          if (cursor > 0) {
-            _swapValuesItems(pathKey, cursor, cursor - 1);
-            _valuesCursors[pathKey] = cursor - 1;
-          }
-        });
         return true;
       }
       setState(() {
@@ -912,17 +910,6 @@ class _CastVariableFormState extends State<CastVariableForm> {
       if (length == 0) {
         return true;
       }
-      if (event.isControlPressed) {
-        setState(() {
-          _dirtyKeys.add(pathKey);
-          final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
-          if (cursor < length - 1) {
-            _swapValuesItems(pathKey, cursor, cursor + 1);
-            _valuesCursors[pathKey] = cursor + 1;
-          }
-        });
-        return true;
-      }
       setState(() {
         final cursor = _valuesCursors[pathKey] ?? 0;
         _valuesCursors[pathKey] = (cursor + 1) % length;
@@ -931,6 +918,40 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     return false;
+  }
+
+  bool _isValuesReorderUp(KeyboardEvent event) {
+    if (event.logicalKey == LogicalKey.keyK) {
+      return true;
+    }
+    return event.logicalKey == LogicalKey.arrowUp &&
+        (event.isShiftPressed || event.isControlPressed);
+  }
+
+  bool _isValuesReorderDown(KeyboardEvent event) {
+    if (event.logicalKey == LogicalKey.keyJ) {
+      return true;
+    }
+    return event.logicalKey == LogicalKey.arrowDown &&
+        (event.isShiftPressed || event.isControlPressed);
+  }
+
+  bool _reorderValuesItem(String pathKey, {required int delta}) {
+    final length = _valuesLengths[pathKey] ?? 0;
+    if (length == 0) {
+      return true;
+    }
+    setState(() {
+      _dirtyKeys.add(pathKey);
+      final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
+      final target = cursor + delta;
+      if (target < 0 || target >= length) {
+        return;
+      }
+      _swapValuesItems(pathKey, cursor, target);
+      _valuesCursors[pathKey] = target;
+    });
+    return true;
   }
 
   bool _handleBooleanKeyEvent(
