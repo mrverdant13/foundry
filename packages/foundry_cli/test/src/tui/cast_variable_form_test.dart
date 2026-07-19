@@ -2096,6 +2096,9 @@ void main() {
             ),
           );
 
+          expect(tester.terminalState.getText(), contains('alpha'));
+          expect(tester.terminalState.getText(), contains('beta'));
+
           // Cursor on [0] (alpha); move it down past beta.
           await tester.sendKeyEvent(
             const KeyboardEvent(
@@ -2104,6 +2107,10 @@ void main() {
             ),
           );
           await tester.pump();
+
+          // Visible TextField text must swap (not only the submitted model).
+          final reordered = tester.terminalState.getText();
+          expect(reordered.indexOf('beta'), lessThan(reordered.indexOf('alpha')));
 
           await tester.sendTab(); // item 0 (now beta)
           await tester.sendTab(); // item 1 (now alpha)
@@ -2136,6 +2143,9 @@ void main() {
           // Cursor on [0] (alpha); j moves it down past beta.
           await tester.sendKey(LogicalKey.keyJ);
           await tester.pump();
+
+          final reordered = tester.terminalState.getText();
+          expect(reordered.indexOf('beta'), lessThan(reordered.indexOf('alpha')));
 
           await tester.sendTab(); // item 0 (now beta)
           await tester.sendTab(); // item 1 (now alpha)

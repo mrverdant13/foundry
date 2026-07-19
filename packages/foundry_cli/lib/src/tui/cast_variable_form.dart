@@ -1824,13 +1824,16 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   void _removeValuesItem(String valuesPathKey, int index) {
     final length = _valuesLengths[valuesPathKey]!;
-    _clearPathPrefix('$valuesPathKey$_pathSeparator$index');
-    for (var from = index + 1; from < length; from++) {
-      _remapPathPrefix(
+    // Shift item content down in place. Nocterm TextFields keep their original
+    // controller instances across rebuilds, so remapping controller identity
+    // would leave the visible text stale (or pointing at a disposed controller).
+    for (var from = index; from < length - 1; from++) {
+      _copyPathPrefixState(
+        '$valuesPathKey$_pathSeparator${from + 1}',
         '$valuesPathKey$_pathSeparator$from',
-        '$valuesPathKey$_pathSeparator${from - 1}',
       );
     }
+    _clearPathPrefix('$valuesPathKey$_pathSeparator${length - 1}');
     final nextLength = length - 1;
     _valuesLengths[valuesPathKey] = nextLength;
     _valuesCursors[valuesPathKey] =
@@ -1841,60 +1844,140 @@ class _CastVariableFormState extends State<CastVariableForm> {
     if (a == b) {
       return;
     }
-    final prefixA = '$valuesPathKey$_pathSeparator$a';
-    final prefixB = '$valuesPathKey$_pathSeparator$b';
-    final tempPrefix = '$valuesPathKey$_pathSeparator\u0001tmp_$a';
-    _remapPathPrefix(prefixA, tempPrefix);
-    _remapPathPrefix(prefixB, prefixA);
-    _remapPathPrefix(tempPrefix, prefixB);
+    _swapPathPrefixState(
+      '$valuesPathKey$_pathSeparator$a',
+      '$valuesPathKey$_pathSeparator$b',
+    );
   }
 
-  void _remapPathPrefix(String fromPrefix, String toPrefix) {
-    final controllerUpdates = <String, TextEditingController>{};
-    final controllerRemovals = <String>[];
-    for (final entry in _controllers.entries) {
-      final key = entry.key;
-      if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
-        final suffix = key.substring(fromPrefix.length);
-        controllerUpdates['$toPrefix$suffix'] = entry.value;
-        controllerRemovals.add(key);
+  /// Copies path-keyed form state from [fromPrefix] onto [toPrefix] in place.
+  ///
+  /// Controller *identities* at [toPrefix] are preserved; only their text is
+  /// replaced so mounted [TextField]s keep showing the bound controller.
+  void _copyPathPrefixState(String fromPrefix, String toPrefix) {
+    final suffixes = _pathPrefixSuffixes(fromPrefix)
+      ..addAll(_pathPrefixSuffixes(toPrefix));
+
+    for (final suffix in suffixes) {
+      final fromKey = '$fromPrefix$suffix';
+      final toKey = '$toPrefix$suffix';
+
+      final fromController = _controllers[fromKey];
+      if (fromController != null) {
+        final toController = _controllers.putIfAbsent(
+          toKey,
+          TextEditingController.new,
+        );
+        if (toController.text != fromController.text) {
+          toController.text = fromController.text;
+        }
+        _dirtyKeys.add(toKey);
+      } else if (_controllers.containsKey(toKey)) {
+        _controllers[toKey]!.text = '';
+        _dirtyKeys.add(toKey);
+      }
+
+      _copyMapEntry(_choiceRawValues, fromKey, toKey);
+      _copyMapEntry(_optionCursorByKey, fromKey, toKey);
+      _copyMapEntry(_valuesLengths, fromKey, toKey);
+      _copyMapEntry(_valuesCursors, fromKey, toKey);
+
+      if (_dirtyKeys.contains(fromKey)) {
+        _dirtyKeys.add(toKey);
+      } else {
+        _dirtyKeys.remove(toKey);
       }
     }
-    controllerRemovals.forEach(_controllers.remove);
-    _controllers.addAll(controllerUpdates);
+  }
 
-    void remapMap<V>(Map<String, V> map) {
-      final updates = <String, V>{};
-      final removals = <String>[];
-      for (final entry in map.entries) {
-        final key = entry.key;
-        if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
-          final suffix = key.substring(fromPrefix.length);
-          updates['$toPrefix$suffix'] = entry.value;
-          removals.add(key);
+  /// Swaps path-keyed form state between [prefixA] and [prefixB] in place.
+  void _swapPathPrefixState(String prefixA, String prefixB) {
+    final suffixes = _pathPrefixSuffixes(prefixA)
+      ..addAll(_pathPrefixSuffixes(prefixB));
+
+    for (final suffix in suffixes) {
+      final keyA = '$prefixA$suffix';
+      final keyB = '$prefixB$suffix';
+
+      final controllerA = _controllers[keyA];
+      final controllerB = _controllers[keyB];
+      if (controllerA != null || controllerB != null) {
+        final a = _controllers.putIfAbsent(keyA, TextEditingController.new);
+        final b = _controllers.putIfAbsent(keyB, TextEditingController.new);
+        final textA = a.text;
+        a.text = b.text;
+        b.text = textA;
+        _dirtyKeys
+          ..add(keyA)
+          ..add(keyB);
+      }
+
+      _swapMapEntry(_choiceRawValues, keyA, keyB);
+      _swapMapEntry(_optionCursorByKey, keyA, keyB);
+      _swapMapEntry(_valuesLengths, keyA, keyB);
+      _swapMapEntry(_valuesCursors, keyA, keyB);
+
+      final dirtyA = _dirtyKeys.contains(keyA);
+      final dirtyB = _dirtyKeys.contains(keyB);
+      if (dirtyA != dirtyB) {
+        if (dirtyA) {
+          _dirtyKeys
+            ..remove(keyA)
+            ..add(keyB);
+        } else {
+          _dirtyKeys
+            ..remove(keyB)
+            ..add(keyA);
         }
       }
-      removals.forEach(map.remove);
-      map.addAll(updates);
     }
+  }
 
-    remapMap(_choiceRawValues);
-    remapMap(_optionCursorByKey);
-    remapMap(_valuesLengths);
-    remapMap(_valuesCursors);
-
-    final dirtyUpdates = <String>{};
-    final dirtyRemovals = <String>[];
-    for (final key in _dirtyKeys) {
-      if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
-        final suffix = key.substring(fromPrefix.length);
-        dirtyUpdates.add('$toPrefix$suffix');
-        dirtyRemovals.add(key);
+  Set<String> _pathPrefixSuffixes(String prefix) {
+    final suffixes = <String>{};
+    void consider(String key) {
+      if (key == prefix || key.startsWith('$prefix$_pathSeparator')) {
+        suffixes.add(key.substring(prefix.length));
       }
     }
-    _dirtyKeys
-      ..removeAll(dirtyRemovals)
-      ..addAll(dirtyUpdates);
+
+    _controllers.keys.forEach(consider);
+    _choiceRawValues.keys.forEach(consider);
+    _optionCursorByKey.keys.forEach(consider);
+    _valuesLengths.keys.forEach(consider);
+    _valuesCursors.keys.forEach(consider);
+    for (final key in _dirtyKeys) {
+      consider(key);
+    }
+    return suffixes;
+  }
+
+  void _copyMapEntry<V>(Map<String, V> map, String fromKey, String toKey) {
+    if (map.containsKey(fromKey)) {
+      map[toKey] = map[fromKey] as V;
+    } else {
+      map.remove(toKey);
+    }
+  }
+
+  void _swapMapEntry<V>(Map<String, V> map, String keyA, String keyB) {
+    final hasA = map.containsKey(keyA);
+    final hasB = map.containsKey(keyB);
+    if (!hasA && !hasB) {
+      return;
+    }
+    final valueA = map[keyA];
+    final valueB = map[keyB];
+    if (hasB) {
+      map[keyA] = valueB as V;
+    } else {
+      map.remove(keyA);
+    }
+    if (hasA) {
+      map[keyB] = valueA as V;
+    } else {
+      map.remove(keyB);
+    }
   }
 
   void _clearPathPrefix(String prefix) {
