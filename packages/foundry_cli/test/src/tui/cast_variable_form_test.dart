@@ -361,6 +361,34 @@ FoundryVariableGroup _buildDerivedNestedObjectVariableGroup() {
   );
 }
 
+FoundryVariableGroup _buildValuesVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(
+          label: 'Project name',
+          defaultValue: (_) => 'demo',
+        ),
+        'dependents': const FoundryValuesVariable<String>(
+          label: 'Dependents',
+          description: 'Packages this mold depends on.',
+          help: 'Add, remove, or reorder package names.',
+          item: FoundryStringVariable(
+            label: 'Package name',
+            placeholder: 'package_name',
+          ),
+        ),
+      },
+    );
+
+FoundryVariableGroup _buildDefaultedValuesVariableGroup() => FoundryVariableGroup(
+      variables: {
+        'dependents': FoundryValuesVariable<String>(
+          label: 'Dependents',
+          item: const FoundryStringVariable(label: 'Package name'),
+          defaultValue: (_) => const ['alpha', 'beta'],
+        ),
+      },
+    );
+
 FoundryVariableGroup _buildClearableNestedObjectVariableGroup() {
   return FoundryVariableGroup(
     variables: {
@@ -1942,6 +1970,147 @@ void main() {
             'host': 'localhost',
             'port': null,
           });
+        },
+      ),
+    );
+
+    test(
+      'submits an empty values list when no items are added',
+      () => testNocterm(
+        'empty values list submit',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildValuesVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('dependents: Dependents'));
+          expect(output, contains('(empty list)'));
+
+          await tester.sendTab(); // project_name -> dependents chrome
+          await tester.sendEnter(); // last focus target
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['project_name'], 'demo');
+          expect(submitted!['dependents'], equals(<String>[]));
+        },
+      ),
+    );
+
+    test(
+      'adds edits and submits values list items',
+      () => testNocterm(
+        'add and submit values list',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildValuesVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // dependents chrome
+          await tester.sendKey(LogicalKey.keyA);
+          await tester.sendKey(LogicalKey.keyA);
+          await tester.pump();
+
+          expect(tester.terminalState.getText(), contains('2 items'));
+
+          await tester.sendTab(); // item 0
+          await tester.enterText('pkg_a');
+          await tester.sendTab(); // item 1
+          await tester.enterText('pkg_b');
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['dependents'], ['pkg_a', 'pkg_b']);
+        },
+      ),
+    );
+
+    test(
+      'removes a values list item before submit',
+      () => testNocterm(
+        'remove values list item',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDefaultedValuesVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('2 items'));
+
+          // Chrome is focused first; cursor starts on [0]. Delete alpha.
+          await tester.sendKey(LogicalKey.keyD);
+          await tester.pump();
+
+          expect(tester.terminalState.getText(), contains('1 item'));
+
+          await tester.sendTab(); // remaining item
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['dependents'], ['beta']);
+        },
+      ),
+    );
+
+    test(
+      'reorders values list items with Ctrl+arrow keys',
+      () => testNocterm(
+        'reorder values list items',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDefaultedValuesVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          // Cursor on [0] (alpha); move it down past beta.
+          await tester.sendKeyEvent(
+            const KeyboardEvent(
+              logicalKey: LogicalKey.arrowDown,
+              modifiers: ModifierKeys(ctrl: true),
+            ),
+          );
+          await tester.pump();
+
+          await tester.sendTab(); // item 0 (now beta)
+          await tester.sendTab(); // item 1 (now alpha)
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['dependents'], ['beta', 'alpha']);
         },
       ),
     );
