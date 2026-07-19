@@ -10,7 +10,9 @@ import 'package:nocterm/nocterm.dart';
 /// int, and double kinds use text fields (with in-form parse feedback for
 /// numbers); boolean kinds use a Space-to-toggle control; single- and
 /// multiple-choice kinds use option lists driven by ↑/↓ and Space; object
-/// kinds render nested sections recursively with the same field widgets.
+/// kinds render nested sections recursively with the same field widgets;
+/// values kinds render a list editor (add / remove / reorder) that reuses
+/// the item-kind widgets for each element.
 /// Submitting the last field with all values valid calls [onSubmit] with the
 /// resolved values; pressing Escape calls [onCancel]. This component only
 /// gathers values — it does not run the cast pipeline itself.
@@ -52,6 +54,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, Object?> _choiceRawValues = {};
   final Map<String, int> _optionCursorByKey = {};
+  final Map<String, int> _valuesLengths = {};
+  final Map<String, int> _valuesCursors = {};
   final Set<String> _dirtyKeys = {};
   int _focusedIndex = 0;
   bool _showErrors = false;
@@ -67,11 +71,23 @@ class _CastVariableFormState extends State<CastVariableForm> {
   @override
   Component build(BuildContext context) {
     _reconcileFieldKinds();
-    final collected = _collectRawValues();
-    final evaluation = component.variableGroup.evaluate(
+    var collected = _collectRawValues();
+    var evaluation = component.variableGroup.evaluate(
       rawValues: collected.rawValues,
       dirtyKeys: collected.topLevelDirtyKeys,
     );
+    _syncValuesListState(
+      evaluation,
+      pathPrefix: const [],
+      rawValues: collected.rawValues,
+    );
+    if (_needsValuesRecollect(collected.rawValues)) {
+      collected = _collectRawValues();
+      evaluation = component.variableGroup.evaluate(
+        rawValues: collected.rawValues,
+        dirtyKeys: collected.topLevelDirtyKeys,
+      );
+    }
     final focusTargets = _buildFocusTargets(
       evaluation: evaluation,
       rawValues: collected.rawValues,
@@ -134,7 +150,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
                     ),
                   ),
                 const Text(
-                  'Tab/Shift+Tab to move, ↑/↓ for choices, Space toggles, '
+                  'Tab/Shift+Tab to move, ↑/↓ for choices/lists, Space toggles, '
+                  'a/d add/remove list items, Ctrl+↑/↓ reorder, '
                   'Enter on the last field to confirm, Esc to cancel.',
                 ),
               ],
@@ -239,6 +256,27 @@ class _CastVariableFormState extends State<CastVariableForm> {
         continue;
       }
 
+      if (entry.variable is FoundryValuesVariable) {
+        children
+          ..add(
+            _buildValuesSection(
+              entry: entry,
+              path: path,
+              pathKey: pathKey,
+              effectiveEnabled: effectiveEnabled,
+              validation: validation,
+              rootEvaluation: rootEvaluation,
+              rootValidation: rootValidation,
+              rawValues: rawValues,
+              parseErrors: parseErrors,
+              focusTargets: focusTargets,
+              depth: depth,
+            ),
+          )
+          ..add(const SizedBox(height: 1));
+        continue;
+      }
+
       final focusIndex = focusTargets.indexWhere(
         (target) => target.pathKey == pathKey,
       );
@@ -272,6 +310,188 @@ class _CastVariableFormState extends State<CastVariableForm> {
     return children;
   }
 
+  Component _buildValuesSection({
+    required FoundryVariableEvaluationEntry entry,
+    required List<String> path,
+    required String pathKey,
+    required bool effectiveEnabled,
+    required FoundryVariableGroupValidation validation,
+    required FoundryVariableGroupEvaluation rootEvaluation,
+    required FoundryVariableGroupValidation rootValidation,
+    required Map<String, Object?> rawValues,
+    required Map<String, String> parseErrors,
+    required List<_FocusTarget> focusTargets,
+    required int depth,
+  }) {
+    final valuesVariable = entry.variable as FoundryValuesVariable;
+    final length = _valuesLengths[pathKey] ?? 0;
+    final cursor = _valuesCursors[pathKey] ?? 0;
+    final listChromeFocusIndex = focusTargets.indexWhere(
+      (target) => target.pathKey == pathKey,
+    );
+    final listChromeFocused =
+        listChromeFocusIndex >= 0 && listChromeFocusIndex == _focusedIndex;
+    final resolvedList =
+        entry.value is List ? entry.value! as List : const <Object?>[];
+    final sectionChildren = <Component>[
+      Text(
+        '${'  ' * depth}${entry.key}: ${entry.variable.label}',
+        style: const TextStyle(color: Colors.yellow),
+      ),
+      if (entry.description != null)
+        Text('${'  ' * depth}${entry.description!}'),
+      if (entry.help != null)
+        Text(
+          '${'  ' * depth}${entry.help!}',
+          style: const TextStyle(color: Colors.gray),
+        ),
+      _buildValuesListChrome(
+        length: length,
+        cursor: cursor,
+        focused: listChromeFocused,
+        effectiveEnabled: effectiveEnabled,
+        depth: depth,
+      ),
+      if (_showErrors)
+        ...(validation.fieldErrors[entry.key] ?? const [])
+            .where((error) => !_isIndexedListError(error))
+            .map(
+              (error) => Text(
+                '${'  ' * depth}$error',
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+    ];
+
+    for (var index = 0; index < length; index++) {
+      final itemPath = [...path, '$index'];
+      final itemPathKey = _joinPath(itemPath);
+      final itemVariable = valuesVariable.item;
+      final itemValue =
+          index < resolvedList.length ? resolvedList[index] : null;
+
+      if (itemVariable is FoundryObjectVariable) {
+        final nestedRaw = _valueAtPath(rawValues, itemPath);
+        final nestedMap = _asStringKeyedMap(nestedRaw) ??
+            _asStringKeyedMap(itemValue) ??
+            const <String, Object?>{};
+        final nestedEvaluation = itemVariable.group.evaluate(
+          rawValues: nestedMap,
+        );
+        final nestedValidation = itemVariable.group.validate(
+          nestedEvaluation,
+        );
+
+        sectionChildren
+          ..add(
+            Text(
+              '${'  ' * (depth + 1)}[$index]',
+              style: TextStyle(
+                color: listChromeFocused &&
+                        cursor == index &&
+                        effectiveEnabled
+                    ? Colors.cyan
+                    : Colors.yellow,
+              ),
+            ),
+          )
+          ..addAll(
+            _buildGroupFields(
+              evaluation: nestedEvaluation,
+              validation: nestedValidation,
+              rootEvaluation: rootEvaluation,
+              rootValidation: rootValidation,
+              rawValues: rawValues,
+              parseErrors: parseErrors,
+              pathPrefix: itemPath,
+              ancestorsEnabled: effectiveEnabled,
+              focusTargets: focusTargets,
+              depth: depth + 2,
+            ),
+          );
+        continue;
+      }
+
+      final itemEntry = FoundryVariableEvaluationEntry(
+        key: '$index',
+        variable: itemVariable,
+        value: itemValue,
+        isEnabled: effectiveEnabled,
+      );
+      final focusIndex = focusTargets.indexWhere(
+        (target) => target.pathKey == itemPathKey,
+      );
+      final focused = focusIndex >= 0 && focusIndex == _focusedIndex;
+      final itemErrors = (validation.fieldErrors[entry.key] ?? const [])
+          .where((error) => error.startsWith('[$index]: '))
+          .map((error) => error.substring('[$index]: '.length))
+          .toList(growable: false);
+
+      sectionChildren.add(
+        _buildField(
+          entry: itemEntry,
+          pathKey: itemPathKey,
+          fieldErrors: itemErrors,
+          parseError: parseErrors[itemPathKey],
+          focused: focused,
+          effectiveEnabled: effectiveEnabled,
+          depth: depth + 1,
+          onSubmitted: () {
+            if (focusIndex < 0) {
+              return;
+            }
+            if (focusIndex < focusTargets.length - 1) {
+              setState(() => _focusedIndex = focusIndex + 1);
+              return;
+            }
+            _attemptSubmit(rootEvaluation, rootValidation, parseErrors);
+          },
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sectionChildren,
+    );
+  }
+
+  Component _buildValuesListChrome({
+    required int length,
+    required int cursor,
+    required bool focused,
+    required bool effectiveEnabled,
+    required int depth,
+  }) {
+    final indent = '  ' * depth;
+    final summary = length == 0
+        ? '$indent(empty list)'
+        : '$indent($length item${length == 1 ? '' : 's'}; cursor on [$cursor])';
+
+    return Container(
+      decoration: BoxDecoration(
+        border: BoxBorder.all(
+          color: focused ? Colors.cyan : Colors.gray,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            effectiveEnabled ? summary : '$summary (read-only)',
+            style: TextStyle(
+              color: effectiveEnabled ? null : Colors.gray,
+            ),
+          ),
+          Text(
+            '$indent[a] add  [d] remove  ↑/↓ select  Ctrl+↑/↓ reorder',
+            style: const TextStyle(color: Colors.gray),
+          ),
+        ],
+      ),
+    );
+  }
+
   ({
     Map<String, Object?> rawValues,
     Map<String, String> parseErrors,
@@ -286,7 +506,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
       final variable = _variableAtPath(component.variableGroup, path);
       if (variable == null ||
           _isChoiceVariable(variable) ||
-          variable is FoundryObjectVariable) {
+          variable is FoundryObjectVariable ||
+          variable is FoundryValuesVariable ||
+          _valuesAncestorPath(path) != null) {
         continue;
       }
 
@@ -312,7 +534,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
       final pathKey = choiceEntry.key;
       final path = _splitPath(pathKey);
       final variable = _variableAtPath(component.variableGroup, path);
-      if (variable == null || !_isChoiceVariable(variable)) {
+      if (variable == null ||
+          !_isChoiceVariable(variable) ||
+          _valuesAncestorPath(path) != null) {
         continue;
       }
       // Only dirty choice values are raw input. Non-dirty cached values must
@@ -323,11 +547,153 @@ class _CastVariableFormState extends State<CastVariableForm> {
       _setAtPath(rawValues, path, choiceEntry.value);
     }
 
+    _collectValuesLists(rawValues, parseErrors);
+
     return (
       rawValues: rawValues,
       parseErrors: parseErrors,
       topLevelDirtyKeys: _topLevelDirtyKeys(),
     );
+  }
+
+  void _collectValuesLists(
+    Map<String, Object?> rawValues,
+    Map<String, String> parseErrors,
+  ) {
+    for (final pathKey in _valuesLengths.keys.toList(growable: false)) {
+      final path = _splitPath(pathKey);
+      final variable = _variableAtPath(component.variableGroup, path);
+      if (variable is! FoundryValuesVariable) {
+        continue;
+      }
+
+      final length = _valuesLengths[pathKey]!;
+      final isDirty = _isValuesPathUserTouched(pathKey);
+      if (!isDirty && length > 0) {
+        // Untouched defaulted lists stay out of raw input so defaults apply.
+        continue;
+      }
+      if (!isDirty && length == 0) {
+        // Empty editor with no default: contribute [] so submit yields a list.
+        _setAtPath(rawValues, path, <Object?>[]);
+        continue;
+      }
+
+      final list = <Object?>[
+        for (var index = 0; index < length; index++)
+          _collectValuesItemRaw(
+            variable.item,
+            [...path, '$index'],
+            parseErrors,
+          ),
+      ];
+      _setAtPath(rawValues, path, list);
+    }
+  }
+
+  Object? _collectValuesItemRaw(
+    FoundryVariable<dynamic> item,
+    List<String> itemPath,
+    Map<String, String> parseErrors,
+  ) {
+    if (item is FoundryObjectVariable) {
+      final nested = <String, Object?>{};
+      _collectNestedObjectRaw(
+        group: item.group,
+        pathPrefix: itemPath,
+        into: nested,
+        parseErrors: parseErrors,
+      );
+      return nested;
+    }
+
+    if (item is FoundryValuesVariable) {
+      final pathKey = _joinPath(itemPath);
+      final length = _valuesLengths[pathKey] ?? 0;
+      return [
+        for (var index = 0; index < length; index++)
+          _collectValuesItemRaw(
+            item.item,
+            [...itemPath, '$index'],
+            parseErrors,
+          ),
+      ];
+    }
+
+    final pathKey = _joinPath(itemPath);
+    if (_isChoiceVariable(item)) {
+      return _choiceRawValues[pathKey];
+    }
+
+    final controller = _controllers[pathKey];
+    if (controller == null) {
+      return null;
+    }
+    switch (parseCastVariableText(item, controller.text)) {
+      case CastVariableTextParseSuccess(:final value):
+        return value;
+      case CastVariableTextParseFailure(:final message):
+        parseErrors[pathKey] = message;
+        return null;
+    }
+  }
+
+  void _collectNestedObjectRaw({
+    required FoundryVariableGroup group,
+    required List<String> pathPrefix,
+    required Map<String, Object?> into,
+    required Map<String, String> parseErrors,
+  }) {
+    for (final entry in group.variables.entries) {
+      final path = [...pathPrefix, entry.key];
+      final pathKey = _joinPath(path);
+      final variable = entry.value;
+
+      if (variable is FoundryObjectVariable) {
+        final nested = <String, Object?>{};
+        _collectNestedObjectRaw(
+          group: variable.group,
+          pathPrefix: path,
+          into: nested,
+          parseErrors: parseErrors,
+        );
+        into[entry.key] = nested;
+        continue;
+      }
+
+      if (variable is FoundryValuesVariable) {
+        final length = _valuesLengths[pathKey] ?? 0;
+        into[entry.key] = [
+          for (var index = 0; index < length; index++)
+            _collectValuesItemRaw(
+              variable.item,
+              [...path, '$index'],
+              parseErrors,
+            ),
+        ];
+        continue;
+      }
+
+      if (_isChoiceVariable(variable)) {
+        if (_dirtyKeys.contains(pathKey) ||
+            _choiceRawValues.containsKey(pathKey)) {
+          into[entry.key] = _choiceRawValues[pathKey];
+        }
+        continue;
+      }
+
+      final controller = _controllers[pathKey];
+      if (controller == null) {
+        continue;
+      }
+      switch (parseCastVariableText(variable, controller.text)) {
+        case CastVariableTextParseSuccess(:final value):
+          into[entry.key] = value;
+        case CastVariableTextParseFailure(:final message):
+          into[entry.key] = null;
+          parseErrors[pathKey] = message;
+      }
+    }
   }
 
   Set<String> _topLevelDirtyKeys() {
@@ -397,6 +763,113 @@ class _CastVariableFormState extends State<CastVariableForm> {
         validation: validation,
         parseErrors: parseErrors,
       );
+    }
+
+    if (variable is FoundryValuesVariable) {
+      return _handleValuesKeyEvent(
+        event,
+        focusedTarget: focusedTarget,
+        focusTargets: focusTargets,
+        evaluation: evaluation,
+        validation: validation,
+        parseErrors: parseErrors,
+      );
+    }
+
+    return false;
+  }
+
+  bool _handleValuesKeyEvent(
+    KeyboardEvent event, {
+    required _FocusTarget focusedTarget,
+    required List<_FocusTarget> focusTargets,
+    required FoundryVariableGroupEvaluation evaluation,
+    required FoundryVariableGroupValidation validation,
+    required Map<String, String> parseErrors,
+  }) {
+    final pathKey = focusedTarget.pathKey;
+
+    if (event.logicalKey == LogicalKey.enter) {
+      if (_focusedIndex < focusTargets.length - 1) {
+        setState(() => _focusedIndex = _focusedIndex + 1);
+        return true;
+      }
+      _attemptSubmit(evaluation, validation, parseErrors);
+      return true;
+    }
+
+    if (!focusedTarget.isEnabled) {
+      return false;
+    }
+
+    if (event.logicalKey == LogicalKey.keyA) {
+      setState(() {
+        _dirtyKeys.add(pathKey);
+        final length = _valuesLengths[pathKey] ?? 0;
+        _valuesLengths[pathKey] = length + 1;
+        _valuesCursors[pathKey] = length;
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.keyD ||
+        event.logicalKey == LogicalKey.delete) {
+      final length = _valuesLengths[pathKey] ?? 0;
+      if (length == 0) {
+        return true;
+      }
+      setState(() {
+        _dirtyKeys.add(pathKey);
+        final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
+        _removeValuesItem(pathKey, cursor);
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.arrowUp) {
+      final length = _valuesLengths[pathKey] ?? 0;
+      if (length == 0) {
+        return true;
+      }
+      if (event.isControlPressed) {
+        setState(() {
+          _dirtyKeys.add(pathKey);
+          final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
+          if (cursor > 0) {
+            _swapValuesItems(pathKey, cursor, cursor - 1);
+            _valuesCursors[pathKey] = cursor - 1;
+          }
+        });
+        return true;
+      }
+      setState(() {
+        final cursor = _valuesCursors[pathKey] ?? 0;
+        _valuesCursors[pathKey] = (cursor - 1 + length) % length;
+      });
+      return true;
+    }
+
+    if (event.logicalKey == LogicalKey.arrowDown) {
+      final length = _valuesLengths[pathKey] ?? 0;
+      if (length == 0) {
+        return true;
+      }
+      if (event.isControlPressed) {
+        setState(() {
+          _dirtyKeys.add(pathKey);
+          final cursor = (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
+          if (cursor < length - 1) {
+            _swapValuesItems(pathKey, cursor, cursor + 1);
+            _valuesCursors[pathKey] = cursor + 1;
+          }
+        });
+        return true;
+      }
+      setState(() {
+        final cursor = _valuesCursors[pathKey] ?? 0;
+        _valuesCursors[pathKey] = (cursor + 1) % length;
+      });
+      return true;
     }
 
     return false;
@@ -566,10 +1039,10 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
   }
 
-  /// Builds the interactive control for a non-object leaf field.
+  /// Builds the interactive control for a non-section leaf field.
   ///
-  /// Object variables are rendered as sections in [_buildGroupFields] and never
-  /// reach this helper.
+  /// Object and values variables are rendered as sections in
+  /// [_buildGroupFields] and never reach this helper.
   Component _buildLeafControl({
     required FoundryVariableEvaluationEntry entry,
     required String pathKey,
@@ -810,6 +1283,63 @@ class _CastVariableFormState extends State<CastVariableForm> {
         continue;
       }
 
+      if (entry.variable is FoundryValuesVariable) {
+        final valuesVariable = entry.variable as FoundryValuesVariable;
+        final length = _valuesLengths[pathKey] ?? 0;
+        final resolvedList =
+            entry.value is List ? entry.value! as List : const <Object?>[];
+
+        targets.add(
+          _FocusTarget(
+            pathKey: pathKey,
+            entry: entry,
+            isEnabled: isEnabled,
+          ),
+        );
+
+        for (var index = 0; index < length; index++) {
+          final itemPath = [...path, '$index'];
+          final itemVariable = valuesVariable.item;
+
+          if (itemVariable is FoundryObjectVariable) {
+            final nestedRaw = _valueAtPath(rawValues, itemPath);
+            final nestedMap = _asStringKeyedMap(nestedRaw) ??
+                _asStringKeyedMap(
+                  index < resolvedList.length ? resolvedList[index] : null,
+                ) ??
+                const <String, Object?>{};
+            final nestedEvaluation = itemVariable.group.evaluate(
+              rawValues: nestedMap,
+            );
+            targets.addAll(
+              _buildFocusTargets(
+                evaluation: nestedEvaluation,
+                rawValues: rawValues,
+                pathPrefix: itemPath,
+                ancestorsEnabled: isEnabled,
+              ),
+            );
+            continue;
+          }
+
+          targets.add(
+            _FocusTarget(
+              pathKey: _joinPath(itemPath),
+              entry: FoundryVariableEvaluationEntry(
+                key: '$index',
+                variable: itemVariable,
+                value: index < resolvedList.length
+                    ? resolvedList[index]
+                    : null,
+                isEnabled: isEnabled,
+              ),
+              isEnabled: isEnabled,
+            ),
+          );
+        }
+        continue;
+      }
+
       targets.add(
         _FocusTarget(
           pathKey: pathKey,
@@ -828,6 +1358,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
       final entry = target.entry;
       final variable = entry.variable;
       final pathKey = target.pathKey;
+
+      if (variable is FoundryValuesVariable) {
+        _clearTextFieldState(pathKey);
+        _clearChoiceFieldState(pathKey);
+        continue;
+      }
 
       if (_isChoiceVariable(variable)) {
         _clearTextFieldState(pathKey);
@@ -885,6 +1421,13 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     _optionCursorByKey.removeWhere((key, _) => !activeKeys.contains(key));
+
+    final activeValuesKeys = {
+      for (final target in focusTargets)
+        if (target.entry.variable is FoundryValuesVariable) target.pathKey,
+    };
+    _valuesLengths.removeWhere((key, _) => !activeValuesKeys.contains(key));
+    _valuesCursors.removeWhere((key, _) => !activeValuesKeys.contains(key));
   }
 
   /// Drops text/choice state that no longer matches each key's current kind.
@@ -905,7 +1448,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
       if (variable == null) {
         continue;
       }
-      if (variable is FoundryObjectVariable) {
+      if (variable is FoundryObjectVariable ||
+          variable is FoundryValuesVariable) {
         _clearTextFieldState(key);
         _clearChoiceFieldState(key);
         continue;
@@ -974,21 +1518,54 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return null;
     }
 
-    var currentGroup = group;
+    FoundryVariableGroup? currentGroup = group;
+    FoundryVariable<dynamic>? currentVariable;
+
     for (var index = 0; index < path.length; index++) {
-      final variable = currentGroup.variables[path[index]];
-      if (variable == null) {
+      final segment = path[index];
+
+      if (currentGroup != null) {
+        currentVariable = currentGroup.variables[segment];
+        currentGroup = null;
+        if (currentVariable == null) {
+          return null;
+        }
+        if (index == path.length - 1) {
+          return currentVariable;
+        }
+        if (currentVariable is FoundryObjectVariable) {
+          currentGroup = currentVariable.group;
+          continue;
+        }
+        if (currentVariable is FoundryValuesVariable) {
+          continue;
+        }
         return null;
       }
-      if (index == path.length - 1) {
-        return variable;
-      }
-      if (variable is! FoundryObjectVariable) {
+
+      if (currentVariable is FoundryValuesVariable) {
+        final itemIndex = int.tryParse(segment);
+        if (itemIndex == null || itemIndex < 0) {
+          return null;
+        }
+        currentVariable = currentVariable.item;
+        if (index == path.length - 1) {
+          return currentVariable;
+        }
+        if (currentVariable is FoundryObjectVariable) {
+          currentGroup = currentVariable.group;
+          continue;
+        }
+        if (currentVariable is FoundryValuesVariable) {
+          continue;
+        }
         return null;
       }
-      currentGroup = variable.group;
+
+      return null;
     }
-    return null;
+
+    return currentVariable;
   }
 
   Map<String, Object?>? _nestedRawMap(
@@ -1040,6 +1617,238 @@ class _CastVariableFormState extends State<CastVariableForm> {
   String _joinPath(List<String> path) => path.join(_pathSeparator);
 
   List<String> _splitPath(String pathKey) => pathKey.split(_pathSeparator);
+
+  void _syncValuesListState(
+    FoundryVariableGroupEvaluation evaluation, {
+    required List<String> pathPrefix,
+    required Map<String, Object?> rawValues,
+  }) {
+    for (final entry in evaluation.entries) {
+      final path = [...pathPrefix, entry.key];
+      final pathKey = _joinPath(path);
+
+      if (entry.variable is FoundryValuesVariable) {
+        final valuesVariable = entry.variable as FoundryValuesVariable;
+        final userTouched = _isValuesPathUserTouched(pathKey);
+        if (!userTouched) {
+          _valuesLengths[pathKey] =
+              entry.value is List ? (entry.value! as List).length : 0;
+        }
+        final length = _valuesLengths[pathKey] ?? 0;
+        _valuesCursors[pathKey] = length == 0
+            ? 0
+            : (_valuesCursors[pathKey] ?? 0).clamp(0, length - 1);
+
+        if (valuesVariable.item is FoundryObjectVariable) {
+          final objectItem = valuesVariable.item as FoundryObjectVariable;
+          final resolvedList =
+              entry.value is List ? entry.value! as List : const <Object?>[];
+          for (var index = 0; index < length; index++) {
+            final itemPath = [...path, '$index'];
+            final nestedRaw = _valueAtPath(rawValues, itemPath);
+            final nestedMap = _asStringKeyedMap(nestedRaw) ??
+                _asStringKeyedMap(
+                  index < resolvedList.length ? resolvedList[index] : null,
+                ) ??
+                const <String, Object?>{};
+            final nestedEvaluation = objectItem.group.evaluate(
+              rawValues: nestedMap,
+            );
+            _syncValuesListState(
+              nestedEvaluation,
+              pathPrefix: itemPath,
+              rawValues: rawValues,
+            );
+          }
+        }
+        continue;
+      }
+
+      if (entry.variable is FoundryObjectVariable) {
+        final objectVariable = entry.variable as FoundryObjectVariable;
+        final nestedRaw = _nestedRawMap(rawValues, path) ??
+            _asStringKeyedMap(entry.value) ??
+            const <String, Object?>{};
+        final nestedEvaluation = objectVariable.group.evaluate(
+          rawValues: nestedRaw,
+        );
+        _syncValuesListState(
+          nestedEvaluation,
+          pathPrefix: path,
+          rawValues: rawValues,
+        );
+      }
+    }
+  }
+
+  bool _needsValuesRecollect(Map<String, Object?> rawValues) {
+    for (final entry in _valuesLengths.entries) {
+      final current = _valueAtPath(rawValues, _splitPath(entry.key));
+      if (entry.value == 0 && current is! List) {
+        return true;
+      }
+      if (_isValuesPathUserTouched(entry.key) && current is! List) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isValuesPathUserTouched(String pathKey) {
+    return _dirtyKeys.contains(pathKey) ||
+        _dirtyKeys.any(
+          (key) => key.startsWith('$pathKey$_pathSeparator'),
+        );
+  }
+
+  List<String>? _valuesAncestorPath(List<String> path) {
+    for (var length = 1; length < path.length; length++) {
+      final candidate = path.sublist(0, length);
+      final variable = _variableAtPath(component.variableGroup, candidate);
+      if (variable is FoundryValuesVariable) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  bool _isIndexedListError(String error) {
+    return RegExp(r'^\[\d+\]: ').hasMatch(error);
+  }
+
+  Object? _valueAtPath(Map<String, Object?> rawValues, List<String> path) {
+    Object? current = rawValues;
+    for (final segment in path) {
+      if (current is Map) {
+        current = current[segment];
+        continue;
+      }
+      if (current is List) {
+        final index = int.tryParse(segment);
+        if (index == null || index < 0 || index >= current.length) {
+          return null;
+        }
+        current = current[index];
+        continue;
+      }
+      return null;
+    }
+    return current;
+  }
+
+  Map<String, Object?>? _asStringKeyedMap(Object? value) {
+    if (value is! Map) {
+      return null;
+    }
+    return {
+      for (final entry in value.entries) entry.key.toString(): entry.value,
+    };
+  }
+
+  void _removeValuesItem(String valuesPathKey, int index) {
+    final length = _valuesLengths[valuesPathKey]!;
+    _clearPathPrefix('$valuesPathKey$_pathSeparator$index');
+    for (var from = index + 1; from < length; from++) {
+      _remapPathPrefix(
+        '$valuesPathKey$_pathSeparator$from',
+        '$valuesPathKey$_pathSeparator${from - 1}',
+      );
+    }
+    final nextLength = length - 1;
+    _valuesLengths[valuesPathKey] = nextLength;
+    _valuesCursors[valuesPathKey] =
+        nextLength == 0 ? 0 : index.clamp(0, nextLength - 1);
+  }
+
+  void _swapValuesItems(String valuesPathKey, int a, int b) {
+    if (a == b) {
+      return;
+    }
+    final prefixA = '$valuesPathKey$_pathSeparator$a';
+    final prefixB = '$valuesPathKey$_pathSeparator$b';
+    final tempPrefix = '$valuesPathKey$_pathSeparator\u0001tmp_$a';
+    _remapPathPrefix(prefixA, tempPrefix);
+    _remapPathPrefix(prefixB, prefixA);
+    _remapPathPrefix(tempPrefix, prefixB);
+  }
+
+  void _remapPathPrefix(String fromPrefix, String toPrefix) {
+    final controllerUpdates = <String, TextEditingController>{};
+    final controllerRemovals = <String>[];
+    for (final entry in _controllers.entries) {
+      final key = entry.key;
+      if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
+        final suffix = key.substring(fromPrefix.length);
+        controllerUpdates['$toPrefix$suffix'] = entry.value;
+        controllerRemovals.add(key);
+      }
+    }
+    for (final key in controllerRemovals) {
+      _controllers.remove(key);
+    }
+    _controllers.addAll(controllerUpdates);
+
+    void remapMap<V>(Map<String, V> map) {
+      final updates = <String, V>{};
+      final removals = <String>[];
+      for (final entry in map.entries) {
+        final key = entry.key;
+        if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
+          final suffix = key.substring(fromPrefix.length);
+          updates['$toPrefix$suffix'] = entry.value;
+          removals.add(key);
+        }
+      }
+      for (final key in removals) {
+        map.remove(key);
+      }
+      map.addAll(updates);
+    }
+
+    remapMap(_choiceRawValues);
+    remapMap(_optionCursorByKey);
+    remapMap(_valuesLengths);
+    remapMap(_valuesCursors);
+
+    final dirtyUpdates = <String>{};
+    final dirtyRemovals = <String>[];
+    for (final key in _dirtyKeys) {
+      if (key == fromPrefix || key.startsWith('$fromPrefix$_pathSeparator')) {
+        final suffix = key.substring(fromPrefix.length);
+        dirtyUpdates.add('$toPrefix$suffix');
+        dirtyRemovals.add(key);
+      }
+    }
+    _dirtyKeys
+      ..removeAll(dirtyRemovals)
+      ..addAll(dirtyUpdates);
+  }
+
+  void _clearPathPrefix(String prefix) {
+    final controllerKeys = _controllers.keys
+        .where(
+          (key) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+        )
+        .toList(growable: false);
+    for (final key in controllerKeys) {
+      _controllers.remove(key)?.dispose();
+    }
+    _choiceRawValues.removeWhere(
+      (key, _) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+    );
+    _optionCursorByKey.removeWhere(
+      (key, _) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+    );
+    _dirtyKeys.removeWhere(
+      (key) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+    );
+    _valuesLengths.removeWhere(
+      (key, _) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+    );
+    _valuesCursors.removeWhere(
+      (key, _) => key == prefix || key.startsWith('$prefix$_pathSeparator'),
+    );
+  }
 
   void _attemptSubmit(
     FoundryVariableGroupEvaluation evaluation,
