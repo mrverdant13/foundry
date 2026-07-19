@@ -290,11 +290,20 @@ class _CastVariableFormState extends State<CastVariableForm> {
         continue;
       }
 
+      // Top-level scalars always contribute controller text. Nested scalars
+      // only contribute when dirty so omitted nested keys can recompute
+      // defaults (and explicit nested nulls stay meaningful once dirty).
+      final includeRaw = path.length == 1 || _dirtyKeys.contains(pathKey);
+
       switch (parseCastVariableText(variable, controllerEntry.value.text)) {
         case CastVariableTextParseSuccess(:final value):
-          _setAtPath(rawValues, path, value);
+          if (includeRaw) {
+            _setAtPath(rawValues, path, value);
+          }
         case CastVariableTextParseFailure(:final message):
-          _setAtPath(rawValues, path, null);
+          if (includeRaw) {
+            _setAtPath(rawValues, path, null);
+          }
           parseErrors[pathKey] = message;
       }
     }

@@ -336,6 +336,53 @@ FoundryVariableGroup _buildObjectFieldGroup({
   );
 }
 
+FoundryVariableGroup _buildDerivedNestedObjectVariableGroup() {
+  return FoundryVariableGroup(
+    variables: {
+      'publish': FoundryObjectVariable(
+        label: 'Publish settings',
+        group: FoundryVariableGroup(
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => 'localhost',
+            ),
+            'port': FoundryIntVariable(
+              label: 'Port',
+              defaultValue: (context) =>
+                  context.optionalString('host') == 'api.example.com'
+                      ? 443
+                      : 8080,
+            ),
+          },
+        ),
+      ),
+    },
+  );
+}
+
+FoundryVariableGroup _buildClearableNestedObjectVariableGroup() {
+  return FoundryVariableGroup(
+    variables: {
+      'publish': FoundryObjectVariable(
+        label: 'Publish settings',
+        group: FoundryVariableGroup(
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => 'localhost',
+            ),
+            'port': FoundryIntVariable(
+              label: 'Port',
+              defaultValue: (_) => 8080,
+            ),
+          },
+        ),
+      ),
+    },
+  );
+}
+
 /// Host that can swap [CastVariableForm.variableGroup] while preserving form
 /// state, so kind-transition behavior is testable.
 class _CastVariableFormHost extends StatefulComponent {
@@ -1819,6 +1866,82 @@ void main() {
 
           expect(submitted, isNotNull);
           expect(submitted!['field'], {'host': 'from-object'});
+        },
+      ),
+    );
+
+    test(
+      'recomputes a nested default when a sibling nested field changes',
+      () => testNocterm(
+        'nested derived default',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildDerivedNestedObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          expect(tester.terminalState.getText(), contains('8080'));
+
+          for (var i = 0; i < 'localhost'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.enterText('api.example.com');
+          await tester.pump();
+
+          expect(tester.terminalState.getText(), contains('443'));
+
+          await tester.sendTab(); // port
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {
+            'host': 'api.example.com',
+            'port': 443,
+          });
+        },
+      ),
+    );
+
+    test(
+      'submits null when a nested int field is cleared',
+      () => testNocterm(
+        'nested cleared int submits null',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: _buildClearableNestedObjectVariableGroup(),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          await tester.sendTab(); // port
+          for (var i = 0; i < '8080'.length; i++) {
+            await tester.sendBackspace();
+          }
+          await tester.pump();
+          expect(tester.terminalState.getText(), isNot(contains('8080')));
+
+          await tester.sendEnter();
+          await tester.pump();
+
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {
+            'host': 'localhost',
+            'port': null,
+          });
         },
       ),
     );
