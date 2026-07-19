@@ -627,15 +627,68 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
     final controller = _controllers[pathKey];
     if (controller == null) {
-      return null;
+      // Item slots may not be synced yet on the same frame as add.
+      return _placeholderValuesItemRaw(item);
     }
     switch (parseCastVariableText(item, controller.text)) {
       case CastVariableTextParseSuccess(:final value):
-        return value;
+        return value ?? _placeholderValuesItemRaw(item);
       case CastVariableTextParseFailure(:final message):
         parseErrors[pathKey] = message;
-        return null;
+        return _placeholderValuesItemRaw(item);
     }
+  }
+
+  Object? _placeholderValuesItemRaw(FoundryVariable<dynamic> item) {
+    return switch (item) {
+      FoundryStringVariable() => '',
+      FoundryBooleanVariable() => false,
+      FoundryIntVariable() => 0,
+      FoundryDoubleVariable() => 0.0,
+      FoundrySingleChoiceVariable(:final options) =>
+        options.isEmpty ? null : options.first,
+      FoundryMultipleChoiceVariable() => const <Object?>[],
+      FoundryObjectVariable() => const <String, Object?>{},
+      FoundryValuesVariable() => const <Object?>[],
+    };
+  }
+
+  void _seedNewValuesItem(
+    FoundryVariable<dynamic> item,
+    String itemPathKey,
+  ) {
+    if (item is FoundryObjectVariable) {
+      _dirtyKeys.add(itemPathKey);
+      return;
+    }
+    if (item is FoundryValuesVariable) {
+      _valuesLengths[itemPathKey] = 0;
+      _valuesCursors[itemPathKey] = 0;
+      _dirtyKeys.add(itemPathKey);
+      return;
+    }
+    if (_isChoiceVariable(item)) {
+      final options = _choiceOptions(item);
+      _choiceRawValues[itemPathKey] = switch (item) {
+        FoundryMultipleChoiceVariable() => <Object?>[],
+        _ => options.isEmpty ? null : options.first,
+      };
+      _optionCursorByKey[itemPathKey] = 0;
+      _dirtyKeys.add(itemPathKey);
+      return;
+    }
+
+    final controller = _controllers.putIfAbsent(
+      itemPathKey,
+      TextEditingController.new,
+    );
+    controller.text = switch (item) {
+      FoundryBooleanVariable() => 'false',
+      FoundryIntVariable() => '0',
+      FoundryDoubleVariable() => '0.0',
+      _ => '',
+    };
+    _dirtyKeys.add(itemPathKey);
   }
 
   void _collectNestedObjectRaw({
@@ -806,6 +859,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
       setState(() {
         _dirtyKeys.add(pathKey);
         final length = _valuesLengths[pathKey] ?? 0;
+        final valuesVariable =
+            focusedTarget.entry.variable as FoundryValuesVariable;
+        _seedNewValuesItem(
+          valuesVariable.item,
+          '$pathKey$_pathSeparator$length',
+        );
         _valuesLengths[pathKey] = length + 1;
         _valuesCursors[pathKey] = length;
       });
