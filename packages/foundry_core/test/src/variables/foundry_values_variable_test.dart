@@ -171,8 +171,8 @@ void main() {
           isA<FoundryContextException>().having(
             (exception) => exception.message,
             'message',
-            'Expected a value of type String for key "1" but found a value '
-                'of type int.',
+            'Expected a value of type String for key "dependents[1]" but '
+                'found a value of type int.',
           ),
         ),
       );
