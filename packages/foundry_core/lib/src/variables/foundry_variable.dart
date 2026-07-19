@@ -48,8 +48,9 @@ typedef FoundryDisplayLabel<T> = String Function(T value);
 ///
 /// Concrete kinds include [FoundryStringVariable], [FoundryBooleanVariable],
 /// [FoundryIntVariable], [FoundryDoubleVariable],
-/// [FoundrySingleChoiceVariable], [FoundryMultipleChoiceVariable], and
-/// [FoundryObjectVariable]; additional kinds are added as the runtime expands.
+/// [FoundrySingleChoiceVariable], [FoundryMultipleChoiceVariable],
+/// [FoundryObjectVariable], and [FoundryValuesVariable]; additional kinds are
+/// added as the runtime expands.
 @immutable
 sealed class FoundryVariable<T> {
   /// Creates a [FoundryVariable].
@@ -517,5 +518,129 @@ final class FoundryObjectVariable
     return {
       for (final entry in value.entries) entry.key.toString(): entry.value,
     };
+  }
+}
+
+/// A reorderable list of values that all share a single [item] schema.
+///
+/// The resolved value type is [List<T>]. Order is preserved exactly as supplied
+/// (add / remove / reorder are list-edit operations at the model level). An
+/// empty list is allowed unless [validators] reject it. There is no free-form
+/// custom create beyond the declared [item] kind.
+final class FoundryValuesVariable<T> extends FoundryVariable<List<T>> {
+  /// Creates a [FoundryValuesVariable].
+  const FoundryValuesVariable({
+    required super.label,
+    required this.item,
+    super.visibleWhen,
+    super.enabledWhen,
+    super.defaultValue,
+    super.validators,
+    super.description,
+    super.placeholder,
+    super.help,
+  });
+
+  /// Schema applied to every element in the resolved list.
+  final FoundryVariable<T> item;
+
+  @override
+  Object? resolveValue({
+    required String key,
+    required Map<String, Object?> rawValues,
+    required Set<String> dirtyKeys,
+    required Map<String, Object?> resolvedValues,
+  }) {
+    final hasRawValue = rawValues.containsKey(key) && rawValues[key] != null;
+    if (dirtyKeys.contains(key) || hasRawValue) {
+      final rawValue = rawValues[key];
+      if (rawValue == null) {
+        return null;
+      }
+      return _resolveElements(key: key, rawValue: rawValue);
+    }
+
+    final derive = defaultValue;
+    if (derive == null) {
+      return null;
+    }
+    return _resolveElements(
+      key: key,
+      rawValue: derive(
+        SnapshotFoundryContext({...resolvedValues, ...rawValues}),
+      ),
+    );
+  }
+
+  @override
+  List<String> validate(Object? value, SnapshotFoundryContext context) {
+    if (value == null) {
+      return validators
+          .map((validator) => validator(null, context))
+          .whereType<String>()
+          .toList(growable: false);
+    }
+
+    final elements = _coerceElements(value);
+    return [
+      for (var index = 0; index < elements.length; index++)
+        for (final error in item.validate(elements[index], context))
+          '[$index]: $error',
+      ...validators
+          .map((validator) => validator(elements, context))
+          .whereType<String>(),
+    ].toList(growable: false);
+  }
+
+  List<T> _resolveElements({
+    required String key,
+    required Object rawValue,
+  }) {
+    if (rawValue is! List) {
+      throw FoundryContextException(
+        'Expected a value of type List<$T> for key "$key" but found a value '
+        'of type ${rawValue.runtimeType}.',
+      );
+    }
+
+    final resolved = <T>[];
+    for (var index = 0; index < rawValue.length; index++) {
+      final elementKey = '$index';
+      final element = item.resolveValue(
+        key: elementKey,
+        rawValues: {elementKey: rawValue[index]},
+        dirtyKeys: {elementKey},
+        resolvedValues: const {},
+      );
+      if (element is! T) {
+        throw FoundryContextException(
+          'Expected list elements of type $T for key "$key" but found a '
+          'value of type ${element.runtimeType}.',
+        );
+      }
+      resolved.add(element);
+    }
+    return resolved;
+  }
+
+  List<T> _coerceElements(Object value) {
+    if (value is! List) {
+      throw FoundryContextException(
+        'Expected a value of type List<$T> but found a value of type '
+        '${value.runtimeType}.',
+      );
+    }
+
+    final elements = <T>[];
+    for (final element in value) {
+      if (element is! T) {
+        throw FoundryContextException(
+          'Expected list elements of type $T but found a value of type '
+          '${element.runtimeType}.',
+        );
+      }
+      elements.add(element);
+    }
+    return elements;
   }
 }
