@@ -31,9 +31,9 @@ final class CastVariableTextParseFailure extends CastVariableTextParseResult {
 /// [CastVariableTextParseFailure] instead of a mistyped raw value that would
 /// throw during evaluation.
 ///
-/// Choice and object kinds are not entered as free text; callers should keep
-/// typed option / nested map values out of band and must not rely on this
-/// parser for them.
+/// Choice, object, and values kinds are not entered as free text; callers
+/// should keep typed option / nested map / list values out of band and must
+/// not rely on this parser for them.
 CastVariableTextParseResult parseCastVariableText(
   FoundryVariable<dynamic> variable,
   String text,
@@ -51,6 +51,9 @@ CastVariableTextParseResult parseCastVariableText(
       ),
     FoundryObjectVariable() => const CastVariableTextParseFailure(
         'Object values are gathered from nested fields, not typed',
+      ),
+    FoundryValuesVariable() => const CastVariableTextParseFailure(
+        'List values are gathered from list items, not typed',
       ),
   };
 }

@@ -2,6 +2,6 @@ dependency_overrides:
   foundry_core:
     git:
       url: https://github.com/mrverdant13/foundry.git
-      ref: 00b96b3dfc43965bd844d1a3b4189c3cb264de81
+      ref: b8ac09adb747b72461d3b72ff5500ea65ba680ca
       path: packages/foundry_core
 
