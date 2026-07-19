@@ -32,84 +32,105 @@ FoundryVariableGroup deserializeMoldVariableGroup(
       ]);
     }
 
-    switch (definition['kind']) {
-      case 'string':
-        variables[key] = FoundryStringVariable(
-          label:
-              _requireLabel(key: key, kind: 'String', definition: definition),
-        );
-      case 'boolean':
-        variables[key] = FoundryBooleanVariable(
-          label: _requireLabel(
-            key: key,
-            kind: 'Boolean',
-            definition: definition,
-          ),
-        );
-      case 'int':
-        variables[key] = FoundryIntVariable(
-          label: _requireLabel(key: key, kind: 'Int', definition: definition),
-        );
-      case 'double':
-        variables[key] = FoundryDoubleVariable(
-          label: _requireLabel(
-            key: key,
-            kind: 'Double',
-            definition: definition,
-          ),
-        );
-      case 'single-choice':
-        variables[key] = FoundrySingleChoiceVariable<String>(
-          label: _requireLabel(
-            key: key,
-            kind: 'SingleChoice',
-            definition: definition,
-          ),
-          options: _requireStringOptions(
-            key: key,
-            kind: 'SingleChoice',
-            definition: definition,
-          ),
-          displayLabel: _identityDisplayLabel,
-        );
-      case 'multiple-choice':
-        variables[key] = FoundryMultipleChoiceVariable<String>(
-          label: _requireLabel(
-            key: key,
-            kind: 'MultipleChoice',
-            definition: definition,
-          ),
-          options: _requireStringOptions(
-            key: key,
-            kind: 'MultipleChoice',
-            definition: definition,
-          ),
-          displayLabel: _identityDisplayLabel,
-        );
-      case 'object':
-        variables[key] = FoundryObjectVariable(
-          label: _requireLabel(
-            key: key,
-            kind: 'Object',
-            definition: definition,
-          ),
-          group: _requireNestedGroup(
-            key: key,
-            definition: definition,
-          ),
-        );
-      default:
-        throw MoldLoadException([
-          MoldIssue(
-            severity: MoldIssueSeverity.error,
-            path: 'variables.dart',
-            message: 'Unsupported variable kind for "$key".',
-          ),
-        ]);
-    }
+    variables[key] = _deserializeVariable(
+      key: key,
+      definition: definition,
+    );
   }
 
   return FoundryVariableGroup(variables: variables);
+}
+
+FoundryVariable<dynamic> _deserializeVariable({
+  required String key,
+  required Map<dynamic, dynamic> definition,
+}) {
+  switch (definition['kind']) {
+    case 'string':
+      return FoundryStringVariable(
+        label: _requireLabel(key: key, kind: 'String', definition: definition),
+      );
+    case 'boolean':
+      return FoundryBooleanVariable(
+        label: _requireLabel(
+          key: key,
+          kind: 'Boolean',
+          definition: definition,
+        ),
+      );
+    case 'int':
+      return FoundryIntVariable(
+        label: _requireLabel(key: key, kind: 'Int', definition: definition),
+      );
+    case 'double':
+      return FoundryDoubleVariable(
+        label: _requireLabel(
+          key: key,
+          kind: 'Double',
+          definition: definition,
+        ),
+      );
+    case 'single-choice':
+      return FoundrySingleChoiceVariable<String>(
+        label: _requireLabel(
+          key: key,
+          kind: 'SingleChoice',
+          definition: definition,
+        ),
+        options: _requireStringOptions(
+          key: key,
+          kind: 'SingleChoice',
+          definition: definition,
+        ),
+        displayLabel: _identityDisplayLabel,
+      );
+    case 'multiple-choice':
+      return FoundryMultipleChoiceVariable<String>(
+        label: _requireLabel(
+          key: key,
+          kind: 'MultipleChoice',
+          definition: definition,
+        ),
+        options: _requireStringOptions(
+          key: key,
+          kind: 'MultipleChoice',
+          definition: definition,
+        ),
+        displayLabel: _identityDisplayLabel,
+      );
+    case 'object':
+      return FoundryObjectVariable(
+        label: _requireLabel(
+          key: key,
+          kind: 'Object',
+          definition: definition,
+        ),
+        group: _requireNestedGroup(
+          key: key,
+          definition: definition,
+        ),
+      );
+    case 'values':
+      return FoundryValuesVariable<dynamic>(
+        label: _requireLabel(
+          key: key,
+          kind: 'Values',
+          definition: definition,
+        ),
+        item: _requireItemVariable(
+          key: key,
+          definition: definition,
+        ),
+      );
+    default:
+      throw MoldLoadException([
+        MoldIssue(
+          severity: MoldIssueSeverity.error,
+          path: 'variables.dart',
+          message: 'Unsupported variable kind for "$key".',
+        ),
+      ]);
+  }
 }
 
 String _identityDisplayLabel(String value) => value;
@@ -159,6 +180,37 @@ FoundryVariableGroup _requireNestedGroup({
 
   return deserializeMoldVariableGroup(
     Map<String, Object?>.from(groupNode),
+  );
+}
+
+FoundryVariable<dynamic> _requireItemVariable({
+  required String key,
+  required Map<dynamic, dynamic> definition,
+}) {
+  final itemNode = definition['item'];
+  if (itemNode == null) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: 'Values variable "$key" is missing an item schema.',
+      ),
+    ]);
+  }
+  if (itemNode is! Map) {
+    throw MoldLoadException([
+      MoldIssue(
+        severity: MoldIssueSeverity.error,
+        path: 'variables.dart',
+        message: 'Values variable "$key" has an invalid item schema '
+            '(${itemNode.runtimeType}).',
+      ),
+    ]);
+  }
+
+  return _deserializeVariable(
+    key: '$key.item',
+    definition: itemNode,
   );
 }
 

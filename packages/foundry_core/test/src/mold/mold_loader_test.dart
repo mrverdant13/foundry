@@ -188,6 +188,32 @@ void main() {
       );
     });
 
+    test('round-trips values variables from a fixture', () async {
+      final mold = await loadMold(p.join(fixtures.path, 'values_kind_mold'));
+
+      expect(mold.name, 'values_kind');
+      expect(mold.variableGroup.variables, hasLength(1));
+      final dependents = mold.variableGroup.variables['dependents'];
+      expect(
+        dependents,
+        isA<FoundryValuesVariable<dynamic>>().having(
+          (variable) => variable.label,
+          'label',
+          'Dependents',
+        ),
+      );
+
+      final item = (dependents! as FoundryValuesVariable<dynamic>).item;
+      expect(
+        item,
+        isA<FoundryStringVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Package name',
+        ),
+      );
+    });
+
     test('resolves standard hook files when present', () async {
       final tempDir =
           await Directory.systemTemp.createTemp('foundry_with_hooks_');
