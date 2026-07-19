@@ -9,10 +9,11 @@ import 'package:nocterm/nocterm.dart';
 /// visibility, defaults, and validation as the user edits values. String,
 /// int, and double kinds use text fields (with in-form parse feedback for
 /// numbers); boolean kinds use a Space-to-toggle control; single- and
-/// multiple-choice kinds use option lists driven by ↑/↓ and Space. Submitting
-/// the last field with all values valid calls [onSubmit] with the resolved
-/// values; pressing Escape calls [onCancel]. This component only gathers
-/// values — it does not run the cast pipeline itself.
+/// multiple-choice kinds use option lists driven by ↑/↓ and Space; object
+/// kinds render nested sections recursively with the same field widgets.
+/// Submitting the last field with all values valid calls [onSubmit] with the
+/// resolved values; pressing Escape calls [onCancel]. This component only
+/// gathers values — it does not run the cast pipeline itself.
 /// {@endtemplate}
 class CastVariableForm extends StatefulComponent {
   /// {@macro foundry_cli.cast_variable_form}
@@ -46,6 +47,8 @@ class CastVariableForm extends StatefulComponent {
 }
 
 class _CastVariableFormState extends State<CastVariableForm> {
+  static const _pathSeparator = '\u001f';
+
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, Object?> _choiceRawValues = {};
   final Map<String, int> _optionCursorByKey = {};
@@ -67,21 +70,24 @@ class _CastVariableFormState extends State<CastVariableForm> {
     final collected = _collectRawValues();
     final evaluation = component.variableGroup.evaluate(
       rawValues: collected.rawValues,
-      dirtyKeys: _dirtyKeys,
+      dirtyKeys: collected.topLevelDirtyKeys,
     );
-    _syncFieldState(evaluation);
+    final focusTargets = _buildFocusTargets(
+      evaluation: evaluation,
+      rawValues: collected.rawValues,
+    );
+    _syncFieldState(focusTargets);
     final validation = component.variableGroup.validate(evaluation);
-    final entries = evaluation.entries;
 
-    if (_focusedIndex >= entries.length && entries.isNotEmpty) {
-      _focusedIndex = entries.length - 1;
+    if (_focusedIndex >= focusTargets.length && focusTargets.isNotEmpty) {
+      _focusedIndex = focusTargets.length - 1;
     }
 
     return Focusable(
       focused: true,
       onKeyEvent: (event) => _handleKeyEvent(
         event,
-        entries,
+        focusTargets,
         evaluation,
         validation,
         collected.parseErrors,
@@ -108,27 +114,18 @@ class _CastVariableFormState extends State<CastVariableForm> {
                 ),
                 Text(component.moldDescription),
                 const SizedBox(height: 1),
-                for (var index = 0; index < entries.length; index++) ...[
-                  _buildField(
-                    entry: entries[index],
-                    fieldErrors:
-                        validation.fieldErrors[entries[index].key] ?? const [],
-                    parseError: collected.parseErrors[entries[index].key],
-                    focused: index == _focusedIndex,
-                    onSubmitted: () {
-                      if (index < entries.length - 1) {
-                        setState(() => _focusedIndex = index + 1);
-                        return;
-                      }
-                      _attemptSubmit(
-                        evaluation,
-                        validation,
-                        collected.parseErrors,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 1),
-                ],
+                ..._buildGroupFields(
+                  evaluation: evaluation,
+                  validation: validation,
+                  rootEvaluation: evaluation,
+                  rootValidation: validation,
+                  rawValues: collected.rawValues,
+                  parseErrors: collected.parseErrors,
+                  pathPrefix: const [],
+                  ancestorsEnabled: true,
+                  focusTargets: focusTargets,
+                  depth: 0,
+                ),
                 if (_showErrors && validation.groupErrors.isNotEmpty)
                   ...validation.groupErrors.map(
                     (error) => Text(
@@ -148,66 +145,220 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
   }
 
-  ({Map<String, Object?> rawValues, Map<String, String> parseErrors})
-      _collectRawValues() {
+  List<Component> _buildGroupFields({
+    required FoundryVariableGroupEvaluation evaluation,
+    required FoundryVariableGroupValidation validation,
+    required FoundryVariableGroupEvaluation rootEvaluation,
+    required FoundryVariableGroupValidation rootValidation,
+    required Map<String, Object?> rawValues,
+    required Map<String, String> parseErrors,
+    required List<String> pathPrefix,
+    required bool ancestorsEnabled,
+    required List<_FocusTarget> focusTargets,
+    required int depth,
+  }) {
+    final children = <Component>[];
+    for (final entry in evaluation.entries) {
+      final path = [...pathPrefix, entry.key];
+      final pathKey = _joinPath(path);
+      final effectiveEnabled = ancestorsEnabled && entry.isEnabled;
+
+      if (entry.variable is FoundryObjectVariable) {
+        final objectVariable = entry.variable as FoundryObjectVariable;
+        final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
+        final nestedEvaluation = objectVariable.group.evaluate(
+          rawValues: nestedRaw,
+        );
+        final nestedValidation = objectVariable.group.validate(
+          nestedEvaluation,
+        );
+
+        children
+          ..add(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${'  ' * depth}${entry.key}: ${entry.variable.label}',
+                  style: const TextStyle(color: Colors.yellow),
+                ),
+                if (entry.description != null)
+                  Text('${'  ' * depth}${entry.description!}'),
+                if (entry.help != null)
+                  Text(
+                    '${'  ' * depth}${entry.help!}',
+                    style: const TextStyle(color: Colors.gray),
+                  ),
+                if (!effectiveEnabled)
+                  Text(
+                    '${'  ' * depth}(read-only)',
+                    style: const TextStyle(color: Colors.gray),
+                  ),
+                if (_showErrors) ...[
+                  ...nestedValidation.groupErrors.map(
+                    (error) => Text(
+                      '${'  ' * depth}$error',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                  // Object-level validators (and remaining flattened errors)
+                  // surface on the section when submit is attempted.
+                  ...(validation.fieldErrors[entry.key] ?? const [])
+                      .where(
+                        (error) => !nestedValidation.fieldErrors.keys.any(
+                          (nestedKey) => error.startsWith('$nestedKey: '),
+                        ),
+                      )
+                      .where(
+                        (error) =>
+                            !nestedValidation.groupErrors.contains(error),
+                      )
+                      .map(
+                        (error) => Text(
+                          '${'  ' * depth}$error',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                ],
+                ..._buildGroupFields(
+                  evaluation: nestedEvaluation,
+                  validation: nestedValidation,
+                  rootEvaluation: rootEvaluation,
+                  rootValidation: rootValidation,
+                  rawValues: rawValues,
+                  parseErrors: parseErrors,
+                  pathPrefix: path,
+                  ancestorsEnabled: effectiveEnabled,
+                  focusTargets: focusTargets,
+                  depth: depth + 1,
+                ),
+              ],
+            ),
+          )
+          ..add(const SizedBox(height: 1));
+        continue;
+      }
+
+      final focusIndex = focusTargets.indexWhere(
+        (target) => target.pathKey == pathKey,
+      );
+      final focused = focusIndex >= 0 && focusIndex == _focusedIndex;
+      final fieldErrors = validation.fieldErrors[entry.key] ?? const [];
+
+      children
+        ..add(
+          _buildField(
+            entry: entry,
+            pathKey: pathKey,
+            fieldErrors: fieldErrors,
+            parseError: parseErrors[pathKey],
+            focused: focused,
+            effectiveEnabled: effectiveEnabled,
+            depth: depth,
+            onSubmitted: () {
+              if (focusIndex < 0) {
+                return;
+              }
+              if (focusIndex < focusTargets.length - 1) {
+                setState(() => _focusedIndex = focusIndex + 1);
+                return;
+              }
+              _attemptSubmit(rootEvaluation, rootValidation, parseErrors);
+            },
+          ),
+        )
+        ..add(const SizedBox(height: 1));
+    }
+    return children;
+  }
+
+  ({
+    Map<String, Object?> rawValues,
+    Map<String, String> parseErrors,
+    Set<String> topLevelDirtyKeys,
+  }) _collectRawValues() {
     final rawValues = <String, Object?>{};
     final parseErrors = <String, String>{};
 
     for (final controllerEntry in _controllers.entries) {
-      final key = controllerEntry.key;
-      final variable = component.variableGroup.variables[key];
-      if (variable == null || _isChoiceVariable(variable)) {
+      final pathKey = controllerEntry.key;
+      final path = _splitPath(pathKey);
+      final variable = _variableAtPath(component.variableGroup, path);
+      if (variable == null ||
+          _isChoiceVariable(variable) ||
+          variable is FoundryObjectVariable) {
         continue;
       }
 
+      // Top-level scalars always contribute controller text. Nested scalars
+      // only contribute when dirty so omitted nested keys can recompute
+      // defaults (and explicit nested nulls stay meaningful once dirty).
+      final includeRaw = path.length == 1 || _dirtyKeys.contains(pathKey);
+
       switch (parseCastVariableText(variable, controllerEntry.value.text)) {
         case CastVariableTextParseSuccess(:final value):
-          rawValues[key] = value;
+          if (includeRaw) {
+            _setAtPath(rawValues, path, value);
+          }
         case CastVariableTextParseFailure(:final message):
-          rawValues[key] = null;
-          parseErrors[key] = message;
+          if (includeRaw) {
+            _setAtPath(rawValues, path, null);
+          }
+          parseErrors[pathKey] = message;
       }
     }
 
     for (final choiceEntry in _choiceRawValues.entries) {
-      final key = choiceEntry.key;
-      final variable = component.variableGroup.variables[key];
+      final pathKey = choiceEntry.key;
+      final path = _splitPath(pathKey);
+      final variable = _variableAtPath(component.variableGroup, path);
       if (variable == null || !_isChoiceVariable(variable)) {
         continue;
       }
       // Only dirty choice values are raw input. Non-dirty cached values must
       // not pin defaults, or dependent defaultValue callbacks cannot recompute.
-      if (!_dirtyKeys.contains(key)) {
+      if (!_dirtyKeys.contains(pathKey)) {
         continue;
       }
-      rawValues[key] = choiceEntry.value;
+      _setAtPath(rawValues, path, choiceEntry.value);
     }
 
-    return (rawValues: rawValues, parseErrors: parseErrors);
+    return (
+      rawValues: rawValues,
+      parseErrors: parseErrors,
+      topLevelDirtyKeys: _topLevelDirtyKeys(),
+    );
+  }
+
+  Set<String> _topLevelDirtyKeys() {
+    return {
+      for (final pathKey in _dirtyKeys) _splitPath(pathKey).first,
+    };
   }
 
   bool _handleKeyEvent(
     KeyboardEvent event,
-    List<FoundryVariableEvaluationEntry> entries,
+    List<_FocusTarget> focusTargets,
     FoundryVariableGroupEvaluation evaluation,
     FoundryVariableGroupValidation validation,
     Map<String, String> parseErrors,
   ) {
     if (event.logicalKey == LogicalKey.tab && !event.isShiftPressed) {
-      if (entries.isEmpty) {
+      if (focusTargets.isEmpty) {
         return true;
       }
       setState(() {
-        _focusedIndex = (_focusedIndex + 1) % entries.length;
+        _focusedIndex = (_focusedIndex + 1) % focusTargets.length;
       });
       return true;
     }
     if (event.logicalKey == LogicalKey.tab && event.isShiftPressed) {
-      if (entries.isEmpty) {
+      if (focusTargets.isEmpty) {
         return true;
       }
       setState(() {
-        _focusedIndex = (_focusedIndex - 1 + entries.length) % entries.length;
+        _focusedIndex =
+            (_focusedIndex - 1 + focusTargets.length) % focusTargets.length;
       });
       return true;
     }
@@ -216,20 +367,20 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return true;
     }
 
-    if (entries.isEmpty ||
+    if (focusTargets.isEmpty ||
         _focusedIndex < 0 ||
-        _focusedIndex >= entries.length) {
+        _focusedIndex >= focusTargets.length) {
       return false;
     }
 
-    final focusedEntry = entries[_focusedIndex];
-    final variable = focusedEntry.variable;
+    final focusedTarget = focusTargets[_focusedIndex];
+    final variable = focusedTarget.entry.variable;
 
     if (variable is FoundryBooleanVariable) {
       return _handleBooleanKeyEvent(
         event,
-        focusedEntry: focusedEntry,
-        entries: entries,
+        focusedTarget: focusedTarget,
+        focusTargets: focusTargets,
         evaluation: evaluation,
         validation: validation,
         parseErrors: parseErrors,
@@ -240,8 +391,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
         variable is FoundryMultipleChoiceVariable) {
       return _handleChoiceKeyEvent(
         event,
-        focusedEntry: focusedEntry,
-        entries: entries,
+        focusedTarget: focusedTarget,
+        focusTargets: focusTargets,
         evaluation: evaluation,
         validation: validation,
         parseErrors: parseErrors,
@@ -253,24 +404,24 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   bool _handleBooleanKeyEvent(
     KeyboardEvent event, {
-    required FoundryVariableEvaluationEntry focusedEntry,
-    required List<FoundryVariableEvaluationEntry> entries,
+    required _FocusTarget focusedTarget,
+    required List<_FocusTarget> focusTargets,
     required FoundryVariableGroupEvaluation evaluation,
     required FoundryVariableGroupValidation validation,
     required Map<String, String> parseErrors,
   }) {
-    if (event.logicalKey == LogicalKey.space && focusedEntry.isEnabled) {
+    if (event.logicalKey == LogicalKey.space && focusedTarget.isEnabled) {
       setState(() {
-        _dirtyKeys.add(focusedEntry.key);
-        final controller = _controllers[focusedEntry.key]!;
-        final currentlyChecked = focusedEntry.value == true;
+        _dirtyKeys.add(focusedTarget.pathKey);
+        final controller = _controllers[focusedTarget.pathKey]!;
+        final currentlyChecked = focusedTarget.entry.value == true;
         controller.text = (!currentlyChecked).toString();
       });
       return true;
     }
 
     if (event.logicalKey == LogicalKey.enter) {
-      if (_focusedIndex < entries.length - 1) {
+      if (_focusedIndex < focusTargets.length - 1) {
         setState(() => _focusedIndex = _focusedIndex + 1);
         return true;
       }
@@ -283,16 +434,16 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   bool _handleChoiceKeyEvent(
     KeyboardEvent event, {
-    required FoundryVariableEvaluationEntry focusedEntry,
-    required List<FoundryVariableEvaluationEntry> entries,
+    required _FocusTarget focusedTarget,
+    required List<_FocusTarget> focusTargets,
     required FoundryVariableGroupEvaluation evaluation,
     required FoundryVariableGroupValidation validation,
     required Map<String, String> parseErrors,
   }) {
-    final options = _choiceOptions(focusedEntry.variable);
+    final options = _choiceOptions(focusedTarget.entry.variable);
     if (options.isEmpty) {
       if (event.logicalKey == LogicalKey.enter) {
-        if (_focusedIndex < entries.length - 1) {
+        if (_focusedIndex < focusTargets.length - 1) {
           setState(() => _focusedIndex = _focusedIndex + 1);
           return true;
         }
@@ -302,47 +453,47 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return false;
     }
 
-    final cursor = _optionCursorByKey[focusedEntry.key] ?? 0;
+    final cursor = _optionCursorByKey[focusedTarget.pathKey] ?? 0;
 
-    if (event.logicalKey == LogicalKey.arrowUp && focusedEntry.isEnabled) {
+    if (event.logicalKey == LogicalKey.arrowUp && focusedTarget.isEnabled) {
       setState(() {
         final nextCursor = (cursor - 1 + options.length) % options.length;
-        _optionCursorByKey[focusedEntry.key] = nextCursor;
-        if (focusedEntry.variable is FoundrySingleChoiceVariable) {
-          _dirtyKeys.add(focusedEntry.key);
-          _choiceRawValues[focusedEntry.key] = options[nextCursor];
+        _optionCursorByKey[focusedTarget.pathKey] = nextCursor;
+        if (focusedTarget.entry.variable is FoundrySingleChoiceVariable) {
+          _dirtyKeys.add(focusedTarget.pathKey);
+          _choiceRawValues[focusedTarget.pathKey] = options[nextCursor];
         }
       });
       return true;
     }
 
-    if (event.logicalKey == LogicalKey.arrowDown && focusedEntry.isEnabled) {
+    if (event.logicalKey == LogicalKey.arrowDown && focusedTarget.isEnabled) {
       setState(() {
         final nextCursor = (cursor + 1) % options.length;
-        _optionCursorByKey[focusedEntry.key] = nextCursor;
-        if (focusedEntry.variable is FoundrySingleChoiceVariable) {
-          _dirtyKeys.add(focusedEntry.key);
-          _choiceRawValues[focusedEntry.key] = options[nextCursor];
+        _optionCursorByKey[focusedTarget.pathKey] = nextCursor;
+        if (focusedTarget.entry.variable is FoundrySingleChoiceVariable) {
+          _dirtyKeys.add(focusedTarget.pathKey);
+          _choiceRawValues[focusedTarget.pathKey] = options[nextCursor];
         }
       });
       return true;
     }
 
-    if (event.logicalKey == LogicalKey.space && focusedEntry.isEnabled) {
+    if (event.logicalKey == LogicalKey.space && focusedTarget.isEnabled) {
       setState(() {
-        _dirtyKeys.add(focusedEntry.key);
+        _dirtyKeys.add(focusedTarget.pathKey);
         final option = options[cursor];
-        switch (focusedEntry.variable) {
+        switch (focusedTarget.entry.variable) {
           case FoundrySingleChoiceVariable():
-            _choiceRawValues[focusedEntry.key] = option;
+            _choiceRawValues[focusedTarget.pathKey] = option;
           case FoundryMultipleChoiceVariable():
-            final current = _selectedOptions(focusedEntry);
+            final current = _selectedOptions(focusedTarget);
             if (current.contains(option)) {
               current.remove(option);
             } else {
               current.add(option);
             }
-            _choiceRawValues[focusedEntry.key] = current;
+            _choiceRawValues[focusedTarget.pathKey] = current;
           default:
             break;
         }
@@ -351,7 +502,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     if (event.logicalKey == LogicalKey.enter) {
-      if (_focusedIndex < entries.length - 1) {
+      if (_focusedIndex < focusTargets.length - 1) {
         setState(() => _focusedIndex = _focusedIndex + 1);
         return true;
       }
@@ -364,50 +515,90 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   Component _buildField({
     required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
     required List<String> fieldErrors,
     required String? parseError,
     required bool focused,
+    required bool effectiveEnabled,
+    required int depth,
     required VoidCallback onSubmitted,
   }) {
+    final indent = '  ' * depth;
+    final enabledEntry = FoundryVariableEvaluationEntry(
+      key: entry.key,
+      variable: entry.variable,
+      value: entry.value,
+      isEnabled: effectiveEnabled,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${entry.key}: ${entry.variable.label}',
+          '$indent${entry.key}: ${entry.variable.label}',
           style: const TextStyle(color: Colors.yellow),
         ),
-        if (entry.description != null) Text(entry.description!),
-        switch (entry.variable) {
-          FoundryBooleanVariable() => _buildBooleanControl(
-              entry: entry,
-              focused: focused,
-            ),
-          FoundrySingleChoiceVariable() => _buildSingleChoiceControl(
-              entry: entry,
-              focused: focused,
-            ),
-          FoundryMultipleChoiceVariable() => _buildMultipleChoiceControl(
-              entry: entry,
-              focused: focused,
-            ),
-          FoundryStringVariable() ||
-          FoundryIntVariable() ||
-          FoundryDoubleVariable() =>
-            _buildTextControl(
-              entry: entry,
-              focused: focused,
-              onSubmitted: onSubmitted,
-            ),
-        },
+        if (entry.description != null) Text('$indent${entry.description!}'),
+        _buildLeafControl(
+          entry: enabledEntry,
+          pathKey: pathKey,
+          focused: focused,
+          onSubmitted: onSubmitted,
+        ),
         if (entry.help != null)
-          Text(entry.help!, style: const TextStyle(color: Colors.gray)),
+          Text(
+            '$indent${entry.help!}',
+            style: const TextStyle(color: Colors.gray),
+          ),
         if (parseError != null)
-          Text(parseError, style: const TextStyle(color: Colors.red)),
+          Text(
+            '$indent$parseError',
+            style: const TextStyle(color: Colors.red),
+          ),
         if (_showErrors)
           ...fieldErrors.map(
-            (error) => Text(error, style: const TextStyle(color: Colors.red)),
+            (error) => Text(
+              '$indent$error',
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
       ],
+    );
+  }
+
+  /// Builds the interactive control for a non-object leaf field.
+  ///
+  /// Object variables are rendered as sections in [_buildGroupFields] and never
+  /// reach this helper.
+  Component _buildLeafControl({
+    required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
+    required bool focused,
+    required VoidCallback onSubmitted,
+  }) {
+    final variable = entry.variable;
+    if (variable is FoundryBooleanVariable) {
+      return _buildBooleanControl(entry: entry, focused: focused);
+    }
+    if (variable is FoundrySingleChoiceVariable) {
+      return _buildSingleChoiceControl(
+        entry: entry,
+        pathKey: pathKey,
+        focused: focused,
+      );
+    }
+    if (variable is FoundryMultipleChoiceVariable) {
+      return _buildMultipleChoiceControl(
+        entry: entry,
+        pathKey: pathKey,
+        focused: focused,
+      );
+    }
+    return _buildTextControl(
+      entry: entry,
+      pathKey: pathKey,
+      focused: focused,
+      onSubmitted: onSubmitted,
     );
   }
 
@@ -438,6 +629,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   Component _buildSingleChoiceControl({
     required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
     required bool focused,
   }) {
     if (entry.variable is! FoundrySingleChoiceVariable) {
@@ -447,7 +639,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
     final choiceUi = _choiceUiParts(entry.variable);
     final options = choiceUi.options;
     final displayLabel = choiceUi.displayLabel;
-    final cursor = _optionCursorByKey[entry.key] ?? 0;
+    final cursor = _optionCursorByKey[pathKey] ?? 0;
 
     return Container(
       decoration: BoxDecoration(
@@ -482,6 +674,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   Component _buildMultipleChoiceControl({
     required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
     required bool focused,
   }) {
     if (entry.variable is! FoundryMultipleChoiceVariable) {
@@ -491,8 +684,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
     final choiceUi = _choiceUiParts(entry.variable);
     final options = choiceUi.options;
     final displayLabel = choiceUi.displayLabel;
-    final cursor = _optionCursorByKey[entry.key] ?? 0;
-    final selected = _selectedOptions(entry).toSet();
+    final cursor = _optionCursorByKey[pathKey] ?? 0;
+    final selected = _selectedOptionsForPath(pathKey, entry).toSet();
 
     return Container(
       decoration: BoxDecoration(
@@ -560,10 +753,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
   Component _buildTextControl({
     required FoundryVariableEvaluationEntry entry,
+    required String pathKey,
     required bool focused,
     required VoidCallback onSubmitted,
   }) {
-    final controller = _controllers[entry.key]!;
+    final controller = _controllers[pathKey]!;
 
     return Container(
       decoration: BoxDecoration(
@@ -580,42 +774,85 @@ class _CastVariableFormState extends State<CastVariableForm> {
         height: 1,
         placeholder: entry.placeholder ?? 'Enter ${entry.key}',
         onChanged: (value) {
-          setState(() => _dirtyKeys.add(entry.key));
+          setState(() => _dirtyKeys.add(pathKey));
         },
         onSubmitted: (_) => onSubmitted(),
       ),
     );
   }
 
-  void _syncFieldState(FoundryVariableGroupEvaluation evaluation) {
-    final activeKeys = evaluation.entries.map((entry) => entry.key).toSet();
-
+  List<_FocusTarget> _buildFocusTargets({
+    required FoundryVariableGroupEvaluation evaluation,
+    required Map<String, Object?> rawValues,
+    List<String> pathPrefix = const [],
+    bool ancestorsEnabled = true,
+  }) {
+    final targets = <_FocusTarget>[];
     for (final entry in evaluation.entries) {
+      final path = [...pathPrefix, entry.key];
+      final pathKey = _joinPath(path);
+      final isEnabled = ancestorsEnabled && entry.isEnabled;
+
+      if (entry.variable is FoundryObjectVariable) {
+        final objectVariable = entry.variable as FoundryObjectVariable;
+        final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
+        final nestedEvaluation = objectVariable.group.evaluate(
+          rawValues: nestedRaw,
+        );
+        targets.addAll(
+          _buildFocusTargets(
+            evaluation: nestedEvaluation,
+            rawValues: rawValues,
+            pathPrefix: path,
+            ancestorsEnabled: isEnabled,
+          ),
+        );
+        continue;
+      }
+
+      targets.add(
+        _FocusTarget(
+          pathKey: pathKey,
+          entry: entry,
+          isEnabled: isEnabled,
+        ),
+      );
+    }
+    return targets;
+  }
+
+  void _syncFieldState(List<_FocusTarget> focusTargets) {
+    final activeKeys = focusTargets.map((target) => target.pathKey).toSet();
+
+    for (final target in focusTargets) {
+      final entry = target.entry;
       final variable = entry.variable;
+      final pathKey = target.pathKey;
+
       if (_isChoiceVariable(variable)) {
-        _clearTextFieldState(entry.key);
+        _clearTextFieldState(pathKey);
 
         final options = _choiceOptions(variable);
-        if (!_dirtyKeys.contains(entry.key)) {
-          _choiceRawValues[entry.key] = entry.value;
+        if (!_dirtyKeys.contains(pathKey)) {
+          _choiceRawValues[pathKey] = entry.value;
           if (variable is FoundrySingleChoiceVariable) {
             final selectedIndex = options.indexOf(entry.value);
-            _optionCursorByKey[entry.key] =
+            _optionCursorByKey[pathKey] =
                 options.isEmpty ? 0 : (selectedIndex >= 0 ? selectedIndex : 0);
           } else {
-            final cursor = _optionCursorByKey[entry.key] ?? 0;
-            _optionCursorByKey[entry.key] =
+            final cursor = _optionCursorByKey[pathKey] ?? 0;
+            _optionCursorByKey[pathKey] =
                 options.isEmpty ? 0 : cursor % options.length;
           }
         } else {
-          final cursor = _optionCursorByKey[entry.key] ?? 0;
-          _optionCursorByKey[entry.key] =
+          final cursor = _optionCursorByKey[pathKey] ?? 0;
+          _optionCursorByKey[pathKey] =
               options.isEmpty ? 0 : cursor % options.length;
         }
         continue;
       }
 
-      _clearChoiceFieldState(entry.key);
+      _clearChoiceFieldState(pathKey);
 
       final displayValue = switch (variable) {
         FoundryBooleanVariable() =>
@@ -623,11 +860,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
         _ => entry.value?.toString() ?? '',
       };
       final controller = _controllers.putIfAbsent(
-        entry.key,
+        pathKey,
         TextEditingController.new,
       );
 
-      if (!_dirtyKeys.contains(entry.key) && controller.text != displayValue) {
+      if (!_dirtyKeys.contains(pathKey) && controller.text != displayValue) {
         controller.text = displayValue;
       }
     }
@@ -661,8 +898,16 @@ class _CastVariableFormState extends State<CastVariableForm> {
       ..._optionCursorByKey.keys,
     };
     for (final key in keys) {
-      final variable = component.variableGroup.variables[key];
+      final variable = _variableAtPath(
+        component.variableGroup,
+        _splitPath(key),
+      );
       if (variable == null) {
+        continue;
+      }
+      if (variable is FoundryObjectVariable) {
+        _clearTextFieldState(key);
+        _clearChoiceFieldState(key);
         continue;
       }
       if (_isChoiceVariable(variable)) {
@@ -701,8 +946,15 @@ class _CastVariableFormState extends State<CastVariableForm> {
     };
   }
 
-  List<Object?> _selectedOptions(FoundryVariableEvaluationEntry entry) {
-    final raw = _choiceRawValues[entry.key] ?? entry.value;
+  List<Object?> _selectedOptions(_FocusTarget target) {
+    return _selectedOptionsForPath(target.pathKey, target.entry);
+  }
+
+  List<Object?> _selectedOptionsForPath(
+    String pathKey,
+    FoundryVariableEvaluationEntry entry,
+  ) {
+    final raw = _choiceRawValues[pathKey] ?? entry.value;
     if (raw is! List) {
       return <Object?>[];
     }
@@ -713,6 +965,81 @@ class _CastVariableFormState extends State<CastVariableForm> {
     return variable is FoundrySingleChoiceVariable ||
         variable is FoundryMultipleChoiceVariable;
   }
+
+  FoundryVariable<dynamic>? _variableAtPath(
+    FoundryVariableGroup group,
+    List<String> path,
+  ) {
+    if (path.isEmpty) {
+      return null;
+    }
+
+    var currentGroup = group;
+    for (var index = 0; index < path.length; index++) {
+      final variable = currentGroup.variables[path[index]];
+      if (variable == null) {
+        return null;
+      }
+      if (index == path.length - 1) {
+        return variable;
+      }
+      if (variable is! FoundryObjectVariable) {
+        return null;
+      }
+      currentGroup = variable.group;
+    }
+    return null;
+  }
+
+  Map<String, Object?>? _nestedRawMap(
+    Map<String, Object?> rawValues,
+    List<String> path,
+  ) {
+    Object? current = rawValues;
+    for (final segment in path) {
+      if (current is! Map) {
+        return null;
+      }
+      current = current[segment];
+    }
+    if (current is! Map) {
+      return null;
+    }
+    return {
+      for (final entry in current.entries) entry.key.toString(): entry.value,
+    };
+  }
+
+  void _setAtPath(
+    Map<String, Object?> rawValues,
+    List<String> path,
+    Object? value,
+  ) {
+    if (path.isEmpty) {
+      return;
+    }
+    if (path.length == 1) {
+      rawValues[path.first] = value;
+      return;
+    }
+
+    final rootKey = path.first;
+    final existing = rawValues[rootKey];
+    final nested = existing is Map
+        ? Map<String, Object?>.from(
+            {
+              for (final entry in existing.entries)
+                entry.key.toString(): entry.value,
+            },
+          )
+        : <String, Object?>{};
+    _setAtPath(nested, path.sublist(1), value);
+    rawValues[rootKey] = nested;
+  }
+
+  String _joinPath(List<String> path) => path.join(_pathSeparator);
+
+  List<String> _splitPath(String pathKey) => pathKey.split(_pathSeparator);
 
   void _attemptSubmit(
     FoundryVariableGroupEvaluation evaluation,
@@ -725,4 +1052,16 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
     component.onSubmit(evaluation.resolvedValues);
   }
+}
+
+class _FocusTarget {
+  const _FocusTarget({
+    required this.pathKey,
+    required this.entry,
+    required this.isEnabled,
+  });
+
+  final String pathKey;
+  final FoundryVariableEvaluationEntry entry;
+  final bool isEnabled;
 }

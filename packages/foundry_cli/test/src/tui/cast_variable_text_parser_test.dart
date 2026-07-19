@@ -148,5 +148,26 @@ void main() {
         );
       });
     });
+
+    group('FoundryObjectVariable', () {
+      test('rejects typed text for object variables', () {
+        const variable = FoundryObjectVariable(
+          label: 'Publish settings',
+          group: FoundryVariableGroup(
+            variables: {
+              'host': FoundryStringVariable(label: 'Host'),
+            },
+          ),
+        );
+
+        final result = parseCastVariableText(variable, '{"host":"x"}');
+
+        expect(result, isA<CastVariableTextParseFailure>());
+        expect(
+          (result as CastVariableTextParseFailure).message,
+          'Object values are gathered from nested fields, not typed',
+        );
+      });
+    });
   });
 }
