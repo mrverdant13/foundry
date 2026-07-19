@@ -178,6 +178,30 @@ void main() {
       );
     });
 
+    test('throws when a resolved list element is null for a non-nullable T',
+        () {
+      final variable = _dependents();
+
+      expect(
+        () => variable.resolveValue(
+          key: 'dependents',
+          rawValues: const {
+            'dependents': ['ok', null],
+          },
+          dirtyKeys: const {},
+          resolvedValues: const {},
+        ),
+        throwsA(
+          isA<FoundryContextException>().having(
+            (exception) => exception.message,
+            'message',
+            'Expected list elements of type String for key "dependents" but '
+                'found a value of type Null.',
+          ),
+        ),
+      );
+    });
+
     test('runs item-kind validation per element with index prefixes', () {
       final variable = _dependents(
         itemValidators: [
@@ -236,6 +260,25 @@ void main() {
             (exception) => exception.message,
             'message',
             'Expected a value of type List<String> but found a value of '
+                'type int.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when validating a list with a mistyped element', () {
+      final variable = _dependents();
+
+      expect(
+        () => variable.validate(
+          const ['ok', 1],
+          SnapshotFoundryContext(const {}),
+        ),
+        throwsA(
+          isA<FoundryContextException>().having(
+            (exception) => exception.message,
+            'message',
+            'Expected list elements of type String but found a value of '
                 'type int.',
           ),
         ),
