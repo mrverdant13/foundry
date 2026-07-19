@@ -179,6 +179,84 @@ void main() {
       );
     });
 
+    test('deserializes values variables with a nested item schema', () {
+      final group = deserializeMoldVariableGroup({
+        'variables': {
+          'dependents': {
+            'kind': 'values',
+            'label': 'Dependents',
+            'item': {
+              'kind': 'string',
+              'label': 'Package name',
+            },
+          },
+        },
+      });
+
+      expect(group.variables, hasLength(1));
+      final dependents = group.variables['dependents'];
+      expect(
+        dependents,
+        isA<FoundryValuesVariable<dynamic>>().having(
+          (variable) => variable.label,
+          'label',
+          'Dependents',
+        ),
+      );
+
+      final item = (dependents! as FoundryValuesVariable<dynamic>).item;
+      expect(
+        item,
+        isA<FoundryStringVariable>().having(
+          (variable) => variable.label,
+          'label',
+          'Package name',
+        ),
+      );
+    });
+
+    test('throws when values variable item schema is missing', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'dependents': {
+              'kind': 'values',
+              'label': 'Dependents',
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'Values variable "dependents" is missing an item schema.',
+          ),
+        ),
+      );
+    });
+
+    test('throws when values variable item schema has the wrong type', () {
+      expect(
+        () => deserializeMoldVariableGroup({
+          'variables': {
+            'dependents': {
+              'kind': 'values',
+              'label': 'Dependents',
+              'item': 'not-a-map',
+            },
+          },
+        }),
+        throwsA(
+          isA<MoldLoadException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            'Values variable "dependents" has an invalid item schema '
+                '(String).',
+          ),
+        ),
+      );
+    });
+
     test('throws when object variable nested group is missing', () {
       expect(
         () => deserializeMoldVariableGroup({
