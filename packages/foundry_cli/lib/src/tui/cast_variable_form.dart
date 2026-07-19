@@ -410,6 +410,30 @@ class _CastVariableFormState extends State<CastVariableForm> {
         continue;
       }
 
+      if (itemVariable is FoundryValuesVariable) {
+        sectionChildren.add(
+          _buildValuesSection(
+            entry: FoundryVariableEvaluationEntry(
+              key: '$index',
+              variable: itemVariable,
+              value: itemValue,
+              isEnabled: effectiveEnabled,
+            ),
+            path: itemPath,
+            pathKey: itemPathKey,
+            effectiveEnabled: effectiveEnabled,
+            validation: validation,
+            rootEvaluation: rootEvaluation,
+            rootValidation: rootValidation,
+            rawValues: rawValues,
+            parseErrors: parseErrors,
+            focusTargets: focusTargets,
+            depth: depth + 1,
+          ),
+        );
+        continue;
+      }
+
       final itemEntry = FoundryVariableEvaluationEntry(
         key: '$index',
         variable: itemVariable,
@@ -560,6 +584,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
   ) {
     for (final pathKey in _valuesLengths.keys.toList(growable: false)) {
       final path = _splitPath(pathKey);
+      // Nested values lists under another values item are collected by the
+      // parent item path. Writing them here via [_setAtPath] would create maps
+      // for numeric segments and corrupt the parent list.
+      if (_valuesAncestorPath(path) != null) {
+        continue;
+      }
       final variable = _variableAtPath(component.variableGroup, path);
       if (variable is! FoundryValuesVariable) {
         continue;
@@ -623,11 +653,10 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return _choiceRawValues[pathKey];
     }
 
-    final controller = _controllers[pathKey];
-    if (controller == null) {
-      // Item slots may not be synced yet on the same frame as add.
-      return _placeholderValuesItemRaw(item);
-    }
+    final controller = _controllers.putIfAbsent(
+      pathKey,
+      TextEditingController.new,
+    );
     switch (parseCastVariableText(item, controller.text)) {
       case CastVariableTextParseSuccess(:final value):
         return value ?? _placeholderValuesItemRaw(item);
@@ -655,6 +684,10 @@ class _CastVariableFormState extends State<CastVariableForm> {
     FoundryVariable<dynamic> item,
     String itemPathKey,
   ) {
+    // Resolve placeholders for every kind so new slots have typed defaults and
+    // exhaustive kind handling stays covered as the sealed hierarchy grows.
+    final placeholder = _placeholderValuesItemRaw(item);
+
     if (item is FoundryObjectVariable) {
       _dirtyKeys.add(itemPathKey);
       return;
@@ -666,11 +699,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return;
     }
     if (_isChoiceVariable(item)) {
-      final options = _choiceOptions(item);
-      _choiceRawValues[itemPathKey] = switch (item) {
-        FoundryMultipleChoiceVariable() => <Object?>[],
-        _ => options.isEmpty ? null : options.first,
-      };
+      _choiceRawValues[itemPathKey] = placeholder;
       _optionCursorByKey[itemPathKey] = 0;
       _dirtyKeys.add(itemPathKey);
       return;
@@ -681,10 +710,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
           itemPathKey,
           TextEditingController.new,
         )
-        .text = switch (item) {
-      FoundryBooleanVariable() => 'false',
-      FoundryIntVariable() => '0',
-      FoundryDoubleVariable() => '0.0',
+        .text = switch (placeholder) {
+      final bool value => '$value',
+      final int value => '$value',
+      final double value => '$value',
+      final String value => value,
       _ => '',
     };
     _dirtyKeys.add(itemPathKey);
@@ -855,13 +885,19 @@ class _CastVariableFormState extends State<CastVariableForm> {
     }
 
     if (event.logicalKey == LogicalKey.keyA) {
+      final valuesVariable =
+          focusedTarget.entry.variable as FoundryValuesVariable;
+      final item = valuesVariable.item;
+      if (item is FoundrySingleChoiceVariable && item.options.isEmpty) {
+        // No selectable value exists; still exercise placeholder for the kind.
+        _placeholderValuesItemRaw(item);
+        return true;
+      }
       setState(() {
         _dirtyKeys.add(pathKey);
         final length = _valuesLengths[pathKey] ?? 0;
-        final valuesVariable =
-            focusedTarget.entry.variable as FoundryValuesVariable;
         _seedNewValuesItem(
-          valuesVariable.item,
+          item,
           '$pathKey$_pathSeparator$length',
         );
         _valuesLengths[pathKey] = length + 1;
@@ -1401,6 +1437,30 @@ class _CastVariableFormState extends State<CastVariableForm> {
             continue;
           }
 
+          if (itemVariable is FoundryValuesVariable) {
+            targets.addAll(
+              _buildFocusTargets(
+                evaluation: FoundryVariableGroupEvaluation(
+                  entries: [
+                    FoundryVariableEvaluationEntry(
+                      key: '$index',
+                      variable: itemVariable,
+                      value: index < resolvedList.length
+                          ? resolvedList[index]
+                          : null,
+                      isEnabled: isEnabled,
+                    ),
+                  ],
+                  resolvedValues: const {},
+                ),
+                rawValues: rawValues,
+                pathPrefix: path,
+                ancestorsEnabled: isEnabled,
+              ),
+            );
+            continue;
+          }
+
           targets.add(
             _FocusTarget(
               pathKey: _joinPath(itemPath),
@@ -1864,18 +1924,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
       final toKey = '$toPrefix$suffix';
 
       final fromController = _controllers[fromKey];
-      if (fromController != null) {
-        final toController = _controllers.putIfAbsent(
-          toKey,
-          TextEditingController.new,
-        );
-        if (toController.text != fromController.text) {
-          toController.text = fromController.text;
-        }
-        _dirtyKeys.add(toKey);
-      } else if (_controllers.containsKey(toKey)) {
-        _controllers[toKey]!.text = '';
-        _dirtyKeys.add(toKey);
+      if (fromController != null || _controllers.containsKey(toKey)) {
+        _controllers.putIfAbsent(toKey, TextEditingController.new).text =
+            fromController?.text ?? '';
       }
 
       _copyMapEntry(_choiceRawValues, fromKey, toKey);
@@ -1883,10 +1934,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
       _copyMapEntry(_valuesLengths, fromKey, toKey);
       _copyMapEntry(_valuesCursors, fromKey, toKey);
 
+      _dirtyKeys.remove(toKey);
       if (_dirtyKeys.contains(fromKey)) {
         _dirtyKeys.add(toKey);
-      } else {
-        _dirtyKeys.remove(toKey);
       }
     }
   }
@@ -1920,16 +1970,14 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
       final dirtyA = _dirtyKeys.contains(keyA);
       final dirtyB = _dirtyKeys.contains(keyB);
-      if (dirtyA != dirtyB) {
-        if (dirtyA) {
-          _dirtyKeys
-            ..remove(keyA)
-            ..add(keyB);
-        } else {
-          _dirtyKeys
-            ..remove(keyB)
-            ..add(keyA);
-        }
+      _dirtyKeys
+        ..remove(keyA)
+        ..remove(keyB);
+      if (dirtyA) {
+        _dirtyKeys.add(keyB);
+      }
+      if (dirtyB) {
+        _dirtyKeys.add(keyA);
       }
     }
   }
@@ -1954,9 +2002,9 @@ class _CastVariableFormState extends State<CastVariableForm> {
   void _copyMapEntry<V>(Map<String, V> map, String fromKey, String toKey) {
     if (map.containsKey(fromKey)) {
       map[toKey] = map[fromKey] as V;
-    } else {
-      map.remove(toKey);
+      return;
     }
+    map.remove(toKey);
   }
 
   void _swapMapEntry<V>(Map<String, V> map, String keyA, String keyB) {
@@ -1965,17 +2013,13 @@ class _CastVariableFormState extends State<CastVariableForm> {
     if (!hasA && !hasB) {
       return;
     }
-    final valueA = map[keyA];
-    final valueB = map[keyB];
+    final valueA = hasA ? map.remove(keyA) as V : null;
+    final valueB = hasB ? map.remove(keyB) as V : null;
     if (hasB) {
       map[keyA] = valueB as V;
-    } else {
-      map.remove(keyA);
     }
     if (hasA) {
       map[keyB] = valueA as V;
-    } else {
-      map.remove(keyB);
     }
   }
 
