@@ -161,6 +161,79 @@ void main() {
       expect(value, isNull);
     });
 
+    test('preserves nested null when a nested key is present in raw', () {
+      final variable = _publishSettings();
+
+      final value = variable.resolveValue(
+        key: 'publish',
+        rawValues: const {
+          'publish': {
+            'host': 'api.example.com',
+            'port': null,
+          },
+        },
+        dirtyKeys: const {'publish'},
+        resolvedValues: const {},
+      );
+
+      expect(value, {
+        'host': 'api.example.com',
+        'port': null,
+        'secure': true,
+      });
+    });
+
+    test('preserves nested null during validate instead of re-defaulting', () {
+      final variable = _publishSettings();
+
+      final errors = variable.validate(
+        const {
+          'host': 'api.example.com',
+          'port': null,
+        },
+        SnapshotFoundryContext(const {}),
+      );
+
+      expect(errors, ['port: Port must be positive.']);
+    });
+
+    test('recomputes nested defaults for keys omitted from nested raw', () {
+      final variable = FoundryObjectVariable(
+        label: 'Publish settings',
+        group: FoundryVariableGroup(
+          variables: {
+            'host': FoundryStringVariable(
+              label: 'Host',
+              defaultValue: (_) => 'localhost',
+            ),
+            'port': FoundryIntVariable(
+              label: 'Port',
+              defaultValue: (context) =>
+                  context.optionalString('host') == 'api.example.com'
+                      ? 443
+                      : 8080,
+            ),
+          },
+        ),
+      );
+
+      final value = variable.resolveValue(
+        key: 'publish',
+        rawValues: const {
+          'publish': {
+            'host': 'api.example.com',
+          },
+        },
+        dirtyKeys: const {'publish'},
+        resolvedValues: const {},
+      );
+
+      expect(value, {
+        'host': 'api.example.com',
+        'port': 443,
+      });
+    });
+
     test('throws when a raw value is not a map', () {
       final variable = _publishSettings();
 

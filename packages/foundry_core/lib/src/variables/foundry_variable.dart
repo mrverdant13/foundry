@@ -453,7 +453,15 @@ final class FoundryObjectVariable
         return null;
       }
       final nestedRaw = _coerceMap(key: key, value: rawValue);
-      return group.evaluate(rawValues: nestedRaw).resolvedValues;
+      // Keys present in the nested raw map are treated as dirty so explicit
+      // nulls (cleared fields) are preserved and omitted keys can still
+      // recompute defaults.
+      return group
+          .evaluate(
+            rawValues: nestedRaw,
+            dirtyKeys: nestedRaw.keys.toSet(),
+          )
+          .resolvedValues;
     }
 
     final derive = defaultValue;
@@ -477,7 +485,10 @@ final class FoundryObjectVariable
     }
 
     final nestedRaw = _coerceMap(value: value);
-    final nestedEvaluation = group.evaluate(rawValues: nestedRaw);
+    final nestedEvaluation = group.evaluate(
+      rawValues: nestedRaw,
+      dirtyKeys: nestedRaw.keys.toSet(),
+    );
     final nestedValidation = group.validate(nestedEvaluation);
     final typed = Map<String, Object?>.from(nestedEvaluation.resolvedValues);
 
