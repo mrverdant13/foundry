@@ -812,7 +812,6 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
       targets.add(
         _FocusTarget(
-          path: path,
           pathKey: pathKey,
           entry: entry,
           isEnabled: isEnabled,
@@ -1057,13 +1056,11 @@ class _CastVariableFormState extends State<CastVariableForm> {
 
 class _FocusTarget {
   const _FocusTarget({
-    required this.path,
     required this.pathKey,
     required this.entry,
     required this.isEnabled,
   });
 
-  final List<String> path;
   final String pathKey;
   final FoundryVariableEvaluationEntry entry;
   final bool isEnabled;
