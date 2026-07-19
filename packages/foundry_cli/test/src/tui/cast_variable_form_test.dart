@@ -492,13 +492,13 @@ FoundryVariableGroup _buildMultiChoiceItemValuesVariableGroup() =>
     );
 
 FoundryVariableGroup _buildNestedValuesInObjectVariableGroup() =>
-    FoundryVariableGroup(
+    const FoundryVariableGroup(
       variables: {
         'publish': FoundryObjectVariable(
           label: 'Publish',
           group: FoundryVariableGroup(
             variables: {
-              'hosts': const FoundryValuesVariable<String>(
+              'hosts': FoundryValuesVariable<String>(
                 label: 'Hosts',
                 item: FoundryStringVariable(label: 'Host'),
               ),
@@ -559,12 +559,12 @@ FoundryVariableGroup _buildDefaultedObjectItemValuesVariableGroup() =>
       variables: {
         'servers': FoundryValuesVariable<Map<String, Object?>>(
           label: 'Servers',
-          item: FoundryObjectVariable(
+          item: const FoundryObjectVariable(
             label: 'Server',
             group: FoundryVariableGroup(
               variables: {
-                'host': const FoundryStringVariable(label: 'Host'),
-                'port': const FoundryIntVariable(label: 'Port'),
+                'host': FoundryStringVariable(label: 'Host'),
+                'port': FoundryIntVariable(label: 'Port'),
               },
             ),
           ),
