@@ -676,11 +676,12 @@ class _CastVariableFormState extends State<CastVariableForm> {
       return;
     }
 
-    final controller = _controllers.putIfAbsent(
-      itemPathKey,
-      TextEditingController.new,
-    );
-    controller.text = switch (item) {
+    _controllers
+        .putIfAbsent(
+          itemPathKey,
+          TextEditingController.new,
+        )
+        .text = switch (item) {
       FoundryBooleanVariable() => 'false',
       FoundryIntVariable() => '0',
       FoundryDoubleVariable() => '0.0',
@@ -1838,9 +1839,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
         controllerRemovals.add(key);
       }
     }
-    for (final key in controllerRemovals) {
-      _controllers.remove(key);
-    }
+    controllerRemovals.forEach(_controllers.remove);
     _controllers.addAll(controllerUpdates);
 
     void remapMap<V>(Map<String, V> map) {
@@ -1854,9 +1853,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
           removals.add(key);
         }
       }
-      for (final key in removals) {
-        map.remove(key);
-      }
+      removals.forEach(map.remove);
       map.addAll(updates);
     }
 
