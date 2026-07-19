@@ -605,7 +605,7 @@ final class FoundryValuesVariable<T> extends FoundryVariable<List<T>> {
 
     final resolved = <T>[];
     for (var index = 0; index < rawValue.length; index++) {
-      final elementKey = '$index';
+      final elementKey = '$key[$index]';
       final element = item.resolveValue(
         key: elementKey,
         rawValues: {elementKey: rawValue[index]},
