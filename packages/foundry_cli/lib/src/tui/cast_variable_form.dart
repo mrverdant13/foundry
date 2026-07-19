@@ -387,9 +387,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             Text(
               '${'  ' * (depth + 1)}[$index]',
               style: TextStyle(
-                color: listChromeFocused &&
-                        cursor == index &&
-                        effectiveEnabled
+                color: listChromeFocused && cursor == index && effectiveEnabled
                     ? Colors.cyan
                     : Colors.yellow,
               ),
@@ -1387,9 +1385,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
               entry: FoundryVariableEvaluationEntry(
                 key: '$index',
                 variable: itemVariable,
-                value: index < resolvedList.length
-                    ? resolvedList[index]
-                    : null,
+                value: index < resolvedList.length ? resolvedList[index] : null,
                 isEnabled: isEnabled,
               ),
               isEnabled: isEnabled,

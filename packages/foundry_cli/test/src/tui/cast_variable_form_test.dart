@@ -379,7 +379,8 @@ FoundryVariableGroup _buildValuesVariableGroup() => FoundryVariableGroup(
       },
     );
 
-FoundryVariableGroup _buildDefaultedValuesVariableGroup() => FoundryVariableGroup(
+FoundryVariableGroup _buildDefaultedValuesVariableGroup() =>
+    FoundryVariableGroup(
       variables: {
         'dependents': FoundryValuesVariable<String>(
           label: 'Dependents',
