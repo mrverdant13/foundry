@@ -183,6 +183,20 @@ void main() {
       });
     });
 
+    test('preserves nested null during validate instead of re-defaulting', () {
+      final variable = _publishSettings();
+
+      final errors = variable.validate(
+        const {
+          'host': 'api.example.com',
+          'port': null,
+        },
+        SnapshotFoundryContext(const {}),
+      );
+
+      expect(errors, ['port: Port must be positive.']);
+    });
+
     test('recomputes nested defaults for keys omitted from nested raw', () {
       final variable = FoundryObjectVariable(
         label: 'Publish settings',
