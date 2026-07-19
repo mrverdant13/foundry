@@ -1826,7 +1826,8 @@ class _CastVariableFormState extends State<CastVariableForm> {
     final length = _valuesLengths[valuesPathKey]!;
     // Shift item content down in place. Nocterm TextFields keep their original
     // controller instances across rebuilds, so remapping controller identity
-    // would leave the visible text stale (or pointing at a disposed controller).
+    // would leave the visible text stale (or pointing at a disposed
+    // controller).
     for (var from = index; from < length - 1; from++) {
       _copyPathPrefixState(
         '$valuesPathKey$_pathSeparator${from + 1}',
@@ -1946,9 +1947,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
     _optionCursorByKey.keys.forEach(consider);
     _valuesLengths.keys.forEach(consider);
     _valuesCursors.keys.forEach(consider);
-    for (final key in _dirtyKeys) {
-      consider(key);
-    }
+    _dirtyKeys.forEach(consider);
     return suffixes;
   }
 

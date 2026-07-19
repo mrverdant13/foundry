@@ -2110,7 +2110,10 @@ void main() {
 
           // Visible TextField text must swap (not only the submitted model).
           final reordered = tester.terminalState.getText();
-          expect(reordered.indexOf('beta'), lessThan(reordered.indexOf('alpha')));
+          expect(
+            reordered.indexOf('beta'),
+            lessThan(reordered.indexOf('alpha')),
+          );
 
           await tester.sendTab(); // item 0 (now beta)
           await tester.sendTab(); // item 1 (now alpha)
@@ -2145,7 +2148,10 @@ void main() {
           await tester.pump();
 
           final reordered = tester.terminalState.getText();
-          expect(reordered.indexOf('beta'), lessThan(reordered.indexOf('alpha')));
+          expect(
+            reordered.indexOf('beta'),
+            lessThan(reordered.indexOf('alpha')),
+          );
 
           await tester.sendTab(); // item 0 (now beta)
           await tester.sendTab(); // item 1 (now alpha)
