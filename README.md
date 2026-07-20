@@ -62,6 +62,15 @@ though the pub.dev package is **`foundry_cli`**.
 During local development in this repository, run the CLI via `dart run`
 (see [Contributing](CONTRIBUTING.md)).
 
+### Scaffold a pattern
+
+```bash
+foundry pattern init --name=demo_pattern
+```
+
+Creates `.foundry/pattern.yaml` and a README stub in the current directory. A
+pattern is a reference project tree used to inspect structure and seed molds.
+
 ### Scaffold a new mold
 
 ```bash
@@ -152,6 +161,7 @@ foundry [--version] <command> [arguments] [options]
 
 | Command | Description |
 | --- | --- |
+| `foundry pattern init` | Scaffold a pattern marker and README in the current directory |
 | `foundry mold init` | Scaffold a new mold in the current directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
@@ -159,6 +169,19 @@ foundry [--version] <command> [arguments] [options]
 | `foundry cast` | Cast a mold to an artifact at `--output` |
 | `foundry recast` | Re-run the last cast |
 | `foundry finish` | Run the finish hook for the last cast |
+
+#### `foundry pattern init`
+
+```
+foundry pattern init [--name=<name>]
+```
+
+| Option | Description |
+| --- | --- |
+| `--name` | Pattern name (defaults to the current directory basename) |
+
+Creates `.foundry/pattern.yaml` (name + starter ignore globs) and a README
+stub that describes the pattern layout.
 
 #### `foundry mold init`
 
