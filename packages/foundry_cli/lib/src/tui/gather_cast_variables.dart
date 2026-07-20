@@ -37,6 +37,13 @@ void shutdownGatherCastVariables() {
   }
 }
 
+/// Builds the terminal backend used when [gatherCastVariablesInteractively] is
+/// not given an explicit [backend].
+///
+/// Defaults to [StdioBackend.new]. Tests may temporarily replace this factory
+/// to exercise ownership/dispose without opening a real terminal.
+TerminalBackend Function() createDefaultGatherCastBackend = StdioBackend.new;
+
 /// Gathers cast variable values through the Nocterm-based [CastVariableForm].
 ///
 /// Runs the TUI to completion and returns the resolved values once the user
@@ -88,7 +95,7 @@ Future<Map<String, Object?>?> gatherCastVariablesInteractively({
   // returns; otherwise StdioBackend keeps handling SIGINT and the process may
   // no longer exit on Ctrl+C during the rest of cast.
   final ownsBackend = backend == null;
-  final effectiveBackend = backend ?? StdioBackend();
+  final effectiveBackend = backend ?? createDefaultGatherCastBackend();
   try {
     await runApp(
       CastVariableForm(
