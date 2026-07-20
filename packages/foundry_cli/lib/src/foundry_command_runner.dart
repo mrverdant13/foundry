@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/commands/finish_command.dart';
 import 'package:foundry_cli/src/commands/mold/mold_command.dart';
+import 'package:foundry_cli/src/commands/pattern/pattern_command.dart';
 import 'package:foundry_cli/src/commands/recast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/version.dart';
@@ -11,10 +12,9 @@ import 'package:foundry_core/foundry_core.dart' show Logger;
 /// {@template foundry_cli.foundry_command_runner}
 /// The command runner for the `foundry` command-line interface.
 ///
-/// Commands are organized around resources (for example `mold`), with
-/// top-level commands for the primary cast workflow (`cast`, `recast`,
-/// `finish`). Workflow commands are registered by later additions to this
-/// runner.
+/// Commands are organized around resources (for example `mold`, `pattern`),
+/// with top-level commands for the primary cast workflow (`cast`, `recast`,
+/// `finish`).
 /// {@endtemplate}
 class FoundryCommandRunner extends CommandRunner<int> {
   /// {@macro foundry_cli.foundry_command_runner}
@@ -30,6 +30,7 @@ class FoundryCommandRunner extends CommandRunner<int> {
       help: 'Print the current version.',
     );
     addCommand(MoldCommand(logger: this.logger));
+    addCommand(PatternCommand(logger: this.logger));
     addCommand(CastCommand(logger: this.logger));
     addCommand(RecastCommand(logger: this.logger));
     addCommand(FinishCommand(logger: this.logger));
