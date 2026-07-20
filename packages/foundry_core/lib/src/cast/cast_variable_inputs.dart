@@ -31,8 +31,7 @@ CastVariableInputsParseResult parseCastVariableInputs({
     if (varsFileValues != null)
       for (final entry in varsFileValues.entries)
         entry.key: _RawInput.json(entry.value),
-    for (final entry in flagParse.pairs)
-      entry.key: _RawInput.flag(entry.value),
+    for (final entry in flagParse.pairs) entry.key: _RawInput.flag(entry.value),
   };
 
   final unknownKeys = <String>[];
@@ -124,13 +123,7 @@ _VarsFlagParse _parseVarsFlag(String? varsFlag) {
   final pairs = <MapEntry<String, String>>[];
   for (var index = 0; index < matches.length; index++) {
     final match = matches[index];
-    final key = match.group(1)!.trim();
-    if (key.isEmpty) {
-      return const _VarsFlagParse(
-        error:
-            'Invalid --vars format; expected comma-separated key=value pairs.',
-      );
-    }
+    final key = match.group(1)!;
     final valueStart = match.end;
     final valueEnd =
         index + 1 < matches.length ? matches[index + 1].start : input.length;
@@ -453,16 +446,11 @@ List<Object?>? _choiceOptions(FoundryVariable<dynamic> variable) {
 
 /// Reads `displayLabel` without promoting a choice variable to `…<dynamic>`
 /// (the callback's parameter type is contravariant).
-String? _choiceDisplayLabel(
+String _choiceDisplayLabel(
   FoundryVariable<dynamic> variable,
   Object? option,
 ) {
-  if (variable is! FoundrySingleChoiceVariable &&
-      variable is! FoundryMultipleChoiceVariable) {
-    return null;
-  }
-  final label = ((variable as dynamic).displayLabel as Function)(option);
-  return label is String ? label : null;
+  return ((variable as dynamic).displayLabel as Function)(option) as String;
 }
 
 _ParsedInput _parseObjectJson({
@@ -495,15 +483,15 @@ _ParsedInput _parseObjectFlag({
   if (trimmed.isEmpty) {
     return const _ParsedValue(null);
   }
-  if (!trimmed.startsWith('{')) {
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
     return const _ParsedFailure(
       'Object values require --vars-file or a JSON object string.',
     );
   }
 
-  final Object? decoded;
+  final Object decoded;
   try {
-    decoded = jsonDecode(trimmed);
+    decoded = jsonDecode(trimmed) as Object;
   } on FormatException {
     return const _ParsedFailure('Invalid JSON object.');
   }
@@ -617,13 +605,10 @@ _ParsedInput _parseValuesFlag({
   }
 
   if (trimmed.startsWith('[')) {
-    final Object? decoded;
+    late final Object decoded;
     try {
-      decoded = jsonDecode(trimmed);
+      decoded = jsonDecode(trimmed) as Object;
     } on FormatException {
-      return const _ParsedFailure('Invalid JSON array.');
-    }
-    if (decoded == null) {
       return const _ParsedFailure('Invalid JSON array.');
     }
     return _parseValuesJson(
