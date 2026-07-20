@@ -43,7 +43,8 @@ class PatternInitCommand extends Command<int> {
   @override
   Future<int> run() async {
     final providedName = argResults!.option(nameOptionName);
-    final patternName = providedName ?? defaultPatternName(workingDirectory);
+    final patternName =
+        (providedName ?? defaultPatternName(workingDirectory)).trim();
 
     if (!isValidPatternName(patternName)) {
       logger.error(

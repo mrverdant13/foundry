@@ -54,6 +54,31 @@ void main() {
       expect(infoMessages, contains(contains('demo_pattern')));
     });
 
+    test('trims --name before logging and writing', () async {
+      final infoMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onInfo: infoMessages.add,
+      );
+
+      final exitCode = await runner.run(['init', '--name=  padded_name  ']);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      expect(
+        infoMessages,
+        contains(contains('Scaffolded pattern "padded_name"')),
+      );
+      expect(
+        File(p.join(workDir.path, patternMarkerRelativePath))
+            .readAsStringSync(),
+        contains('name: padded_name'),
+      );
+      expect(
+        File(p.join(workDir.path, 'README.md')).readAsStringSync(),
+        contains('# padded_name'),
+      );
+    });
+
     test('defaults the pattern name to the working directory name', () async {
       final namedDir = Directory(p.join(workDir.path, 'my_pattern'))
         ..createSync();
