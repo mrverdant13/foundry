@@ -24,10 +24,8 @@ void main() {
     expect(result, isNull);
   });
 
-  test('createDefaultGatherCastBackend returns a StdioBackend', () {
-    final backend = createDefaultGatherCastBackend();
-    addTearDown(backend.dispose);
-    expect(backend, isA<StdioBackend>());
+  test('createDefaultGatherCastBackend defaults to StdioBackend.new', () {
+    expect(createDefaultGatherCastBackend, same(StdioBackend.new));
   });
 
   test(
