@@ -597,8 +597,7 @@ void main() {
       test(
         'fails with exit 1 when --vars-file is not a JSON object',
         () async {
-          final moldDir = Directory(p.join(workDir.path, 'mold'))
-            ..createSync();
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
           await writeCastableMold(directory: moldDir, name: 'demo_app');
           File(p.join(workDir.path, 'vars.json')).writeAsStringSync('[1, 2]');
           final errorMessages = <String>[];
