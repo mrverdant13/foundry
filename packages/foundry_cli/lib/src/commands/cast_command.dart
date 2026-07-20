@@ -68,6 +68,11 @@ typedef CastRunner = Future<CastOutcome> Function({
   bool noHooks,
 });
 
+/// Reads the contents of a `--vars-file` path.
+///
+/// Production code uses [File.readAsString]; tests inject failures.
+typedef VarsFileContentsReader = Future<String> Function(File file);
+
 /// {@template foundry_cli.cast_command}
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
 /// `[--vars=<k=v,…>] [--vars-file=<path>]`
@@ -84,9 +89,12 @@ class CastCommand extends Command<int> {
     Directory? workingDirectory,
     CastVariableGatherer? gatherVariables,
     CastRunner? runCast,
+    VarsFileContentsReader? readVarsFileContents,
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively,
-        _runCast = runCast ?? castMold {
+        _runCast = runCast ?? castMold,
+        _readVarsFileContents =
+            readVarsFileContents ?? ((file) => file.readAsString()) {
     argParser
       ..addOption(
         outputOptionName,
@@ -139,6 +147,7 @@ class CastCommand extends Command<int> {
 
   final CastVariableGatherer _gatherVariables;
   final CastRunner _runCast;
+  final VarsFileContentsReader _readVarsFileContents;
 
   @override
   String get name => 'cast';
@@ -292,7 +301,7 @@ class CastCommand extends Command<int> {
 
       final String contents;
       try {
-        contents = await varsFile.readAsString();
+        contents = await _readVarsFileContents(varsFile);
       } on FileSystemException catch (exception) {
         logger.error(
           'Failed to read vars file "$rawVarsFilePath": $exception',
