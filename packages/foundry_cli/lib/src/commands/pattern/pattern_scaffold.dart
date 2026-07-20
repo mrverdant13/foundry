@@ -68,12 +68,19 @@ Future<void> scaffoldPattern({
 }
 
 String _markerContents(String name) => '''
-name: $name
+name: ${_yamlQuotedString(name)}
 ignore:
   - .dart_tool/**
   - .git/**
   - build/**
 ''';
+
+/// Double-quotes [value] so YAML-significant characters in pattern names do
+/// not break `.foundry/pattern.yaml`.
+String _yamlQuotedString(String value) {
+  final escaped = value.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  return '"$escaped"';
+}
 
 String _readmeContents(String name) => '''
 # $name

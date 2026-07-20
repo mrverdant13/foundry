@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:foundry_cli/src/commands/pattern/pattern_scaffold.dart';
-import 'package:foundry_core/foundry_core.dart' show patternMarkerRelativePath;
+import 'package:foundry_core/foundry_core.dart'
+    show parsePatternMarker, patternMarkerRelativePath;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -52,7 +53,7 @@ void main() {
       final marker = File(p.join(workDir.path, patternMarkerRelativePath));
       expect(marker.existsSync(), isTrue);
       final markerContents = marker.readAsStringSync();
-      expect(markerContents, contains('name: demo_pattern'));
+      expect(markerContents, contains('name: "demo_pattern"'));
       expect(markerContents, contains('.dart_tool/**'));
       expect(markerContents, contains('.git/**'));
       expect(markerContents, contains('build/**'));
@@ -67,7 +68,25 @@ void main() {
       await scaffoldPattern(directory: workDir, name: '  trimmed  ');
 
       final marker = File(p.join(workDir.path, patternMarkerRelativePath));
-      expect(marker.readAsStringSync(), contains('name: trimmed'));
+      expect(marker.readAsStringSync(), contains('name: "trimmed"'));
+    });
+
+    test('quotes YAML-significant characters in the marker name', () async {
+      const awkwardName = r'a: b # "quoted" \ slash';
+      await scaffoldPattern(directory: workDir, name: awkwardName);
+
+      final markerPath = p.join(workDir.path, patternMarkerRelativePath);
+      final markerContents = File(markerPath).readAsStringSync();
+      expect(
+        markerContents,
+        contains(r'name: "a: b # \"quoted\" \\ slash"'),
+      );
+
+      final parsed = parsePatternMarker(
+        yamlContent: markerContents,
+        sourcePath: markerPath,
+      );
+      expect(parsed.name, awkwardName);
     });
 
     test('creates the target directory when it does not exist yet', () async {

@@ -71,7 +71,7 @@ void main() {
       expect(
         File(p.join(workDir.path, patternMarkerRelativePath))
             .readAsStringSync(),
-        contains('name: padded_name'),
+        contains('name: "padded_name"'),
       );
       expect(
         File(p.join(workDir.path, 'README.md')).readAsStringSync(),
@@ -90,7 +90,7 @@ void main() {
       expect(
         File(p.join(namedDir.path, patternMarkerRelativePath))
             .readAsStringSync(),
-        contains('name: my_pattern'),
+        contains('name: "my_pattern"'),
       );
     });
 
