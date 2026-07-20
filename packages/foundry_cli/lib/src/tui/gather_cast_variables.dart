@@ -5,12 +5,7 @@ import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/tui/cast_variable_form.dart';
 import 'package:foundry_core/foundry_core.dart' show FoundryVariableGroup;
 import 'package:nocterm/nocterm.dart'
-    show
-        StdioBackend,
-        TerminalBackend,
-        TerminalBinding,
-        VoidCallback,
-        runApp;
+    show StdioBackend, TerminalBackend, TerminalBinding, VoidCallback, runApp;
 
 /// Environment variable read by [gatherCastVariablesInteractively] during
 /// automated e2e tests to supply variable values without a terminal.
