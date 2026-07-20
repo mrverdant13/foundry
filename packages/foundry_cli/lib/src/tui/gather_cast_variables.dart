@@ -5,7 +5,7 @@ import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/tui/cast_variable_form.dart';
 import 'package:foundry_core/foundry_core.dart' show FoundryVariableGroup;
 import 'package:nocterm/nocterm.dart'
-    show TerminalBackend, VoidCallback, runApp, shutdownApp;
+    show StdioBackend, TerminalBackend, TerminalBinding, VoidCallback, runApp;
 
 /// Environment variable read by [gatherCastVariablesInteractively] during
 /// automated e2e tests to supply variable values without a terminal.
@@ -22,6 +22,27 @@ VoidCallback bindGatherCancel(
   void Function(Map<String, Object?>? values) finish,
 ) =>
     () => cancelGatherCastVariables(finish);
+
+/// Ends the interactive gather TUI and restores the terminal **without**
+/// terminating the process.
+///
+/// Nocterm's `shutdownApp` ends in [TerminalBackend.requestExit]. The default
+/// [StdioBackend] implements that via `dart:io` `exit`, which would kill the
+/// CLI before `foundry cast` can write `--output`. This helper uses
+/// [TerminalBinding.shutdown] so [runApp] can return and casting can continue.
+void shutdownGatherCastVariables() {
+  final binding = TerminalBinding.instance;
+  if (!binding.shouldExit) {
+    binding.shutdown();
+  }
+}
+
+/// Builds the terminal backend used when [gatherCastVariablesInteractively] is
+/// not given an explicit backend.
+///
+/// Defaults to [StdioBackend.new]. Tests may temporarily replace this factory
+/// to exercise ownership/dispose without opening a real terminal.
+TerminalBackend Function() createDefaultGatherCastBackend = StdioBackend.new;
 
 /// Gathers cast variable values through the Nocterm-based [CastVariableForm].
 ///
@@ -67,19 +88,30 @@ Future<Map<String, Object?>?> gatherCastVariablesInteractively({
   Map<String, Object?>? result;
   void finish(Map<String, Object?>? values) {
     result = values;
-    shutdownApp();
+    shutdownGatherCastVariables();
   }
 
-  await runApp(
-    CastVariableForm(
-      variableGroup: variableGroup,
-      moldName: moldName,
-      moldDescription: moldDescription,
-      onSubmit: finish,
-      onCancel: bindGatherCancel(finish),
-    ),
-    backend: backend,
-    enableHotReload: enableHotReload,
-  );
-  return result;
+  // Own the default backend so we can dispose signal watchers after the TUI
+  // returns; otherwise StdioBackend keeps handling SIGINT and the process may
+  // no longer exit on Ctrl+C during the rest of cast.
+  final ownsBackend = backend == null;
+  final effectiveBackend = backend ?? createDefaultGatherCastBackend();
+  try {
+    await runApp(
+      CastVariableForm(
+        variableGroup: variableGroup,
+        moldName: moldName,
+        moldDescription: moldDescription,
+        onSubmit: finish,
+        onCancel: bindGatherCancel(finish),
+      ),
+      backend: effectiveBackend,
+      enableHotReload: enableHotReload,
+    );
+    return result;
+  } finally {
+    if (ownsBackend) {
+      effectiveBackend.dispose();
+    }
+  }
 }

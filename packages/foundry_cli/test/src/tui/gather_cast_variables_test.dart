@@ -1,13 +1,16 @@
 import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
-import 'package:nocterm/nocterm.dart' show NoctermBinding;
+import 'package:nocterm/nocterm.dart' show NoctermBinding, StdioBackend;
 import 'package:test/test.dart';
 
 import 'gather_cast_variables_test_support.dart';
 
 void main() {
-  tearDown(NoctermBinding.resetInstance);
+  tearDown(() {
+    createDefaultGatherCastBackend = StdioBackend.new;
+    NoctermBinding.resetInstance();
+  });
 
   test('cancelGatherCastVariables completes with null', () {
     Map<String, Object?>? result;
@@ -19,6 +22,10 @@ void main() {
     Map<String, Object?>? result;
     bindGatherCancel((values) => result = values)();
     expect(result, isNull);
+  });
+
+  test('createDefaultGatherCastBackend defaults to StdioBackend.new', () {
+    expect(createDefaultGatherCastBackend, same(StdioBackend.new));
   });
 
   test(
@@ -104,10 +111,12 @@ void main() {
   );
 
   test(
-    'gatherCastVariablesInteractively returns the resolved values once the '
-    'user submits',
+    'gatherCastVariablesInteractively submits without requestExit and '
+    'disposes the owned default backend',
     () async {
       final backend = FakeTerminalBackend();
+      createDefaultGatherCastBackend = () => backend;
+
       final variableGroup = FoundryVariableGroup(
         variables: {
           'project_name': FoundryStringVariable(
@@ -121,13 +130,20 @@ void main() {
         variableGroup: variableGroup,
         moldName: 'demo_app',
         moldDescription: 'A demo mold.',
-        backend: backend,
         enableHotReload: false,
       );
 
       backend.sendBytes([0x0D]);
 
       expect(await future, {'project_name': 'demo_app'});
+      // shutdownApp → StdioBackend.requestExit → dart:io exit would kill the
+      // CLI before castMold runs. Gather must complete without requestExit.
+      expect(backend.requestExitCount, 0);
+      expect(backend.disposeCount, 1);
+
+      // Finish already shut the binding down; a second call must not throw.
+      shutdownGatherCastVariables();
+      expect(backend.requestExitCount, 0);
     },
   );
 }
