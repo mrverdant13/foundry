@@ -63,9 +63,16 @@ foundry mold inspect
 foundry cast . --output=../hello_out
 ```
 
-Foundry gathers variables through an interactive TUI, renders `template/` into
-`--output`, and writes `.foundry/last_cast.json` in the process working
-directory on success.
+Foundry gathers variables through an interactive TUI by default, renders
+`template/` into `--output`, and writes `.foundry/last_cast.json` in the process
+working directory on success.
+
+Pass `--vars` and/or `--vars-file` to supply values in batch and skip the TUI:
+
+```bash
+foundry cast . --output=../hello_out --vars=project_name=Hello
+foundry cast . --output=../hello_out --vars-file=./vars.json
+```
 
 Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to
 skip all hook phases.
@@ -161,6 +168,7 @@ foundry mold inspect [<path>]
 
 ```
 foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
+  [--vars=<k=v,…>] [--vars-file=<path>]
 ```
 
 | Argument / option | Description |
@@ -169,6 +177,8 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 | `--output` | **Required.** Destination directory for rendered artifacts |
 | `--force` | Allow casting into a non-empty output directory |
 | `--no-hooks` | Skip prepare, shape, and finish hooks |
+| `--vars` | Comma-separated `key=value` pairs (skips the TUI) |
+| `--vars-file` | Path to a JSON object of variable values (skips the TUI) |
 
 #### `foundry recast`
 
