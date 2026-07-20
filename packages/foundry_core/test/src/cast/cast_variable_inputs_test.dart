@@ -142,6 +142,34 @@ void main() {
       expect(success.resolvedValues['scale'], 1.0);
     });
 
+    test('allows optional whitespace after commas between pairs', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _scalarGroup(),
+        varsFlag: 'name=Ada, enabled=true, port=443',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.rawValues, {
+        'name': 'Ada',
+        'enabled': true,
+        'port': 443,
+      });
+    });
+
+    test('keeps commas inside multi-choice values with spaced pair separators',
+        () {
+      final result = parseCastVariableInputs(
+        variableGroup: _choiceGroup(),
+        varsFlag: 'kind=app, platforms=android,ios',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.rawValues['kind'], 'app');
+      expect(success.rawValues['platforms'], ['android', 'ios']);
+    });
+
     test('treats an empty or whitespace vars flag as omitted', () {
       final result = parseCastVariableInputs(
         variableGroup: _scalarGroup(),
