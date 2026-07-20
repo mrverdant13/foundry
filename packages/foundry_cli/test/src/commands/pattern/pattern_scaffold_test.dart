@@ -122,8 +122,7 @@ void main() {
       );
     });
 
-    test(
-        'wraps a FileSystemException when .foundry exists as a file',
+    test('wraps a FileSystemException when .foundry exists as a file',
         () async {
       File(p.join(workDir.path, '.foundry')).createSync();
 
