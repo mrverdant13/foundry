@@ -26,6 +26,12 @@ void main() {
       expect(runner.commands.keys, contains('mold'));
     });
 
+    test('registers the pattern resource command', () {
+      final runner = FoundryCommandRunner();
+
+      expect(runner.commands.keys, contains('pattern'));
+    });
+
     test('registers the cast command', () {
       final runner = FoundryCommandRunner();
 
