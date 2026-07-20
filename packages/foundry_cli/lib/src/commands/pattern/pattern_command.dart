@@ -5,8 +5,8 @@ import 'package:foundry_core/foundry_core.dart' show Logger;
 /// {@template foundry_cli.pattern_command}
 /// The `pattern` resource command group.
 ///
-/// Groups subcommands that author and inspect patterns. See
-/// [PatternInitCommand] for `foundry pattern init`.
+/// Groups subcommands that author patterns. See [PatternInitCommand] for
+/// `foundry pattern init`.
 /// {@endtemplate}
 class PatternCommand extends Command<int> {
   /// {@macro foundry_cli.pattern_command}
@@ -18,5 +18,5 @@ class PatternCommand extends Command<int> {
   String get name => 'pattern';
 
   @override
-  String get description => 'Author and inspect patterns.';
+  String get description => 'Author patterns.';
 }
