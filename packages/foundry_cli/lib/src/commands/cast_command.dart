@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -69,11 +70,12 @@ typedef CastRunner = Future<CastOutcome> Function({
 
 /// {@template foundry_cli.cast_command}
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
+/// `[--vars=<k=v,…>] [--vars-file=<path>]`
 ///
 /// Loads the mold at `<mold-path>`, gathers its variables through the
-/// Nocterm TUI, and casts an artifact at `--output` (REQUIREMENTS.md §3.2).
+/// Nocterm TUI (or batch flags), and casts an artifact at `--output`.
 /// On success, persists `.foundry/last_cast.json` for `foundry recast` and
-/// `foundry finish` (REQUIREMENTS.md §3.3).
+/// `foundry finish`.
 /// {@endtemplate}
 class CastCommand extends Command<int> {
   /// {@macro foundry_cli.cast_command}
@@ -100,6 +102,16 @@ class CastCommand extends Command<int> {
         noHooksOptionName,
         negatable: false,
         help: 'Skip all lifecycle hooks (prepare, shape, finish).',
+      )
+      ..addOption(
+        varsOptionName,
+        help: 'Comma-separated key=value pairs for batch cast '
+            '(skips the interactive TUI).',
+      )
+      ..addOption(
+        varsFileOptionName,
+        help: 'Path to a JSON object of variable values for batch cast '
+            '(skips the interactive TUI).',
       );
   }
 
@@ -112,11 +124,17 @@ class CastCommand extends Command<int> {
   /// The flag name used to skip all lifecycle hooks.
   static const String noHooksOptionName = 'no-hooks';
 
+  /// The option name used to supply batch cast values as key=value pairs.
+  static const String varsOptionName = 'vars';
+
+  /// The option name used to supply batch cast values from a JSON file.
+  static const String varsFileOptionName = 'vars-file';
+
   /// The logger used to report command output.
   final Logger logger;
 
-  /// The directory `<mold-path>` and `--output` are resolved against when
-  /// relative. Also where `.foundry/last_cast.json` is written.
+  /// The directory `<mold-path>`, `--output`, and `--vars-file` are resolved
+  /// against when relative. Also where `.foundry/last_cast.json` is written.
   final Directory workingDirectory;
 
   final CastVariableGatherer _gatherVariables;
@@ -131,7 +149,7 @@ class CastCommand extends Command<int> {
   @override
   String get invocation =>
       '${runner!.executableName} cast <mold-path> --output=<dir> '
-      '[--force] [--no-hooks]';
+      '[--force] [--no-hooks] [--vars=<k=v,…>] [--vars-file=<path>]';
 
   @override
   Future<int> run() async {
@@ -177,14 +195,30 @@ class CastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
-    final values = await _gatherVariables(
-      variableGroup: mold.variableGroup,
-      moldName: mold.name,
-      moldDescription: mold.description,
-    );
-    if (values == null) {
-      logger.info('Cast cancelled.');
-      return FoundryExitCode.userError.code;
+    final hasVars = argResults!.wasParsed(varsOptionName);
+    final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
+    final Map<String, Object?> values;
+    if (hasVars || hasVarsFile) {
+      final batchValues = await _resolveBatchValues(
+        variableGroup: mold.variableGroup,
+        hasVars: hasVars,
+        hasVarsFile: hasVarsFile,
+      );
+      if (batchValues == null) {
+        return FoundryExitCode.userError.code;
+      }
+      values = batchValues;
+    } else {
+      final gathered = await _gatherVariables(
+        variableGroup: mold.variableGroup,
+        moldName: mold.name,
+        moldDescription: mold.description,
+      );
+      if (gathered == null) {
+        logger.info('Cast cancelled.');
+        return FoundryExitCode.userError.code;
+      }
+      values = gathered;
     }
 
     final CastOutcome outcome;
@@ -232,5 +266,69 @@ class CastCommand extends Command<int> {
       ..info('✓ Cast completed')
       ..info('✓ ${outcome.artifactCount} artifacts generated at $outputPath');
     return FoundryExitCode.success.code;
+  }
+
+  /// Reads `--vars-file` (when present), merges with `--vars`, and parses
+  /// against [variableGroup].
+  ///
+  /// Returns `null` after logging a user-facing error when the file cannot be
+  /// read/decoded or when parse/validation fails.
+  Future<Map<String, Object?>?> _resolveBatchValues({
+    required FoundryVariableGroup variableGroup,
+    required bool hasVars,
+    required bool hasVarsFile,
+  }) async {
+    Map<String, Object?>? varsFileValues;
+    if (hasVarsFile) {
+      final rawVarsFilePath = argResults!.option(varsFileOptionName)!;
+      final varsFilePath = p.normalize(
+        p.join(workingDirectory.path, rawVarsFilePath),
+      );
+      final varsFile = File(varsFilePath);
+      if (!varsFile.existsSync()) {
+        logger.error('Vars file "$rawVarsFilePath" does not exist.');
+        return null;
+      }
+
+      final String contents;
+      try {
+        contents = await varsFile.readAsString();
+      } on FileSystemException catch (exception) {
+        logger.error(
+          'Failed to read vars file "$rawVarsFilePath": $exception',
+        );
+        return null;
+      }
+
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(contents);
+      } on FormatException catch (exception) {
+        logger.error(
+          'Vars file "$rawVarsFilePath" is not valid JSON: $exception',
+        );
+        return null;
+      }
+      if (decoded is! Map) {
+        logger.error(
+          'Vars file "$rawVarsFilePath" must contain a JSON object.',
+        );
+        return null;
+      }
+      varsFileValues = Map<String, Object?>.from(decoded);
+    }
+
+    final result = parseCastVariableInputs(
+      variableGroup: variableGroup,
+      varsFileValues: varsFileValues,
+      varsFlag: hasVars ? argResults!.option(varsOptionName) : null,
+    );
+    switch (result) {
+      case CastVariableInputsParseSuccess(:final rawValues):
+        return rawValues;
+      case CastVariableInputsParseFailure():
+        logger.error('$result');
+        return null;
+    }
   }
 }
