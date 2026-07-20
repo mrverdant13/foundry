@@ -99,9 +99,16 @@ comes from the mold's root `pubspec.yaml` `name` field.
 foundry cast ./flutter_app --output=./my_app
 ```
 
-Foundry runs lifecycle hooks, gathers variables through an interactive TUI, renders
-files under `template/` into `--output`, and writes `.foundry/last_cast.json` in the
+Foundry gathers variables through an interactive TUI by default, renders files
+under `template/` into `--output`, and writes `.foundry/last_cast.json` in the
 process working directory on success.
+
+Pass `--vars` and/or `--vars-file` to supply values in batch and skip the TUI:
+
+```bash
+foundry cast ./flutter_app --output=./my_app --vars=project_name=MyApp
+foundry cast ./flutter_app --output=./my_app --vars-file=./vars.json
+```
 
 Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to skip all
 hook phases.
@@ -200,6 +207,7 @@ foundry mold inspect [<path>]
 
 ```
 foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
+  [--vars=<k=v,…>] [--vars-file=<path>]
 ```
 
 | Argument / option | Description |
@@ -208,6 +216,8 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 | `--output` | **Required.** Directory to write generated artifacts |
 | `--force` | Allow casting into a non-empty output directory |
 | `--no-hooks` | Skip prepare, shape, and finish hooks |
+| `--vars` | Comma-separated `key=value` pairs (skips the TUI) |
+| `--vars-file` | Path to a JSON object of variable values (skips the TUI) |
 
 #### `foundry recast`
 

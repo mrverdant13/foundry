@@ -27,6 +27,7 @@ void main() {
     required Directory workingDirectory,
     CastVariableGatherer? gatherVariables,
     CastRunner? runCast,
+    VarsFileContentsReader? readVarsFileContents,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
   }) {
@@ -37,6 +38,7 @@ void main() {
           workingDirectory: workingDirectory,
           gatherVariables: gatherVariables,
           runCast: runCast,
+          readVarsFileContents: readVarsFileContents,
         ),
       );
   }
@@ -47,6 +49,11 @@ void main() {
   }
 
   group('CastCommand', () {
+    test('defaults workingDirectory to Directory.current', () {
+      final command = CastCommand(logger: Logger());
+      expect(command.workingDirectory.path, Directory.current.path);
+    });
+
     test(
       'casts a fixture mold, writes artifacts, and persists cast state',
       () async {
@@ -379,6 +386,275 @@ void main() {
         errorMessages,
         contains(contains('Failed to render contents of template file')),
       );
+    });
+
+    group('batch --vars / --vars-file', () {
+      test('casts successfully with --vars and skips the TUI', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        var gatherCalls = 0;
+        final infoMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onInfo: infoMessages.add,
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+          }) async {
+            gatherCalls++;
+            return {'project_name': 'should_not_be_used'};
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars=project_name=Ada',
+        ]);
+
+        expect(exitCode, FoundryExitCode.success.code);
+        expect(gatherCalls, 0);
+        expect(infoMessages, contains('✓ Cast completed'));
+        final artifact = File(p.join(workDir.path, 'out', 'README.md'));
+        expect(artifact.existsSync(), isTrue);
+        expect(await artifact.readAsString(), '# Ada\n');
+      });
+
+      test('casts successfully with --vars-file and skips the TUI', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
+          json.encode({'project_name': 'Ada'}),
+        );
+        var gatherCalls = 0;
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+          }) async {
+            gatherCalls++;
+            return null;
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.success.code);
+        expect(gatherCalls, 0);
+        expect(
+          await File(p.join(workDir.path, 'out', 'README.md')).readAsString(),
+          '# Ada\n',
+        );
+      });
+
+      test('--vars overrides colliding keys from --vars-file', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
+          json.encode({'project_name': 'FromFile'}),
+        );
+        final runner = buildRunner(workingDirectory: workDir);
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+          '--vars=project_name=FromFlag',
+        ]);
+
+        expect(exitCode, FoundryExitCode.success.code);
+        expect(
+          await File(p.join(workDir.path, 'out', 'README.md')).readAsString(),
+          '# FromFlag\n',
+        );
+      });
+
+      test(
+        'fails with exit 1 when batch input fails type parsing',
+        () async {
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+          await writeNumericCastableMold(
+            directory: moldDir,
+            name: 'demo_app',
+          );
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+          );
+
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars=project_name=Ada,port=not-an-int',
+          ]);
+
+          expect(exitCode, FoundryExitCode.userError.code);
+          expect(errorMessages, contains(contains('port')));
+          expect(
+            File(p.join(workDir.path, 'out', 'README.md')).existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test('fails with exit 1 for an unknown batch key', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars=project_name=Ada,unknown=x',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('unknown')));
+      });
+
+      test('fails with exit 1 when --vars-file is missing', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=missing.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('does not exist')));
+      });
+
+      test('fails with exit 1 when --vars-file cannot be read', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{}');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          readVarsFileContents: (file) async {
+            throw FileSystemException('Permission denied', file.path);
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('Failed to read vars file')));
+      });
+
+      test('fails with exit 1 when --vars-file is not valid JSON', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{not-json');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('not valid JSON')));
+      });
+
+      test(
+        'fails with exit 1 when --vars-file is not a JSON object',
+        () async {
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+          await writeCastableMold(directory: moldDir, name: 'demo_app');
+          File(p.join(workDir.path, 'vars.json')).writeAsStringSync('[1, 2]');
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+          );
+
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars-file=vars.json',
+          ]);
+
+          expect(exitCode, FoundryExitCode.userError.code);
+          expect(
+            errorMessages,
+            contains(contains('must contain a JSON object')),
+          );
+        },
+      );
+
+      test(
+        'uses the interactive gatherer when batch flags are omitted',
+        () async {
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+          await writeCastableMold(directory: moldDir, name: 'demo_app');
+          var gatherCalls = 0;
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            gatherVariables: ({
+              required variableGroup,
+              required moldName,
+              required moldDescription,
+            }) async {
+              gatherCalls++;
+              return {'project_name': 'Ada'};
+            },
+          );
+
+          final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+          expect(exitCode, FoundryExitCode.success.code);
+          expect(gatherCalls, 1);
+        },
+      );
+
+      test('help text documents --vars and --vars-file', () async {
+        final runner = buildRunner(workingDirectory: workDir);
+        final cast = runner.commands['cast']!;
+        final help = cast.argParser.usage;
+
+        expect(cast.description, isNotEmpty);
+        expect(help, contains('--vars'));
+        expect(help, contains('--vars-file'));
+      });
     });
   });
 }
