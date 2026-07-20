@@ -91,11 +91,11 @@ structure and optionally derive or sync a mold.
 ## Marker
 
 The optional marker at `.foundry/pattern.yaml` names this pattern and lists
-ignore globs applied by `foundry pattern inspect` (and later derive/sync).
+ignore globs used when summarizing the pattern tree.
 
 ## Next steps
 
 1. Add or adjust the reference files that should seed a mold.
 2. Edit `.foundry/pattern.yaml` ignore globs as needed.
-3. Run `foundry pattern inspect` to summarize the tree.
+3. Review the pattern tree (and ignored paths) before deriving a mold.
 ''';

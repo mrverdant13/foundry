@@ -60,8 +60,10 @@ void main() {
 
       final readme = File(p.join(workDir.path, 'README.md'));
       expect(readme.existsSync(), isTrue);
-      expect(readme.readAsStringSync(), contains('# demo_pattern'));
-      expect(readme.readAsStringSync(), contains('foundry pattern inspect'));
+      final readmeContents = readme.readAsStringSync();
+      expect(readmeContents, contains('# demo_pattern'));
+      expect(readmeContents, contains('summarizing the pattern tree'));
+      expect(readmeContents, isNot(contains('foundry pattern inspect')));
     });
 
     test('trims the pattern name before writing', () async {
