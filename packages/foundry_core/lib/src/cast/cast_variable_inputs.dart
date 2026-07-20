@@ -100,9 +100,10 @@ final class _VarsFlagParse {
 
 /// Splits a `--vars` string into `key=value` pairs.
 ///
-/// Pairs are separated by commas. Values may themselves contain commas
-/// (for example multi-choice or values-list tokens); the next pair starts at
-/// `,key=` where `key` contains no `=` or `,`.
+/// Pairs are separated by commas (optional whitespace after each comma is
+/// allowed). Values may themselves contain commas (for example multi-choice or
+/// values-list tokens); the next pair starts at `, key=` where `key` contains
+/// no `=` or `,` and does not begin with whitespace.
 _VarsFlagParse _parseVarsFlag(String? varsFlag) {
   if (varsFlag == null) {
     return const _VarsFlagParse();
@@ -112,7 +113,7 @@ _VarsFlagParse _parseVarsFlag(String? varsFlag) {
     return const _VarsFlagParse();
   }
 
-  final keyPattern = RegExp(r'(?:^|,)([^=,\s][^=,]*)=');
+  final keyPattern = RegExp(r'(?:^|,)\s*([^=,\s][^=,]*)=');
   final matches = keyPattern.allMatches(input).toList(growable: false);
   if (matches.isEmpty || matches.first.start != 0) {
     return const _VarsFlagParse(
