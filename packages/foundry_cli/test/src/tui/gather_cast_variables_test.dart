@@ -133,7 +133,6 @@ void main() {
         enableHotReload: false,
       );
 
-      await Future<void>.delayed(const Duration(milliseconds: 50));
       backend.sendBytes([0x0D]);
 
       expect(await future, {'project_name': 'demo_app'});
