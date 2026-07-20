@@ -27,6 +27,7 @@ void main() {
     required Directory workingDirectory,
     CastVariableGatherer? gatherVariables,
     CastRunner? runCast,
+    VarsFileContentsReader? readVarsFileContents,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
   }) {
@@ -37,6 +38,7 @@ void main() {
           workingDirectory: workingDirectory,
           gatherVariables: gatherVariables,
           runCast: runCast,
+          readVarsFileContents: readVarsFileContents,
         ),
       );
   }
@@ -47,6 +49,11 @@ void main() {
   }
 
   group('CastCommand', () {
+    test('defaults workingDirectory to Directory.current', () {
+      final command = CastCommand(logger: Logger());
+      expect(command.workingDirectory.path, Directory.current.path);
+    });
+
     test(
       'casts a fixture mold, writes artifacts, and persists cast state',
       () async {
@@ -475,8 +482,7 @@ void main() {
       test(
         'fails with exit 1 when batch input fails type parsing',
         () async {
-          final moldDir = Directory(p.join(workDir.path, 'mold'))
-            ..createSync();
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
           await writeNumericCastableMold(
             directory: moldDir,
             name: 'demo_app',
@@ -543,11 +549,83 @@ void main() {
         expect(errorMessages, contains(contains('does not exist')));
       });
 
+      test('fails with exit 1 when --vars-file cannot be read', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{}');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          readVarsFileContents: (file) async {
+            throw FileSystemException('Permission denied', file.path);
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('Failed to read vars file')));
+      });
+
+      test('fails with exit 1 when --vars-file is not valid JSON', () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{not-json');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars-file=vars.json',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('not valid JSON')));
+      });
+
       test(
-        'uses the interactive gatherer when batch flags are omitted',
+        'fails with exit 1 when --vars-file is not a JSON object',
         () async {
           final moldDir = Directory(p.join(workDir.path, 'mold'))
             ..createSync();
+          await writeCastableMold(directory: moldDir, name: 'demo_app');
+          File(p.join(workDir.path, 'vars.json')).writeAsStringSync('[1, 2]');
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+          );
+
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars-file=vars.json',
+          ]);
+
+          expect(exitCode, FoundryExitCode.userError.code);
+          expect(
+            errorMessages,
+            contains(contains('must contain a JSON object')),
+          );
+        },
+      );
+
+      test(
+        'uses the interactive gatherer when batch flags are omitted',
+        () async {
+          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
           await writeCastableMold(directory: moldDir, name: 'demo_app');
           var gatherCalls = 0;
           final runner = buildRunner(
@@ -571,8 +649,10 @@ void main() {
 
       test('help text documents --vars and --vars-file', () async {
         final runner = buildRunner(workingDirectory: workDir);
-        final help = runner.commands['cast']!.argParser.usage;
+        final cast = runner.commands['cast']!;
+        final help = cast.argParser.usage;
 
+        expect(cast.description, isNotEmpty);
         expect(help, contains('--vars'));
         expect(help, contains('--vars-file'));
       });
