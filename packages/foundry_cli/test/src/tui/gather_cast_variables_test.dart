@@ -104,8 +104,8 @@ void main() {
   );
 
   test(
-    'gatherCastVariablesInteractively returns the resolved values once the '
-    'user submits',
+    'gatherCastVariablesInteractively returns submitted values without '
+    'requestExit',
     () async {
       final backend = FakeTerminalBackend();
       final variableGroup = FoundryVariableGroup(
@@ -128,6 +128,9 @@ void main() {
       backend.sendBytes([0x0D]);
 
       expect(await future, {'project_name': 'demo_app'});
+      // shutdownApp → StdioBackend.requestExit → dart:io exit would kill the
+      // CLI before castMold runs. Gather must complete without requestExit.
+      expect(backend.requestExitCount, 0);
     },
   );
 }
