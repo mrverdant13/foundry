@@ -169,5 +169,22 @@ void main() {
         );
       });
     });
+
+    group('FoundryValuesVariable', () {
+      test('rejects typed text for values variables', () {
+        const variable = FoundryValuesVariable<String>(
+          label: 'Dependents',
+          item: FoundryStringVariable(label: 'Package name'),
+        );
+
+        final result = parseCastVariableText(variable, '["a","b"]');
+
+        expect(result, isA<CastVariableTextParseFailure>());
+        expect(
+          (result as CastVariableTextParseFailure).message,
+          'List values are gathered from list items, not typed',
+        );
+      });
+    });
   });
 }
