@@ -38,7 +38,7 @@ void shutdownGatherCastVariables() {
 }
 
 /// Builds the terminal backend used when [gatherCastVariablesInteractively] is
-/// not given an explicit [backend].
+/// not given an explicit backend.
 ///
 /// Defaults to [StdioBackend.new]. Tests may temporarily replace this factory
 /// to exercise ownership/dispose without opening a real terminal.
