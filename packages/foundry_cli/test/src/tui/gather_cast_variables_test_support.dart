@@ -9,6 +9,12 @@ class FakeTerminalBackend implements TerminalBackend {
   final _inputController = StreamController<List<int>>();
   final output = StringBuffer();
 
+  /// How many times [requestExit] was called.
+  int requestExitCount = 0;
+
+  /// Exit code from the most recent [requestExit] call, if any.
+  int? lastExitCode;
+
   @override
   void writeRaw(String data) {
     output.write(data);
@@ -39,7 +45,10 @@ class FakeTerminalBackend implements TerminalBackend {
   bool get isAvailable => true;
 
   @override
-  void requestExit([int exitCode = 0]) {}
+  void requestExit([int exitCode = 0]) {
+    requestExitCount++;
+    lastExitCode = exitCode;
+  }
 
   @override
   void notifySizeChanged(Size newSize) {}
