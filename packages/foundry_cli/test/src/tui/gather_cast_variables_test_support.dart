@@ -15,6 +15,9 @@ class FakeTerminalBackend implements TerminalBackend {
   /// Exit code from the most recent [requestExit] call, if any.
   int? lastExitCode;
 
+  /// How many times [dispose] was called.
+  int disposeCount = 0;
+
   @override
   void writeRaw(String data) {
     output.write(data);
@@ -55,7 +58,10 @@ class FakeTerminalBackend implements TerminalBackend {
 
   @override
   void dispose() {
-    unawaited(_inputController.close());
+    disposeCount++;
+    if (!_inputController.isClosed) {
+      unawaited(_inputController.close());
+    }
   }
 
   /// Sends raw input bytes as if typed at the terminal.
