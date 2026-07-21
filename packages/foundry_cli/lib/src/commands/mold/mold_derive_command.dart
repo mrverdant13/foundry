@@ -28,7 +28,8 @@ class MoldDeriveCommand extends Command<int> {
       ..addOption(
         outputOptionName,
         help: 'Destination directory for the derived mold. Defaults to the '
-            'current directory.',
+            'current directory (requires --force when omitted, since that '
+            'path already exists).',
       )
       ..addFlag(
         forceOptionName,
