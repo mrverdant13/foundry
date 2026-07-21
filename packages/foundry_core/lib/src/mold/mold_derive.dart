@@ -62,9 +62,10 @@ Future<void> _defaultCommitDerivedMoldStaging({
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
 ///
-/// When [destination] already exists and [force] is `false`, throws
-/// [MoldDeriveException]. When [force] is `true`, the existing destination is
-/// deleted before the derived mold is written.
+/// When [destination] already exists as any filesystem entity (directory,
+/// file, or symlink) and [force] is `false`, throws [MoldDeriveException].
+/// When [force] is `true`, the existing destination is deleted before the
+/// derived mold is written.
 ///
 /// Intermediate staging directories are created under [tempParent] (the system
 /// temp directory when omitted) with prefix `foundry_mold_derive_` and are
@@ -117,7 +118,7 @@ Future<Directory> deriveMoldFromPattern({
     );
   }
 
-  if (normalizedDestination.existsSync()) {
+  if (_pathExists(normalizedDestination.path)) {
     if (!force) {
       throw MoldDeriveException(
         'Destination "${normalizedDestination.path}" already exists. Pass '
@@ -156,6 +157,15 @@ Future<Directory> deriveMoldFromPattern({
       await staging.delete(recursive: true);
     }
   }
+}
+
+/// Whether [path] refers to any existing filesystem entity.
+///
+/// Unlike [Directory.existsSync], this is true for files and symlinks as well
+/// as directories (links are not followed).
+bool _pathExists(String path) {
+  return FileSystemEntity.typeSync(path, followLinks: false) !=
+      FileSystemEntityType.notFound;
 }
 
 String _resolveMoldName({

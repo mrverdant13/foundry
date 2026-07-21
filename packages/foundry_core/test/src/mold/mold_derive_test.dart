@@ -244,6 +244,31 @@ void main() {
       );
     });
 
+    test('fails when destination is a file and force is false', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'plain');
+      final destinationFile = File(p.join(workDir.path, 'existing_file'))
+        ..writeAsStringSync('not a directory');
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(destinationFile.path),
+          name: 'file_dest_mold',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('already exists'),
+          ),
+        ),
+      );
+      expect(destinationFile.existsSync(), isTrue);
+      expect(await destinationFile.readAsString(), 'not a directory');
+    });
+
     test('overwrites destination when force is true', () async {
       final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
       await _writePatternFile(pattern, 'README.md', 'fresh');
