@@ -287,7 +287,8 @@ void main() {
       );
     });
 
-    test('fails when pattern inspection reports empty error messages', () async {
+    test('fails when pattern inspection reports empty error messages',
+        () async {
       inspectPatternForDerive = (patternPath) async {
         return PatternInspectionReport(
           rootPath: patternPath,

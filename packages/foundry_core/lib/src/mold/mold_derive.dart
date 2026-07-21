@@ -146,8 +146,7 @@ Future<Directory> deriveMoldFromPattern({
     rethrow;
   } on FileSystemException catch (error) {
     final path = error.path;
-    final pathSuffix =
-        (path == null || path.isEmpty) ? '' : ' ($path)';
+    final pathSuffix = (path == null || path.isEmpty) ? '' : ' ($path)';
     throw MoldDeriveException(
       'Failed to derive mold at "${normalizedDestination.path}": '
       '${error.message}$pathSuffix.',
