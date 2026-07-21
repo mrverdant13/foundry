@@ -6,12 +6,41 @@ import 'package:foundry_core/src/mold/mold_scaffold.dart';
 import 'package:foundry_core/src/pattern/pattern_ignore.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
 import 'package:foundry_core/src/rendering/template_liquidize.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 /// Relative path segments that are never copied into a derived `template/`.
 ///
 /// The pattern marker lives under `.foundry/` and is not template content.
 const _excludedTemplatePrefixes = {'.foundry'};
+
+/// Inspects a pattern path for derive.
+///
+/// Overridable in tests to exercise structured invalid-pattern messaging.
+@visibleForTesting
+Future<PatternInspectionReport> Function(String patternPath)
+    inspectPatternForDerive = inspectPattern;
+
+/// Commits a staged derived mold into [destination].
+///
+/// Overridable in tests to exercise [FileSystemException] and
+/// [MoldDeriveException] handling around the final write.
+@visibleForTesting
+Future<void> Function({
+  required Directory staging,
+  required Directory destination,
+}) commitDerivedMoldStaging = _defaultCommitDerivedMoldStaging;
+
+Future<void> _defaultCommitDerivedMoldStaging({
+  required Directory staging,
+  required Directory destination,
+}) async {
+  if (destination.existsSync()) {
+    await destination.delete(recursive: true);
+  }
+  await destination.parent.create(recursive: true);
+  await _copyDirectoryContents(staging, destination);
+}
 
 /// Derives a Foundry mold package at [destination] from the pattern directory
 /// at [patternPath].
@@ -49,7 +78,7 @@ Future<Directory> deriveMoldFromPattern({
   bool force = false,
   Directory? tempParent,
 }) async {
-  final report = await inspectPattern(patternPath);
+  final report = await inspectPatternForDerive(patternPath);
   if (!report.isValid) {
     final details = report.issues
         .map((issue) => issue.message)
@@ -108,18 +137,20 @@ Future<Directory> deriveMoldFromPattern({
       moldName: moldName,
     );
 
-    if (normalizedDestination.existsSync()) {
-      await normalizedDestination.delete(recursive: true);
-    }
-    await normalizedDestination.parent.create(recursive: true);
-    await _copyDirectoryContents(staging, normalizedDestination);
+    await commitDerivedMoldStaging(
+      staging: staging,
+      destination: normalizedDestination,
+    );
     return normalizedDestination;
   } on MoldDeriveException {
     rethrow;
   } on FileSystemException catch (error) {
+    final path = error.path;
+    final pathSuffix =
+        (path == null || path.isEmpty) ? '' : ' ($path)';
     throw MoldDeriveException(
       'Failed to derive mold at "${normalizedDestination.path}": '
-      '${error.message}${error.path == null ? '' : ' (${error.path})'}.',
+      '${error.message}$pathSuffix.',
     );
   } finally {
     if (staging.existsSync()) {

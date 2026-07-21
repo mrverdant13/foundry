@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/foundry_core.dart';
+import 'package:foundry_core/src/mold/mold_derive.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -32,12 +33,22 @@ Future<void> _useLocalFoundryCore(Directory moldDirectory) async {
 
 void main() {
   late Directory workDir;
+  late Future<void> Function({
+    required Directory staging,
+    required Directory destination,
+  }) originalCommit;
+  late Future<PatternInspectionReport> Function(String patternPath)
+      originalInspect;
 
   setUp(() {
     workDir = Directory.systemTemp.createTempSync('foundry_mold_derive_');
+    originalCommit = commitDerivedMoldStaging;
+    originalInspect = inspectPatternForDerive;
   });
 
   tearDown(() {
+    commitDerivedMoldStaging = originalCommit;
+    inspectPatternForDerive = originalInspect;
     if (workDir.existsSync()) {
       workDir.deleteSync(recursive: true);
     }
@@ -47,11 +58,15 @@ void main() {
     test('accepts valid package names', () {
       expect(isValidMoldName('my_mold'), isTrue);
       expect(isValidMoldName('_private'), isTrue);
+      expect(isValidMoldName('Bad Name'), isFalse);
+      expect(isValidMoldName('123'), isFalse);
     });
 
     test('sanitizes mixed case and punctuation', () {
       expect(sanitizeMoldName('My App!'), 'my_app_');
       expect(sanitizeMoldName('2cool'), 'mold_2cool');
+      expect(sanitizeMoldName('!!!'), '___');
+      expect(sanitizeMoldName(''), 'mold');
       expect(defaultMoldNameFromPath('/tmp/Hello-World'), 'hello_world');
     });
   });
@@ -146,6 +161,61 @@ void main() {
       expect(report.isValid, isTrue);
     });
 
+    test('names the mold from the pattern directory basename', () async {
+      final pattern = Directory(p.join(workDir.path, 'hello_world'))
+        ..createSync();
+      await _writePatternFile(pattern, 'README.md', 'plain');
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(p.join(workDir.path, 'out')),
+        tempParent: workDir,
+      );
+
+      final pubspec = await File(
+        p.join(moldDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      expect(pubspec, contains('name: hello_world'));
+    });
+
+    test('falls back to destination basename when pattern is named mold',
+        () async {
+      final pattern = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'plain');
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(p.join(workDir.path, 'from_dest')),
+        tempParent: workDir,
+      );
+
+      final pubspec = await File(
+        p.join(moldDir.path, 'pubspec.yaml'),
+      ).readAsString();
+      expect(pubspec, contains('name: from_dest'));
+    });
+
+    test('rejects an invalid explicit mold name', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'plain');
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out')),
+          name: 'Not Valid!',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('not a valid package name'),
+          ),
+        ),
+      );
+    });
+
     test('fails when destination exists and force is false', () async {
       final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
       await _writePatternFile(pattern, 'README.md', 'plain');
@@ -217,6 +287,36 @@ void main() {
       );
     });
 
+    test('fails when pattern inspection reports empty error messages', () async {
+      inspectPatternForDerive = (patternPath) async {
+        return PatternInspectionReport(
+          rootPath: patternPath,
+          issues: const [
+            PatternIssue(
+              severity: PatternIssueSeverity.error,
+              path: 'pattern',
+              message: '',
+            ),
+          ],
+        );
+      };
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: p.join(workDir.path, 'ignored'),
+          destination: Directory(p.join(workDir.path, 'out')),
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('could not be inspected'),
+          ),
+        ),
+      );
+    });
+
     test('copies binary files into template unchanged', () async {
       final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
       final binary = File(p.join(pattern.path, 'blob.bin'))
@@ -278,6 +378,153 @@ void main() {
             (error) => error.message,
             'message',
             contains('cannot be inside'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects destination equal to the pattern directory', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'ok');
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: pattern,
+          name: 'same_path',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('cannot be inside'),
+          ),
+        ),
+      );
+    });
+
+    test('rethrows MoldDeriveException from commit staging', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'ok');
+
+      commitDerivedMoldStaging = ({
+        required Directory staging,
+        required Directory destination,
+      }) async {
+        throw const MoldDeriveException('commit refused');
+      };
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out')),
+          name: 'commit_mold',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            'commit refused',
+          ),
+        ),
+      );
+    });
+
+    test('wraps FileSystemException from commit staging with a path', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'ok');
+
+      commitDerivedMoldStaging = ({
+        required Directory staging,
+        required Directory destination,
+      }) async {
+        throw const FileSystemException('Permission denied', '/tmp/blocked');
+      };
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out')),
+          name: 'fs_mold',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('Failed to derive mold'),
+              contains('Permission denied'),
+              contains('/tmp/blocked'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('wraps FileSystemException from commit staging without a path',
+        () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'ok');
+
+      commitDerivedMoldStaging = ({
+        required Directory staging,
+        required Directory destination,
+      }) async {
+        throw const FileSystemException('Disk full', null);
+      };
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out')),
+          name: 'fs_mold_no_path',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('Failed to derive mold'),
+              contains('Disk full'),
+              isNot(contains('(')),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('wraps FileSystemException from commit staging with an empty path',
+        () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'ok');
+
+      commitDerivedMoldStaging = ({
+        required Directory staging,
+        required Directory destination,
+      }) async {
+        throw const FileSystemException('Disk full', '');
+      };
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out_empty_path')),
+          name: 'fs_mold_empty_path',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('Failed to derive mold'),
+              contains('Disk full'),
+              isNot(contains('(')),
+            ),
           ),
         ),
       );
