@@ -410,8 +410,8 @@ void main() {
       await _writePatternFile(pattern, 'README.md', 'ok');
 
       commitDerivedMoldStaging = ({
-        required Directory staging,
-        required Directory destination,
+        required staging,
+        required destination,
       }) async {
         throw const MoldDeriveException('commit refused');
       };
@@ -438,8 +438,8 @@ void main() {
       await _writePatternFile(pattern, 'README.md', 'ok');
 
       commitDerivedMoldStaging = ({
-        required Directory staging,
-        required Directory destination,
+        required staging,
+        required destination,
       }) async {
         throw const FileSystemException('Permission denied', '/tmp/blocked');
       };
@@ -471,8 +471,8 @@ void main() {
       await _writePatternFile(pattern, 'README.md', 'ok');
 
       commitDerivedMoldStaging = ({
-        required Directory staging,
-        required Directory destination,
+        required staging,
+        required destination,
       }) async {
         throw const FileSystemException('Disk full', null);
       };
@@ -504,10 +504,10 @@ void main() {
       await _writePatternFile(pattern, 'README.md', 'ok');
 
       commitDerivedMoldStaging = ({
-        required Directory staging,
-        required Directory destination,
+        required staging,
+        required destination,
       }) async {
-        throw const FileSystemException('Disk full', '');
+        throw const FileSystemException('Disk full');
       };
 
       await expectLater(

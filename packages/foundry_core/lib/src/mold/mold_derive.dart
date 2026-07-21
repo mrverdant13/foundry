@@ -21,7 +21,7 @@ const _excludedTemplatePrefixes = {'.foundry'};
 Future<PatternInspectionReport> Function(String patternPath)
     inspectPatternForDerive = inspectPattern;
 
-/// Commits a staged derived mold into [destination].
+/// Commits a staged derived mold into destination.
 ///
 /// Overridable in tests to exercise [FileSystemException] and
 /// [MoldDeriveException] handling around the final write.
