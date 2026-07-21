@@ -21,8 +21,9 @@ tree, and optional lifecycle hooks. This library provides:
 - **Cast orchestration** — end-to-end `castMold` pipeline and
   `.foundry/last_cast.json` persistence
 - **Import** — copy molds from a local path or shallow git clone
-- **Pattern inspect / mold derive** — summarize pattern directories and
-  best-effort derive a starter mold (`template/` liquidized from pattern files)
+- **Pattern inspect / mold derive / mold sync** — summarize pattern directories,
+  best-effort derive a starter mold, and refresh an existing mold's `template/`
+  while preserving `variables.dart` and `hooks/`
 
 For day-to-day use, install the [`foundry_cli`](https://pub.dev/packages/foundry_cli)
 package (`foundry mold init`, `foundry cast`, and related commands). Use this
@@ -87,6 +88,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | ---- | ----------- |
 | Mold | `loadMold`, `parseMoldPubspec`, `inspectMold`, `Mold`, `FoundryVariableGroup` |
 | Derive | `deriveMoldFromPattern`, `MoldDeriveException` |
+| Sync | `syncMoldFromPattern`, `MoldSyncException` |
 | Pattern | `inspectPattern`, `PatternInspectionReport`, `PatternMarker` |
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
 | Cast | `castMold`, `CastOutcome`, `readCastState`, `writeCastState` |

@@ -1,18 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:foundry_core/src/mold/mold_derive_exception.dart';
 import 'package:foundry_core/src/mold/mold_scaffold.dart';
-import 'package:foundry_core/src/pattern/pattern_ignore.dart';
+import 'package:foundry_core/src/mold/mold_template_from_pattern.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
-import 'package:foundry_core/src/rendering/template_liquidize.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
-
-/// Relative path segments that are never copied into a derived `template/`.
-///
-/// The pattern marker lives under `.foundry/` and is not template content.
-const _excludedTemplatePrefixes = {'.foundry'};
 
 /// Inspects a pattern path for derive.
 ///
@@ -60,7 +53,7 @@ Future<void> _defaultCommitDerivedMoldStaging({
 /// - stub `variables.dart` with a single `FoundryStringVariable`
 /// - empty `hooks/`
 /// - `template/` tree copied from non-ignored pattern files, with Liquid-like
-///   text content escaped via [liquidizeTemplateContents]
+///   text content escaped via `liquidizeTemplateContents`
 ///
 /// **Best-effort limitations**
 /// - Binary files (NUL bytes) are copied into `template/` unchanged.
@@ -232,58 +225,10 @@ Future<void> _writeDerivedMold({
   await variablesFile.writeAsString(moldScaffoldVariablesContents);
 
   await Directory(p.join(staging.path, 'hooks')).create();
-  final templateRoot = Directory(p.join(staging.path, 'template'));
-  await templateRoot.create();
-
-  final ignoreMatchers = compilePatternIgnoreMatchers(ignoreGlobs);
-  final files = enumeratePatternFiles(patternRootPath);
-
-  for (final file in files) {
-    final relative = p.relative(file.path, from: patternRootPath);
-    final relativePosix = p.posix.joinAll(p.split(relative));
-    if (_shouldSkipTemplatePath(relativePosix, ignoreMatchers)) {
-      continue;
-    }
-
-    final destinationFile = File(p.join(templateRoot.path, relative));
-    await destinationFile.parent.create(recursive: true);
-    await _copyPatternFileToTemplate(
-      source: file,
-      destination: destinationFile,
-    );
-  }
-}
-
-bool _shouldSkipTemplatePath(
-  String relativePosix,
-  List<PatternIgnoreMatcher> ignoreMatchers,
-) {
-  final firstSegment = relativePosix.split('/').first;
-  if (_excludedTemplatePrefixes.contains(firstSegment)) {
-    return true;
-  }
-  for (final matcher in ignoreMatchers) {
-    if (matcher.matches(relativePosix)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-Future<void> _copyPatternFileToTemplate({
-  required File source,
-  required File destination,
-}) async {
-  final bytes = await source.readAsBytes();
-  if (looksLikeBinaryTemplateBytes(bytes)) {
-    await destination.writeAsBytes(bytes, flush: true);
-    return;
-  }
-
-  final content = utf8.decode(bytes, allowMalformed: true);
-  await destination.writeAsString(
-    liquidizeTemplateContents(content),
-    flush: true,
+  await writeLiquidizedTemplateFromPattern(
+    templateRoot: Directory(p.join(staging.path, 'template')),
+    patternRootPath: patternRootPath,
+    ignoreGlobs: ignoreGlobs,
   );
 }
 
