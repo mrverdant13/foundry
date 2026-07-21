@@ -8,6 +8,8 @@ void main() {
     test('registers the init and inspect subcommands', () {
       final command = PatternCommand(logger: Logger());
 
+      expect(command.name, 'pattern');
+      expect(command.description, 'Author and inspect patterns.');
       expect(command.subcommands.keys, containsAll(['init', 'inspect']));
     });
 
