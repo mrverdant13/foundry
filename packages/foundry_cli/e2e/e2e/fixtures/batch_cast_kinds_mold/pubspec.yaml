@@ -1,0 +1,11 @@
+name: batch_cast_kinds_mold
+description: E2E mold covering scalar and choice kinds via batch cast
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: ../../../../../foundry_core
