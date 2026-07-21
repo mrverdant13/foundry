@@ -13,6 +13,7 @@ for the full mold lifecycle:
 
 - **`foundry mold init`** — scaffold a new mold package in the current directory
 - **`foundry mold inspect`** — validate mold layout, variables, and hooks
+- **`foundry mold derive`** — generate a starter mold from a pattern directory
 - **`foundry mold import`** — copy a mold from git or a local path
 - **`foundry cast`** — gather variables, run hooks, and render templates to
   `--output`
@@ -49,6 +50,12 @@ Requires Dart SDK `>=3.5.0 <4.0.0`.
 ```bash
 foundry mold init --name=hello_mold
 cd hello_mold
+```
+
+### Derive a mold from a pattern
+
+```bash
+foundry mold derive --pattern=../demo_pattern --output=./hello_mold
 ```
 
 ### Inspect
@@ -114,6 +121,7 @@ foundry [--version] <command> [arguments] [options]
 | Command | Description |
 | ------- | ----------- |
 | `foundry mold init` | Scaffold a new mold in the current directory |
+| `foundry mold derive` | Derive a starter mold from a pattern directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -130,6 +138,18 @@ foundry mold init [--name=<name>]
 | Option | Description |
 | ------ | ----------- |
 | `--name` | Mold package name (defaults to the current directory basename) |
+
+#### `foundry mold derive`
+
+```
+foundry mold derive --pattern=<path> [--output=<dir>] [--force]
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--pattern` | **Required.** Pattern directory to derive from |
+| `--output` | Destination for the derived mold (defaults to the current directory) |
+| `--force` | Overwrite the destination directory if it already exists |
 
 #### `foundry mold import git`
 
