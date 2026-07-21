@@ -14,6 +14,7 @@ for the full mold lifecycle:
 - **`foundry mold init`** — scaffold a new mold package in the current directory
 - **`foundry mold inspect`** — validate mold layout, variables, and hooks
 - **`foundry mold derive`** — generate a starter mold from a pattern directory
+- **`foundry mold sync`** — refresh an existing mold `template/` from a pattern
 - **`foundry mold import`** — copy a mold from git or a local path
 - **`foundry cast`** — gather variables, run hooks, and render templates to
   `--output`
@@ -56,6 +57,13 @@ cd hello_mold
 
 ```bash
 foundry mold derive --pattern=../demo_pattern --output=./hello_mold
+```
+
+### Sync a mold template from a pattern
+
+```bash
+cd hello_mold
+foundry mold sync --pattern=../demo_pattern
 ```
 
 ### Inspect
@@ -122,6 +130,7 @@ foundry [--version] <command> [arguments] [options]
 | ------- | ----------- |
 | `foundry mold init` | Scaffold a new mold in the current directory |
 | `foundry mold derive` | Derive a starter mold from a pattern directory |
+| `foundry mold sync` | Sync an existing mold template from a pattern directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -150,6 +159,21 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | `--pattern` | **Required.** Pattern directory to derive from |
 | `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
 | `--force` | Overwrite the destination directory if it already exists |
+
+#### `foundry mold sync`
+
+```
+foundry mold sync --pattern=<path> [--force]
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--pattern` | **Required.** Pattern directory to sync from |
+| `--force` | Replace `template/` wholesale (remove orphans); author edits outside `template/` are still preserved |
+
+Syncs the mold in the current directory. Refreshes `template/` from the pattern
+while preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
+non-`template/` files.
 
 #### `foundry mold import git`
 

@@ -5,12 +5,13 @@ import 'package:test/test.dart';
 
 void main() {
   group('MoldCommand', () {
-    test('registers the init, inspect, derive, and import subcommands', () {
+    test('registers the init, inspect, derive, sync, and import subcommands',
+        () {
       final command = MoldCommand(logger: Logger());
 
       expect(
         command.subcommands.keys,
-        containsAll(['init', 'inspect', 'derive', 'import']),
+        containsAll(['init', 'inspect', 'derive', 'sync', 'import']),
       );
     });
 

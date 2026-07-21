@@ -92,6 +92,17 @@ current directory when `--output` is omitted; because that path already exists,
 omitting `--output` always requires `--force`. Use `--force` to overwrite any
 existing destination.
 
+### Sync a mold template from a pattern
+
+```bash
+foundry mold sync --pattern=./demo_pattern
+```
+
+Refreshes `template/` in the current mold from a pattern directory while
+preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
+non-`template/` author edits. Use `--force` to replace `template/` wholesale
+(orphan template files that no longer exist in the pattern are removed).
+
 ### Scaffold a new mold
 
 ```bash
@@ -186,6 +197,7 @@ foundry [--version] <command> [arguments] [options]
 | `foundry pattern inspect` | Analyze a pattern directory |
 | `foundry mold init` | Scaffold a new mold in the current directory |
 | `foundry mold derive` | Derive a starter mold from a pattern directory |
+| `foundry mold sync` | Sync an existing mold template from a pattern directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -238,6 +250,21 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | `--pattern` | **Required.** Pattern directory to derive from |
 | `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
 | `--force` | Overwrite the destination directory if it already exists |
+
+#### `foundry mold sync`
+
+```
+foundry mold sync --pattern=<path> [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--pattern` | **Required.** Pattern directory to sync from |
+| `--force` | Replace `template/` wholesale (remove orphans); author edits outside `template/` are still preserved |
+
+Syncs the mold in the current directory. Refreshes `template/` from the pattern
+while preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
+non-`template/` files.
 
 #### `foundry mold import git`
 
