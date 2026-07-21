@@ -80,6 +80,18 @@ foundry pattern inspect
 Reports pattern name, file count, top-level entries, ignore globs, and ignored
 paths. Defaults to the current directory when no path is given.
 
+### Derive a mold from a pattern
+
+```bash
+foundry mold derive --pattern=./demo_pattern --output=./flutter_app
+```
+
+Generates a starter mold package (Liquidized `template/`, stub `variables.dart`,
+root `pubspec.yaml`, empty `hooks/`) from a pattern directory. Defaults to the
+current directory when `--output` is omitted; because that path already exists,
+omitting `--output` always requires `--force`. Use `--force` to overwrite any
+existing destination.
+
 ### Scaffold a new mold
 
 ```bash
