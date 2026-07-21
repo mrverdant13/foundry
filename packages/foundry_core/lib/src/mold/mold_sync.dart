@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/src/mold/mold_issue.dart';
+import 'package:foundry_core/src/mold/mold_pubspec.dart';
 import 'package:foundry_core/src/mold/mold_pubspec_parser.dart';
 import 'package:foundry_core/src/mold/mold_sync_exception.dart';
 import 'package:foundry_core/src/mold/mold_template_from_pattern.dart';
@@ -14,6 +15,15 @@ import 'package:path/path.dart' as p;
 @visibleForTesting
 Future<PatternInspectionReport> Function(String patternPath)
     inspectPatternForSync = inspectPattern;
+
+/// Parses a mold `pubspec.yaml` during sync validation.
+///
+/// Overridable in tests to exercise empty-issue messaging.
+@visibleForTesting
+MoldPubspec Function({
+  required String yamlContent,
+  required String sourcePath,
+}) parseMoldPubspecForSync = parseMoldPubspec;
 
 /// Commits a staged `template/` tree into an existing mold.
 ///
@@ -143,7 +153,7 @@ Future<void> _ensureExistingMold(Directory moldDirectory) async {
   }
 
   try {
-    parseMoldPubspec(
+    parseMoldPubspecForSync(
       yamlContent: await pubspecFile.readAsString(),
       sourcePath: pubspecFile.path,
     );

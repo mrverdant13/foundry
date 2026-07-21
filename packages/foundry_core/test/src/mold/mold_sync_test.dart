@@ -86,16 +86,22 @@ void main() {
   }) originalCommit;
   late Future<PatternInspectionReport> Function(String patternPath)
       originalInspect;
+  late MoldPubspec Function({
+    required String yamlContent,
+    required String sourcePath,
+  }) originalParsePubspec;
 
   setUp(() {
     workDir = Directory.systemTemp.createTempSync('foundry_mold_sync_');
     originalCommit = commitSyncedMoldTemplate;
     originalInspect = inspectPatternForSync;
+    originalParsePubspec = parseMoldPubspecForSync;
   });
 
   tearDown(() {
     commitSyncedMoldTemplate = originalCommit;
     inspectPatternForSync = originalInspect;
+    parseMoldPubspecForSync = originalParsePubspec;
     if (workDir.existsSync()) {
       workDir.deleteSync(recursive: true);
     }
@@ -258,6 +264,28 @@ void main() {
       );
     });
 
+    test('rejects a mold path that is a symlink, not a directory', () async {
+      final pattern = await _createPattern(workDir);
+      final mold = await _createMold(workDir);
+      final linkPath = p.join(workDir.path, 'mold_link');
+      Link(linkPath).createSync(mold.path);
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: Directory(linkPath),
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            contains('is not a directory'),
+          ),
+        ),
+      );
+    });
+
     test('rejects a mold missing variables.dart', () async {
       final pattern = await _createPattern(workDir);
       final mold = await _createMold(workDir);
@@ -297,6 +325,69 @@ void main() {
             (error) => error.message,
             'message',
             contains('is not a mold'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a mold pubspec with empty parse error messages', () async {
+      final pattern = await _createPattern(workDir);
+      final mold = await _createMold(workDir);
+
+      parseMoldPubspecForSync = ({
+        required yamlContent,
+        required sourcePath,
+      }) {
+        throw const MoldLoadException([
+          MoldIssue(
+            severity: MoldIssueSeverity.error,
+            path: 'pubspec.yaml',
+            message: '',
+          ),
+        ]);
+      };
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: mold,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            contains('invalid pubspec.yaml'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a mold path equal to the pattern directory', () async {
+      final pattern = await _createPattern(workDir);
+      await writeMoldPubspec(
+        directory: pattern,
+        name: 'pattern_as_mold',
+        description: 'Not a real sync target.',
+      );
+      await _writeFile(
+        pattern,
+        'variables.dart',
+        "import 'package:foundry_core/foundry_core.dart';\n"
+            'final moldVariables = FoundryVariableGroup(variables: {});\n',
+      );
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: pattern,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            contains('cannot be inside the pattern'),
           ),
         ),
       );
@@ -399,6 +490,70 @@ void main() {
           .where((dir) => p.basename(dir.path).startsWith('foundry_mold_sync_'))
           .toList();
       expect(stagingDirs, isEmpty);
+    });
+
+    test('wraps FileSystemException from commit with a path', () async {
+      final pattern = await _createPattern(workDir);
+      final mold = await _createMold(workDir);
+
+      commitSyncedMoldTemplate = ({
+        required stagedTemplate,
+        required moldDirectory,
+        required force,
+      }) async {
+        throw const FileSystemException('Permission denied', '/tmp/blocked');
+      };
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: mold,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('Failed to sync mold'),
+              contains('Permission denied'),
+              contains('/tmp/blocked'),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('wraps FileSystemException from commit with a null path', () async {
+      final pattern = await _createPattern(workDir);
+      final mold = await _createMold(workDir);
+
+      commitSyncedMoldTemplate = ({
+        required stagedTemplate,
+        required moldDirectory,
+        required force,
+      }) async {
+        throw const FileSystemException('Permission denied');
+      };
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: mold,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('Failed to sync mold'),
+              contains('Permission denied'),
+              isNot(contains('()')),
+            ),
+          ),
+        ),
+      );
     });
 
     test('maps injectable MoldSyncException from commit', () async {
