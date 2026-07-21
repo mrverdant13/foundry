@@ -185,6 +185,7 @@ foundry [--version] <command> [arguments] [options]
 | `foundry pattern init` | Scaffold a pattern marker and README in the current directory |
 | `foundry pattern inspect` | Analyze a pattern directory |
 | `foundry mold init` | Scaffold a new mold in the current directory |
+| `foundry mold derive` | Derive a starter mold from a pattern directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -225,6 +226,18 @@ foundry mold init [--name=<name>]
 | Option | Description |
 | --- | --- |
 | `--name` | Mold package name (defaults to the current directory basename) |
+
+#### `foundry mold derive`
+
+```
+foundry mold derive --pattern=<path> [--output=<dir>] [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--pattern` | **Required.** Pattern directory to derive from |
+| `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
+| `--force` | Overwrite the destination directory if it already exists |
 
 #### `foundry mold import git`
 
