@@ -186,10 +186,6 @@ ignore:
           rootPath: patternPath,
           name: 'warned_pattern',
           hasMarker: true,
-          ignoreGlobs: const [],
-          fileCount: 0,
-          topLevelEntries: const [],
-          ignoredPaths: const [],
           issues: [
             PatternIssue(
               severity: PatternIssueSeverity.warning,
