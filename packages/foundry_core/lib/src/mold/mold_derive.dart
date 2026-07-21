@@ -35,9 +35,7 @@ Future<void> _defaultCommitDerivedMoldStaging({
   required Directory staging,
   required Directory destination,
 }) async {
-  if (destination.existsSync()) {
-    await destination.delete(recursive: true);
-  }
+  await _deleteExistingPath(destination.path);
   await destination.parent.create(recursive: true);
   await _copyDirectoryContents(staging, destination);
 }
@@ -166,6 +164,26 @@ Future<Directory> deriveMoldFromPattern({
 bool _pathExists(String path) {
   return FileSystemEntity.typeSync(path, followLinks: false) !=
       FileSystemEntityType.notFound;
+}
+
+/// Deletes whatever entity currently occupies [path], if any.
+///
+/// Directories are removed recursively. Files and symlinks are removed without
+/// following the link target.
+Future<void> _deleteExistingPath(String path) async {
+  final type = FileSystemEntity.typeSync(path, followLinks: false);
+  switch (type) {
+    case FileSystemEntityType.notFound:
+      return;
+    case FileSystemEntityType.directory:
+      await Directory(path).delete(recursive: true);
+    case FileSystemEntityType.link:
+      await Link(path).delete();
+    case FileSystemEntityType.file:
+    case FileSystemEntityType.pipe:
+    case FileSystemEntityType.unixDomainSock:
+      await File(path).delete();
+  }
 }
 
 String _resolveMoldName({

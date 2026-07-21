@@ -295,6 +295,29 @@ void main() {
       );
     });
 
+    test('overwrites a file destination when force is true', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'fresh');
+      final destinationFile = File(p.join(workDir.path, 'existing_file'))
+        ..writeAsStringSync('not a directory');
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(destinationFile.path),
+        name: 'forced_file_mold',
+        force: true,
+        tempParent: workDir,
+      );
+
+      expect(FileSystemEntity.isDirectorySync(moldDir.path), isTrue);
+      expect(destinationFile.existsSync(), isFalse);
+      expect(
+        await File(p.join(moldDir.path, 'template', 'README.md'))
+            .readAsString(),
+        'fresh',
+      );
+    });
+
     test('fails for a missing pattern path', () async {
       await expectLater(
         deriveMoldFromPattern(
