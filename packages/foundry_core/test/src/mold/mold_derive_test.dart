@@ -63,9 +63,9 @@ void main() {
         pattern,
         '.foundry/pattern.yaml',
         'name: greeter_pattern\n'
-        'ignore:\n'
-        '  - "**/*.tmp"\n'
-        '  - ".dart_tool/**"\n',
+            'ignore:\n'
+            '  - "**/*.tmp"\n'
+            '  - ".dart_tool/**"\n',
       );
       await _writePatternFile(
         pattern,
@@ -256,12 +256,8 @@ void main() {
         throwsA(isA<MoldDeriveException>()),
       );
 
-      final leftover = tempParent
-          .listSync()
-          .whereType<Directory>()
-          .where(
-            (dir) =>
-                p.basename(dir.path).startsWith('foundry_mold_derive_'),
+      final leftover = tempParent.listSync().whereType<Directory>().where(
+            (dir) => p.basename(dir.path).startsWith('foundry_mold_derive_'),
           );
       expect(leftover, isEmpty);
     });
