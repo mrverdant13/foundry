@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:foundry_core/src/pattern/pattern_ignore.dart';
 import 'package:foundry_core/src/pattern/pattern_issue.dart';
 import 'package:foundry_core/src/pattern/pattern_marker.dart';
 import 'package:glob/glob.dart';
@@ -187,7 +188,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   }
 
   final ignoreGlobs = List<String>.unmodifiable(marker.ignore);
-  final ignoreMatchers = _compileIgnoreMatchers(ignoreGlobs);
+  final ignoreMatchers = compilePatternIgnoreMatchers(ignoreGlobs);
 
   final List<String> topLevelEntries;
   try {
@@ -239,7 +240,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   for (final file in files) {
     final relative = p.relative(file.path, from: rootPath);
     final relativePosix = p.posix.joinAll(p.split(relative));
-    if (_isIgnored(relativePosix, ignoreMatchers)) {
+    if (ignoreMatchers.any((matcher) => matcher.matches(relativePosix))) {
       ignoredPaths.add(relativePosix);
       continue;
     }
@@ -257,47 +258,4 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
     ignoredPaths: List<String>.unmodifiable(ignoredPaths),
     issues: issues,
   );
-}
-
-/// Precompiled ignore matchers for a pattern inspection.
-///
-/// Patterns that start with `**/` also keep a stripped form so root-level
-/// paths match (`**/*.tmp` matches `scratch.tmp`) without rebuilding [Glob]s
-/// per file.
-final class _IgnoreMatcher {
-  const _IgnoreMatcher({
-    required this.primary,
-    this.withoutPrefix,
-  });
-
-  final Glob primary;
-  final Glob? withoutPrefix;
-
-  bool matches(String relativePosix) {
-    if (primary.matches(relativePosix)) {
-      return true;
-    }
-    return withoutPrefix?.matches(relativePosix) ?? false;
-  }
-}
-
-List<_IgnoreMatcher> _compileIgnoreMatchers(List<String> ignoreGlobs) {
-  return [
-    for (final pattern in ignoreGlobs)
-      _IgnoreMatcher(
-        primary: Glob(pattern, context: p.posix),
-        withoutPrefix: pattern.startsWith('**/')
-            ? Glob(pattern.substring(3), context: p.posix)
-            : null,
-      ),
-  ];
-}
-
-bool _isIgnored(String relativePosix, List<_IgnoreMatcher> matchers) {
-  for (final matcher in matchers) {
-    if (matcher.matches(relativePosix)) {
-      return true;
-    }
-  }
-  return false;
 }
