@@ -88,8 +88,7 @@ foundry mold derive --pattern=./demo_pattern --output=./flutter_app
 
 Generates a starter mold package (Liquidized `template/`, stub `variables.dart`,
 root `pubspec.yaml`, empty `hooks/`) from a pattern directory. Defaults to the
-current directory when `--output` is omitted; because that path already exists,
-omitting `--output` always requires `--force`. Use `--force` to overwrite any
+current directory when `--output` is omitted. Use `--force` to overwrite an
 existing destination.
 
 ### Scaffold a new mold
@@ -236,7 +235,7 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | Option | Description |
 | --- | --- |
 | `--pattern` | **Required.** Pattern directory to derive from |
-| `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
+| `--output` | Destination for the derived mold (defaults to the current directory) |
 | `--force` | Overwrite the destination directory if it already exists |
 
 #### `foundry mold import git`
