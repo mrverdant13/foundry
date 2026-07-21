@@ -6,6 +6,11 @@ import 'package:foundry_core/foundry_core.dart'
     show Logger, PatternInspectionReport, PatternIssueSeverity, inspectPattern;
 import 'package:path/path.dart' as p;
 
+/// Inspects a pattern path and returns a [PatternInspectionReport].
+typedef PatternInspector = Future<PatternInspectionReport> Function(
+  String patternPath,
+);
+
 /// {@template foundry_cli.pattern_inspect_command}
 /// `foundry pattern inspect [<path>]`
 ///
@@ -17,7 +22,9 @@ class PatternInspectCommand extends Command<int> {
   PatternInspectCommand({
     required this.logger,
     Directory? workingDirectory,
-  }) : workingDirectory = workingDirectory ?? Directory.current;
+    PatternInspector? inspectPatternFn,
+  })  : workingDirectory = workingDirectory ?? Directory.current,
+        _inspectPattern = inspectPatternFn ?? inspectPattern;
 
   @override
   String get name => 'inspect';
@@ -35,6 +42,8 @@ class PatternInspectCommand extends Command<int> {
   /// The directory `<path>` is resolved against when relative or omitted.
   final Directory workingDirectory;
 
+  final PatternInspector _inspectPattern;
+
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
@@ -46,7 +55,7 @@ class PatternInspectCommand extends Command<int> {
         ? workingDirectory.path
         : p.normalize(p.join(workingDirectory.path, rest.single));
 
-    final report = await inspectPattern(patternPath);
+    final report = await _inspectPattern(patternPath);
 
     for (final issue in report.issues) {
       final message = '${issue.path}: ${issue.message}';
