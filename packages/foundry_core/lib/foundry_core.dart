@@ -16,6 +16,8 @@ export 'src/context/foundry_hook_exception.dart';
 export 'src/context/snapshot_foundry_context.dart';
 export 'src/logging/logger.dart';
 export 'src/mold/mold.dart';
+export 'src/mold/mold_derive.dart' show deriveMoldFromPattern;
+export 'src/mold/mold_derive_exception.dart';
 export 'src/mold/mold_git_import.dart' show importMoldFromGit;
 export 'src/mold/mold_hook_exception.dart';
 export 'src/mold/mold_hook_runner.dart' show runMoldHook;
@@ -27,6 +29,14 @@ export 'src/mold/mold_loader.dart' show loadMold;
 export 'src/mold/mold_local_import.dart' show importMoldFromLocal;
 export 'src/mold/mold_pubspec.dart';
 export 'src/mold/mold_pubspec_parser.dart' show parseMoldPubspec;
+export 'src/mold/mold_scaffold.dart'
+    show
+        defaultMoldNameFromPath,
+        isValidMoldName,
+        moldScaffoldPubspecContents,
+        moldScaffoldVariablesContents,
+        sanitizeMoldName,
+        scaffoldFoundryCoreConstraint;
 export 'src/pattern/pattern_inspector.dart';
 export 'src/pattern/pattern_issue.dart';
 export 'src/pattern/pattern_marker.dart';

@@ -98,17 +98,22 @@ List<FileSystemEntity> _defaultListPatternTopLevel(Directory directory) {
 
 /// Lists files under a pattern root recursively.
 ///
-/// Overridable in tests to exercise [FileSystemException] handling that is
-/// difficult to trigger reliably across platforms.
-@visibleForTesting
-Iterable<File> Function(String rootPath) listPatternFiles =
-    _defaultListPatternFiles;
-
-Iterable<File> _defaultListPatternFiles(String rootPath) {
+/// Used by [inspectPattern] and mold derive. Prefer this over
+/// [listPatternFiles] outside of tests — [listPatternFiles] is an injectable
+/// hook for filesystem-failure coverage.
+Iterable<File> enumeratePatternFiles(String rootPath) {
   return Glob('**', recursive: true)
       .listSync(root: rootPath, followLinks: false)
       .whereType<File>();
 }
+
+/// Lists files under a pattern root recursively.
+///
+/// Overridable in tests to exercise [FileSystemException] handling that is
+/// difficult to trigger reliably across platforms.
+@visibleForTesting
+Iterable<File> Function(String rootPath) listPatternFiles =
+    enumeratePatternFiles;
 
 /// Inspects the pattern directory at [patternPath].
 ///
