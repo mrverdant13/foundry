@@ -80,6 +80,18 @@ foundry pattern inspect
 Reports pattern name, file count, top-level entries, ignore globs, and ignored
 paths. Defaults to the current directory when no path is given.
 
+### Derive a mold from a pattern
+
+```bash
+foundry mold derive --pattern=./demo_pattern --output=./flutter_app
+```
+
+Generates a starter mold package (Liquidized `template/`, stub `variables.dart`,
+root `pubspec.yaml`, empty `hooks/`) from a pattern directory. Defaults to the
+current directory when `--output` is omitted; because that path already exists,
+omitting `--output` always requires `--force`. Use `--force` to overwrite any
+existing destination.
+
 ### Scaffold a new mold
 
 ```bash
@@ -173,6 +185,7 @@ foundry [--version] <command> [arguments] [options]
 | `foundry pattern init` | Scaffold a pattern marker and README in the current directory |
 | `foundry pattern inspect` | Analyze a pattern directory |
 | `foundry mold init` | Scaffold a new mold in the current directory |
+| `foundry mold derive` | Derive a starter mold from a pattern directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
 | `foundry mold inspect` | Validate and analyze a mold |
@@ -213,6 +226,18 @@ foundry mold init [--name=<name>]
 | Option | Description |
 | --- | --- |
 | `--name` | Mold package name (defaults to the current directory basename) |
+
+#### `foundry mold derive`
+
+```
+foundry mold derive --pattern=<path> [--output=<dir>] [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--pattern` | **Required.** Pattern directory to derive from |
+| `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
+| `--force` | Overwrite the destination directory if it already exists |
 
 #### `foundry mold import git`
 
