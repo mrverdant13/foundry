@@ -5,10 +5,10 @@ import 'package:test/test.dart';
 
 void main() {
   group('PatternCommand', () {
-    test('registers the init subcommand', () {
+    test('registers the init and inspect subcommands', () {
       final command = PatternCommand(logger: Logger());
 
-      expect(command.subcommands.keys, contains('init'));
+      expect(command.subcommands.keys, containsAll(['init', 'inspect']));
     });
 
     test('reports a usage error when no subcommand is given', () async {
