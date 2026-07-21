@@ -37,6 +37,8 @@ export 'src/mold/mold_scaffold.dart'
         moldScaffoldVariablesContents,
         sanitizeMoldName,
         scaffoldFoundryCoreConstraint;
+export 'src/mold/mold_sync.dart' show syncMoldFromPattern;
+export 'src/mold/mold_sync_exception.dart';
 export 'src/pattern/pattern_inspector.dart';
 export 'src/pattern/pattern_issue.dart';
 export 'src/pattern/pattern_marker.dart';
