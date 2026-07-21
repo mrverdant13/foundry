@@ -3,11 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_core/foundry_core.dart'
-    show
-        Logger,
-        PatternInspectionReport,
-        PatternIssueSeverity,
-        inspectPattern;
+    show Logger, PatternInspectionReport, PatternIssueSeverity, inspectPattern;
 import 'package:path/path.dart' as p;
 
 /// {@template foundry_cli.pattern_inspect_command}
@@ -31,8 +27,7 @@ class PatternInspectCommand extends Command<int> {
       'Analyze a pattern, reporting structure and ignore matches.';
 
   @override
-  String get invocation =>
-      '${runner!.executableName} pattern inspect [<path>]';
+  String get invocation => '${runner!.executableName} pattern inspect [<path>]';
 
   /// The logger used to report command output.
   final Logger logger;
