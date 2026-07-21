@@ -410,8 +410,7 @@ void main() {
       await _writePatternFile(pattern, 'README.md', 'fresh');
       final destinationFile = File(p.join(workDir.path, 'existing_sock'))
         ..writeAsStringSync('sock stand-in');
-      resolveDeriveDestinationType =
-          (_) => FileSystemEntityType.unixDomainSock;
+      resolveDeriveDestinationType = (_) => FileSystemEntityType.unixDomainSock;
 
       final moldDir = await deriveMoldFromPattern(
         patternPath: pattern.path,
