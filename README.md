@@ -71,6 +71,15 @@ foundry pattern init --name=demo_pattern
 Creates `.foundry/pattern.yaml` and a README stub in the current directory. A
 pattern is a reference project tree used to inspect structure and seed molds.
 
+### Inspect a pattern
+
+```bash
+foundry pattern inspect
+```
+
+Reports pattern name, file count, top-level entries, ignore globs, and ignored
+paths. Defaults to the current directory when no path is given.
+
 ### Scaffold a new mold
 
 ```bash
@@ -162,6 +171,7 @@ foundry [--version] <command> [arguments] [options]
 | Command | Description |
 | --- | --- |
 | `foundry pattern init` | Scaffold a pattern marker and README in the current directory |
+| `foundry pattern inspect` | Analyze a pattern directory |
 | `foundry mold init` | Scaffold a new mold in the current directory |
 | `foundry mold import git` | Import a mold from a git repository |
 | `foundry mold import local` | Import a mold from a local path |
@@ -182,6 +192,17 @@ foundry pattern init [--name=<name>]
 
 Creates `.foundry/pattern.yaml` (name + starter ignore globs) and a README
 stub that describes the pattern layout.
+
+#### `foundry pattern inspect`
+
+```
+foundry pattern inspect [<path>]
+```
+
+Analyzes a pattern directory and prints a human-readable report (name, marker
+presence, file count, ignore globs, top-level entries, and ignored paths).
+Defaults to the current directory when `<path>` is omitted. Exits with code
+`1` when the path is missing or not a directory.
 
 #### `foundry mold init`
 
