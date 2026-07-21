@@ -148,7 +148,7 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | Option | Description |
 | ------ | ----------- |
 | `--pattern` | **Required.** Pattern directory to derive from |
-| `--output` | Destination for the derived mold (defaults to the current directory) |
+| `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
 | `--force` | Overwrite the destination directory if it already exists |
 
 #### `foundry mold import git`
