@@ -259,7 +259,10 @@ void main() {
       final leftover = tempParent
           .listSync()
           .whereType<Directory>()
-          .where((dir) => p.basename(dir.path).startsWith('foundry_mold_derive_'));
+          .where(
+            (dir) =>
+                p.basename(dir.path).startsWith('foundry_mold_derive_'),
+          );
       expect(leftover, isEmpty);
     });
 
