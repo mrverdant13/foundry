@@ -39,16 +39,19 @@ void main() {
   }) originalCommit;
   late Future<PatternInspectionReport> Function(String patternPath)
       originalInspect;
+  late FileSystemEntityType Function(String path) originalResolveType;
 
   setUp(() {
     workDir = Directory.systemTemp.createTempSync('foundry_mold_derive_');
     originalCommit = commitDerivedMoldStaging;
     originalInspect = inspectPatternForDerive;
+    originalResolveType = resolveDeriveDestinationType;
   });
 
   tearDown(() {
     commitDerivedMoldStaging = originalCommit;
     inspectPatternForDerive = originalInspect;
+    resolveDeriveDestinationType = originalResolveType;
     if (workDir.existsSync()) {
       workDir.deleteSync(recursive: true);
     }
@@ -311,6 +314,114 @@ void main() {
 
       expect(FileSystemEntity.isDirectorySync(moldDir.path), isTrue);
       expect(destinationFile.existsSync(), isFalse);
+      expect(
+        await File(p.join(moldDir.path, 'template', 'README.md'))
+            .readAsString(),
+        'fresh',
+      );
+    });
+
+    test('overwrites a symlink destination when force is true', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'fresh');
+      final linkTarget = File(p.join(workDir.path, 'link_target'))
+        ..writeAsStringSync('target');
+      final destinationLink = Link(p.join(workDir.path, 'existing_link'))
+        ..createSync(linkTarget.path);
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(destinationLink.path),
+        name: 'forced_link_mold',
+        force: true,
+        tempParent: workDir,
+      );
+
+      expect(FileSystemEntity.isDirectorySync(moldDir.path), isTrue);
+      expect(
+        FileSystemEntity.typeSync(destinationLink.path, followLinks: false),
+        FileSystemEntityType.directory,
+      );
+      expect(linkTarget.existsSync(), isTrue);
+      expect(await linkTarget.readAsString(), 'target');
+      expect(
+        await File(p.join(moldDir.path, 'template', 'README.md'))
+            .readAsString(),
+        'fresh',
+      );
+    });
+
+    test('fails when destination is a symlink and force is false', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'plain');
+      final linkTarget = File(p.join(workDir.path, 'link_target'))
+        ..writeAsStringSync('target');
+      final destinationLink = Link(p.join(workDir.path, 'existing_link'))
+        ..createSync(linkTarget.path);
+
+      await expectLater(
+        deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(destinationLink.path),
+          name: 'link_dest_mold',
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('already exists'),
+          ),
+        ),
+      );
+      expect(
+        FileSystemEntity.typeSync(destinationLink.path, followLinks: false),
+        FileSystemEntityType.link,
+      );
+      expect(await linkTarget.readAsString(), 'target');
+    });
+
+    test('overwrites a pipe-typed destination when force is true', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'fresh');
+      final destinationFile = File(p.join(workDir.path, 'existing_pipe'))
+        ..writeAsStringSync('pipe stand-in');
+      resolveDeriveDestinationType = (_) => FileSystemEntityType.pipe;
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(destinationFile.path),
+        name: 'forced_pipe_mold',
+        force: true,
+        tempParent: workDir,
+      );
+
+      expect(FileSystemEntity.isDirectorySync(moldDir.path), isTrue);
+      expect(
+        await File(p.join(moldDir.path, 'template', 'README.md'))
+            .readAsString(),
+        'fresh',
+      );
+    });
+
+    test('overwrites a unix-domain-socket-typed destination when force is true',
+        () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(pattern, 'README.md', 'fresh');
+      final destinationFile = File(p.join(workDir.path, 'existing_sock'))
+        ..writeAsStringSync('sock stand-in');
+      resolveDeriveDestinationType =
+          (_) => FileSystemEntityType.unixDomainSock;
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(destinationFile.path),
+        name: 'forced_sock_mold',
+        force: true,
+        tempParent: workDir,
+      );
+
+      expect(FileSystemEntity.isDirectorySync(moldDir.path), isTrue);
       expect(
         await File(p.join(moldDir.path, 'template', 'README.md'))
             .readAsString(),

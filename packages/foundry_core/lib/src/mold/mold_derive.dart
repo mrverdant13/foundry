@@ -31,6 +31,18 @@ Future<void> Function({
   required Directory destination,
 }) commitDerivedMoldStaging = _defaultCommitDerivedMoldStaging;
 
+/// Resolves the filesystem entity type for a derive destination path.
+///
+/// Overridable in tests to exercise delete paths that are difficult to create
+/// reliably across platforms (for example pipes and unix domain sockets).
+@visibleForTesting
+FileSystemEntityType Function(String path) resolveDeriveDestinationType =
+    _defaultResolveDeriveDestinationType;
+
+FileSystemEntityType _defaultResolveDeriveDestinationType(String path) {
+  return FileSystemEntity.typeSync(path, followLinks: false);
+}
+
 Future<void> _defaultCommitDerivedMoldStaging({
   required Directory staging,
   required Directory destination,
@@ -162,16 +174,16 @@ Future<Directory> deriveMoldFromPattern({
 /// Unlike [Directory.existsSync], this is true for files and symlinks as well
 /// as directories (links are not followed).
 bool _pathExists(String path) {
-  return FileSystemEntity.typeSync(path, followLinks: false) !=
-      FileSystemEntityType.notFound;
+  return resolveDeriveDestinationType(path) != FileSystemEntityType.notFound;
 }
 
 /// Deletes whatever entity currently occupies [path], if any.
 ///
 /// Directories are removed recursively. Files and symlinks are removed without
-/// following the link target.
+/// following the link target. Other non-directory entities (for example pipes)
+/// are deleted as files.
 Future<void> _deleteExistingPath(String path) async {
-  final type = FileSystemEntity.typeSync(path, followLinks: false);
+  final type = resolveDeriveDestinationType(path);
   switch (type) {
     case FileSystemEntityType.notFound:
       return;
