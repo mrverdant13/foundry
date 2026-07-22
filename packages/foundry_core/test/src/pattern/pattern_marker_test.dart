@@ -45,11 +45,14 @@ replacements:
       unicode: true
       caseSensitive: false
     to: "Bar${1}"
+  - from:
+      pattern: "Baz"
+    to: "Qux"
 ''',
         sourcePath: '/tmp/.foundry/pattern.yaml',
       );
 
-      expect(marker.replacements, hasLength(2));
+      expect(marker.replacements, hasLength(3));
       expect(marker.replacements[0].from.pattern, 'ref_pkg');
       expect(marker.replacements[0].to, '{{ package_name }}');
       expect(marker.replacements[1].from.pattern, 'Foo(.*)');
@@ -58,6 +61,12 @@ replacements:
       expect(marker.replacements[1].from.isUnicode, isTrue);
       expect(marker.replacements[1].from.isCaseSensitive, isFalse);
       expect(marker.replacements[1].to, r'Bar${1}');
+      expect(marker.replacements[2].from.pattern, 'Baz');
+      expect(marker.replacements[2].from.isDotAll, isFalse);
+      expect(marker.replacements[2].from.isMultiLine, isFalse);
+      expect(marker.replacements[2].from.isUnicode, isFalse);
+      expect(marker.replacements[2].from.isCaseSensitive, isTrue);
+      expect(marker.replacements[2].to, 'Qux');
     });
 
     test('parses lineDeletions with inclusive ranges', () {
@@ -257,6 +266,26 @@ replacements:
       );
     });
 
+    test('rejects a replacement with a non-string non-map from', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '''
+replacements:
+  - from: 1
+    to: other
+''',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('replacements[0].from'),
+          ),
+        ),
+      );
+    });
+
     test('rejects a regex object without a pattern', () {
       expect(
         () => parsePatternMarker(
@@ -336,6 +365,25 @@ replacements:
       );
     });
 
+    test('rejects a lineDeletion entry that is not a map', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '''
+lineDeletions:
+  - lib/main.dart
+''',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('lineDeletions[0]'),
+          ),
+        ),
+      );
+    });
+
     test('rejects a lineDeletion without filePath', () {
       expect(
         () => parsePatternMarker(
@@ -371,6 +419,47 @@ lineDeletions:
             (error) => error.issues.single.message,
             'message',
             contains('lineDeletions[0].ranges'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a lineDeletion when ranges is not a list', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '''
+lineDeletions:
+  - filePath: lib/main.dart
+    ranges: 1
+''',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('lineDeletions[0].ranges'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a line range entry that is not a map', () {
+      expect(
+        () => parsePatternMarker(
+          yamlContent: '''
+lineDeletions:
+  - filePath: lib/main.dart
+    ranges:
+      - 1
+''',
+          sourcePath: '/tmp/.foundry/pattern.yaml',
+        ),
+        throwsA(
+          isA<PatternMarkerException>().having(
+            (error) => error.issues.single.message,
+            'message',
+            contains('lineDeletions[0].ranges[0]'),
           ),
         ),
       );
