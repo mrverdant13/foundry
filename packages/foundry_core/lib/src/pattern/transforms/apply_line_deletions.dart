@@ -16,10 +16,10 @@ import 'package:path/path.dart' as p;
 /// [relativePosixPath] are ignored (no-op). Line numbers past the end of
 /// [content] are ignored.
 ///
-/// When any matching range applies, lines are rejoined with `\n` and a
-/// trailing newline is always present (matching `writeln` semantics). When
-/// no matching ranges apply, [content] is returned unchanged — including
-/// original newlines.
+/// When any matching range applies, each kept line is written with `writeln`
+/// (so it ends with `\n`). If every line is dropped, the result is an empty
+/// string (no synthetic trailing newline). When no matching ranges apply,
+/// [content] is returned unchanged — including original newlines.
 String applyLineDeletions({
   required String content,
   required String relativePosixPath,
