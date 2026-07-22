@@ -269,6 +269,36 @@ void main() {
       );
     });
 
+    test('rejects path replacements that escape the template root', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writeFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: sync_bad_path\n'
+            'replacements:\n'
+            '  - from: "README.md"\n'
+            '    to: "../escape.txt"\n',
+      );
+      await _writeFile(pattern, 'README.md', 'x\n');
+
+      final mold = await _createMold(workDir);
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: mold,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            contains('outside the template directory'),
+          ),
+        ),
+      );
+    });
+
     test('force replaces template and removes orphans', () async {
       final pattern = await _createPattern(workDir);
       final mold = await _createMold(workDir);

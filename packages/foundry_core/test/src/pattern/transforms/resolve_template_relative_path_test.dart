@@ -88,5 +88,13 @@ void main() {
         ),
       );
     });
+
+    test('TemplatePathReplacementException toString includes the message', () {
+      const exception = TemplatePathReplacementException('unsafe path');
+      expect(
+        exception.toString(),
+        'TemplatePathReplacementException: unsafe path',
+      );
+    });
   });
 }
