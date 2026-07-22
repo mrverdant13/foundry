@@ -11,14 +11,14 @@ void main() {
     test('liquidizes content that contains mustache-style braces', () {
       expect(
         resolvePatternContent('Hello {{ name }}'),
-        '{% raw %}Hello {{ name }}{% endraw %}',
+        r'Hello {{ "{{" }} name }}',
       );
     });
 
     test('liquidizes content that contains Liquid tags', () {
       expect(
         resolvePatternContent('{% if true %}yes{% endif %}'),
-        '{% raw %}{% if true %}yes{% endif %}{% endraw %}',
+        r'{{ "{%" }} if true %}yes{{ "{%" }} endif %}',
       );
     });
 
@@ -50,7 +50,7 @@ void main() {
             ),
           ],
         ),
-        '{% raw %}Hello {{ name }}\n{% endraw %}',
+        'Hello {{ "{{" }} name }}\n',
       );
     });
 

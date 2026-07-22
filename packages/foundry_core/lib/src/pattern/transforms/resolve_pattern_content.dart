@@ -7,8 +7,8 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 /// Transform order:
 /// 1. [applyLineDeletions] for ranges whose [PatternLineDeletion.filePath]
 ///    matches [relativePosixPath] (non-matching entries are no-ops)
-/// 2. [liquidizeTemplateContents] so remaining Liquid-looking markers survive
-///    later render as literals
+/// 2. [liquidizeTemplateContents] escapes source `{{` / `{%` openers so
+///    accidental braces survive later render as literals
 ///
 /// This is the single entry point used when writing a pattern file into
 /// `template/`. Binary files are not passed through this helper — copy them

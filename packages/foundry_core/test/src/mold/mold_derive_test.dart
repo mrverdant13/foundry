@@ -147,7 +147,7 @@ void main() {
       final readme = await File(
         p.join(moldDir.path, 'template', 'README.md'),
       ).readAsString();
-      expect(readme, '{% raw %}# Hello {{ project_name }}\n{% endraw %}');
+      expect(readme, '# Hello {{ "{{" }} project_name }}\n');
 
       final pubspec = await File(
         p.join(moldDir.path, 'pubspec.yaml'),

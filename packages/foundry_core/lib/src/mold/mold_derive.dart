@@ -59,9 +59,8 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///
 /// **Best-effort limitations**
 /// - Binary files (NUL bytes) are copied into `template/` unchanged.
-/// - Liquidize wraps entire text files that contain `{{` or `{%` in
-///   `{% raw %}…{% endraw %}`; nested or pre-existing raw tags may need hand
-///   editing afterward.
+/// - Liquidize escapes source `{{` / `{%` openers per delimiter so accidental
+///   braces stay literal while later transforms can inject live Liquid.
 /// - Path segments that look like Liquid are left as-is (they become template
 ///   path expressions on cast).
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always

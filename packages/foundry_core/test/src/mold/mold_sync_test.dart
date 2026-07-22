@@ -136,7 +136,7 @@ void main() {
       final readme = await File(
         p.join(mold.path, 'template', 'README.md'),
       ).readAsString();
-      expect(readme, '{% raw %}# Hello {{ project_name }}\n{% endraw %}');
+      expect(readme, '# Hello {{ "{{" }} project_name }}\n');
       expect(
         File(p.join(mold.path, 'template', 'lib', 'app.dart')).existsSync(),
         isTrue,
