@@ -69,5 +69,50 @@ void main() {
         'a\nb\n',
       );
     });
+
+    test('applies content replacements after liquidize', () {
+      expect(
+        resolvePatternContent(
+          'use ref_pkg',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('ref_pkg'),
+              to: '{{ package_name }}',
+            ),
+          ],
+        ),
+        'use {{ package_name }}',
+      );
+    });
+
+    test('keeps injected Liquid live while escaping source braces', () {
+      expect(
+        resolvePatternContent(
+          'Hello {{ literal }} and ref_pkg',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('ref_pkg'),
+              to: '{{ package_name }}',
+            ),
+          ],
+        ),
+        r'Hello {{ "{{" }} literal }} and {{ package_name }}',
+      );
+    });
+
+    test('applies replacements with capture interpolation', () {
+      expect(
+        resolvePatternContent(
+          'FooWidget',
+          replacements: [
+            PatternReplacement(
+              from: RegExp(r'Foo(.*)'),
+              to: r'Bar${1}',
+            ),
+          ],
+        ),
+        'BarWidget',
+      );
+    });
   });
 }
