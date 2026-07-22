@@ -12,7 +12,7 @@ String liquidizeTemplateContents(String source) {
   }
   // Escape `{{` before `{%` so the escape payloads themselves are not
   // re-processed as Liquid openers.
-  return source.replaceAll('{{', r'{{ "{{" }}').replaceAll('{%', r'{{ "{%" }}');
+  return source.replaceAll('{{', '{{ "{{" }}').replaceAll('{%', '{{ "{%" }}');
 }
 
 /// Whether [bytes] look like binary content that should not be liquidized.

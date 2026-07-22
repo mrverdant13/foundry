@@ -70,7 +70,8 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///   excluded even when not listed in the marker.
 /// - Marker `lineDeletions` drop inclusive line ranges from matching text
 ///   files before liquidize.
-/// - Marker `replacements` run after liquidize so injected `{{ … }}` stays live.
+/// - Marker `replacements` run after liquidize so injected `{{ … }}` stays
+///   live.
 ///
 /// When [destination] already exists as any filesystem entity (directory,
 /// file, or symlink) and [force] is `false`, throws [MoldDeriveException].

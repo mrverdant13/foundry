@@ -14,14 +14,14 @@ void main() {
     test('escapes mustache-style openers per delimiter', () {
       expect(
         liquidizeTemplateContents('Hello {{ name }}'),
-        r'Hello {{ "{{" }} name }}',
+        'Hello {{ "{{" }} name }}',
       );
     });
 
     test('escapes Liquid tag openers per delimiter', () {
       expect(
         liquidizeTemplateContents('{% if true %}yes{% endif %}'),
-        r'{{ "{%" }} if true %}yes{{ "{%" }} endif %}',
+        '{{ "{%" }} if true %}yes{{ "{%" }} endif %}',
       );
     });
   });

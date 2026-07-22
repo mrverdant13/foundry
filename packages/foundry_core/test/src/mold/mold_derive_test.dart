@@ -252,7 +252,7 @@ void main() {
         renamed,
         'library {{ package_name }};\n'
         'class BarWidget {}\n'
-        r'const keep = "{{ "{{" }} already_liquid }}";'
+        'const keep = "{{ "{{" }} already_liquid }}";'
         '\n',
       );
 
