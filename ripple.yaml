@@ -2,6 +2,7 @@ name: foundry
 
 packages:
   include:
+    - .
     - packages/*
     - packages/*/e2e
     - tool
@@ -19,12 +20,16 @@ packages:
       - packages/foundry_cli
 
 scripts:
+  get:
+    description: Get all packages
+    exec: dart pub get
+
   format:
     description: Format a package
     exec: dart format .
   format.ci:
     description: Format all packages (CI)
-    run: dart format --set-exit-if-changed .
+    exec: dart format --set-exit-if-changed .
 
   analyze:
     description: Analyze a package
