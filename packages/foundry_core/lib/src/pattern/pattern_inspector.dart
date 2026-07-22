@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:foundry_core/src/pattern/pattern_ignore.dart';
 import 'package:foundry_core/src/pattern/pattern_issue.dart';
+import 'package:foundry_core/src/pattern/pattern_line_deletion.dart';
 import 'package:foundry_core/src/pattern/pattern_marker.dart';
 import 'package:glob/glob.dart';
 import 'package:glob/list_local_fs.dart';
@@ -18,6 +19,7 @@ final class PatternInspectionReport {
     this.name,
     this.hasMarker = false,
     this.ignoreGlobs = const [],
+    this.lineDeletions = const [],
     this.fileCount = 0,
     this.topLevelEntries = const [],
     this.ignoredPaths = const [],
@@ -38,6 +40,12 @@ final class PatternInspectionReport {
 
   /// Ignore globs loaded from the marker (empty when absent or invalid).
   final List<String> ignoreGlobs;
+
+  /// Line deletions loaded from the marker (empty when absent or invalid).
+  ///
+  /// Inspect does not apply these; derive / sync use them when writing
+  /// `template/`.
+  final List<PatternLineDeletion> lineDeletions;
 
   /// Number of files under [rootPath] that do not match [ignoreGlobs].
   final int fileCount;
@@ -193,6 +201,9 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
   }
 
   final ignoreGlobs = List<String>.unmodifiable(marker.ignore);
+  final lineDeletions = List<PatternLineDeletion>.unmodifiable(
+    marker.lineDeletions,
+  );
   final ignoreMatchers = compilePatternIgnoreMatchers(ignoreGlobs);
 
   final List<String> topLevelEntries;
@@ -207,6 +218,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
       name: marker.name,
       hasMarker: hasMarker,
       ignoreGlobs: ignoreGlobs,
+      lineDeletions: lineDeletions,
       issues: [
         ...issues,
         PatternIssue(
@@ -227,6 +239,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
       name: marker.name,
       hasMarker: hasMarker,
       ignoreGlobs: ignoreGlobs,
+      lineDeletions: lineDeletions,
       topLevelEntries: List<String>.unmodifiable(topLevelEntries),
       issues: [
         ...issues,
@@ -258,6 +271,7 @@ Future<PatternInspectionReport> inspectPattern(String patternPath) async {
     name: marker.name,
     hasMarker: hasMarker,
     ignoreGlobs: ignoreGlobs,
+    lineDeletions: lineDeletions,
     fileCount: fileCount,
     topLevelEntries: List<String>.unmodifiable(topLevelEntries),
     ignoredPaths: List<String>.unmodifiable(ignoredPaths),

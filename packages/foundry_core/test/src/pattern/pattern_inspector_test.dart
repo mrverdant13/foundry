@@ -24,6 +24,7 @@ void main() {
       expect(report.hasMarker, isFalse);
       expect(report.name, isNull);
       expect(report.ignoreGlobs, isEmpty);
+      expect(report.lineDeletions, isEmpty);
       expect(report.ignoredPaths, isEmpty);
       expect(report.fileCount, 2);
       expect(report.topLevelEntries, ['README.md', 'lib']);
@@ -57,9 +58,40 @@ ignore:
       expect(report.hasMarker, isTrue);
       expect(report.name, 'marked_pattern');
       expect(report.ignoreGlobs, ['build/**', '**/*.tmp']);
+      expect(report.lineDeletions, isEmpty);
       expect(report.fileCount, 3);
       expect(report.ignoredPaths, ['build/out.txt', 'scratch.tmp']);
       expect(report.topLevelEntries, containsAll(['.foundry', 'README.md']));
+    });
+
+    test('surfaces lineDeletions from the pattern marker', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'foundry_pattern_line_deletions_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await Directory(p.join(tempDir.path, '.foundry')).create();
+      await File(p.join(tempDir.path, patternMarkerRelativePath)).writeAsString(
+        '''
+name: with_deletions
+lineDeletions:
+  - filePath: lib/main.dart
+    ranges:
+      - start: 1
+        end: 2
+''',
+      );
+      await File(p.join(tempDir.path, 'README.md')).writeAsString('# Pattern');
+
+      final report = await inspectPattern(tempDir.path);
+
+      expect(report.isValid, isTrue);
+      expect(report.hasMarker, isTrue);
+      expect(report.lineDeletions, hasLength(1));
+      expect(report.lineDeletions.single.filePath, 'lib/main.dart');
+      expect(report.lineDeletions.single.ranges, hasLength(1));
+      expect(report.lineDeletions.single.ranges.single.start, 1);
+      expect(report.lineDeletions.single.ranges.single.end, 2);
     });
 
     test('returns a structured error when the path is missing', () async {

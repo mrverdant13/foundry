@@ -4,6 +4,7 @@ import 'package:foundry_core/src/mold/mold_derive_exception.dart';
 import 'package:foundry_core/src/mold/mold_scaffold.dart';
 import 'package:foundry_core/src/mold/mold_template_from_pattern.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
+import 'package:foundry_core/src/pattern/pattern_line_deletion.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
@@ -52,8 +53,9 @@ Future<void> _defaultCommitDerivedMoldStaging({
 /// - root `pubspec.yaml` depending on `foundry_core`
 /// - stub `variables.dart` with a single `FoundryStringVariable`
 /// - empty `hooks/`
-/// - `template/` tree copied from non-ignored pattern files, with Liquid-like
-///   text content escaped via `liquidizeTemplateContents`
+/// - `template/` tree copied from non-ignored pattern files, with configured
+///   `lineDeletions` applied and Liquid-like text content escaped via
+///   `liquidizeTemplateContents`
 ///
 /// **Best-effort limitations**
 /// - Binary files (NUL bytes) are copied into `template/` unchanged.
@@ -64,6 +66,8 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///   path expressions on cast).
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
+/// - Marker `lineDeletions` drop inclusive line ranges from matching text
+///   files before liquidize.
 ///
 /// When [destination] already exists as any filesystem entity (directory,
 /// file, or symlink) and [force] is `false`, throws [MoldDeriveException].
@@ -138,6 +142,7 @@ Future<Directory> deriveMoldFromPattern({
       staging: staging,
       patternRootPath: report.rootPath,
       ignoreGlobs: report.ignoreGlobs,
+      lineDeletions: report.lineDeletions,
       moldName: moldName,
     );
 
@@ -214,6 +219,7 @@ Future<void> _writeDerivedMold({
   required Directory staging,
   required String patternRootPath,
   required List<String> ignoreGlobs,
+  required List<PatternLineDeletion> lineDeletions,
   required String moldName,
 }) async {
   await staging.create(recursive: true);
@@ -229,6 +235,7 @@ Future<void> _writeDerivedMold({
     templateRoot: Directory(p.join(staging.path, 'template')),
     patternRootPath: patternRootPath,
     ignoreGlobs: ignoreGlobs,
+    lineDeletions: lineDeletions,
   );
 }
 
