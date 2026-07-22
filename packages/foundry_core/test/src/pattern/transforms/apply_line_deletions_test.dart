@@ -182,5 +182,20 @@ This is line 20.
 
       expect(result, 'keep\n');
     });
+
+    test('returns empty string when every line is deleted', () {
+      final result = applyLineDeletions(
+        content: 'a\nb\nc\n',
+        relativePosixPath: 'lib/main.dart',
+        lineDeletions: const [
+          PatternLineDeletion(
+            filePath: 'lib/main.dart',
+            ranges: [PatternLineRange(start: 0, end: 2)],
+          ),
+        ],
+      );
+
+      expect(result, isEmpty);
+    });
   });
 }
