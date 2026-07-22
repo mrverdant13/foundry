@@ -72,6 +72,8 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///   files before liquidize.
 /// - Marker `replacements` run after liquidize so injected `{{ … }}` stays
 ///   live.
+/// - Remotion annotations (`drop`, `remove-start` / `remove-end`) run after
+///   replacements.
 ///
 /// When [destination] already exists as any filesystem entity (directory,
 /// file, or symlink) and [force] is `false`, throws [MoldDeriveException].
