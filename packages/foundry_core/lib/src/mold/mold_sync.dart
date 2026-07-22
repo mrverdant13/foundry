@@ -41,7 +41,7 @@ Future<void> Function({
 ///
 /// **Merge rules**
 /// - Refreshes files under `template/` from non-ignored pattern files, using
-///   the same line-deletion / replacement / liquidize / binary-copy rules as
+///   the same line-deletion / liquidize / replacement / binary-copy rules as
 ///   mold derive.
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
