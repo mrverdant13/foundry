@@ -22,7 +22,7 @@ void main() {
         applyReplacement(
           input: 'FooBarBaz',
           replacement: PatternReplacement(
-            from: RegExp(r'Foo(.*)Baz'),
+            from: RegExp('Foo(.*)Baz'),
             to: r'Bar${1}',
           ),
         ),
@@ -35,7 +35,7 @@ void main() {
         applyReplacement(
           input: 'a-b-c',
           replacement: PatternReplacement(
-            from: RegExp(r'(a)-(b)-(c)'),
+            from: RegExp('(a)-(b)-(c)'),
             to: r'${3}/${2}/${1}',
           ),
         ),
@@ -48,7 +48,7 @@ void main() {
         applyReplacement(
           input: 'only-one',
           replacement: PatternReplacement(
-            from: RegExp(r'(only)-one'),
+            from: RegExp('(only)-one'),
             to: r'${1}${2}',
           ),
         ),

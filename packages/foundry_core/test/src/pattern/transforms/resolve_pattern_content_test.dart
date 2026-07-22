@@ -106,7 +106,7 @@ void main() {
           'FooWidget',
           replacements: [
             PatternReplacement(
-              from: RegExp(r'Foo(.*)'),
+              from: RegExp('Foo(.*)'),
               to: r'Bar${1}',
             ),
           ],
