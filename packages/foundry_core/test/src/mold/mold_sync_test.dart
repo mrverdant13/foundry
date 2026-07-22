@@ -174,6 +174,53 @@ void main() {
       );
     });
 
+    test('applies marker lineDeletions when refreshing template/', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writeFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: sync_deletions\n'
+            'lineDeletions:\n'
+            '  - filePath: lib/app.dart\n'
+            '    ranges:\n'
+            '      - start: 0\n'
+            '        end: 0\n',
+      );
+      await _writeFile(
+        pattern,
+        'lib/app.dart',
+        'drop-me\n'
+            'keep-me\n',
+      );
+      await _writeFile(pattern, 'README.md', 'unchanged\n');
+
+      final mold = await _createMold(workDir);
+      final variablesBefore = await File(
+        p.join(mold.path, 'variables.dart'),
+      ).readAsString();
+
+      await syncMoldFromPattern(
+        patternPath: pattern.path,
+        moldDirectory: mold,
+        tempParent: workDir,
+      );
+
+      final app = await File(
+        p.join(mold.path, 'template', 'lib', 'app.dart'),
+      ).readAsString();
+      expect(app, 'keep-me\n');
+
+      final readme = await File(
+        p.join(mold.path, 'template', 'README.md'),
+      ).readAsString();
+      expect(readme, 'unchanged\n');
+
+      expect(
+        await File(p.join(mold.path, 'variables.dart')).readAsString(),
+        variablesBefore,
+      );
+    });
+
     test('force replaces template and removes orphans', () async {
       final pattern = await _createPattern(workDir);
       final mold = await _createMold(workDir);
