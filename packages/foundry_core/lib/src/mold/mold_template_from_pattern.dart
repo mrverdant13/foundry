@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:foundry_core/src/pattern/pattern_ignore.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
+import 'package:foundry_core/src/pattern/transforms/resolve_pattern_content.dart';
 import 'package:foundry_core/src/rendering/template_liquidize.dart';
 import 'package:path/path.dart' as p;
 
@@ -17,8 +18,8 @@ const _excludedTemplatePrefixes = {'.foundry'};
 /// Creates [templateRoot] when missing. Existing files under [templateRoot] are
 /// left untouched unless overwritten by a matching pattern file.
 ///
-/// Binary files (NUL bytes) are copied unchanged. Text files that contain
-/// Liquid-looking markers are escaped via [liquidizeTemplateContents].
+/// Binary files (NUL bytes) are copied unchanged. Text files are resolved via
+/// [resolvePatternContent] (currently liquidize only).
 /// `.foundry/` is always excluded even when not listed in [ignoreGlobs].
 Future<void> writeLiquidizedTemplateFromPattern({
   required Directory templateRoot,
@@ -74,7 +75,7 @@ Future<void> _copyPatternFileToTemplate({
 
   final content = utf8.decode(bytes, allowMalformed: true);
   await destination.writeAsString(
-    liquidizeTemplateContents(content),
+    resolvePatternContent(content),
     flush: true,
   );
 }
