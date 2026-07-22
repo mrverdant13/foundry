@@ -40,9 +40,11 @@ Future<void> Function({
 ///
 /// **Merge rules**
 /// - Refreshes files under `template/` from non-ignored pattern files, using
-///   the same liquidize / binary-copy rules as mold derive.
+///   the same line-deletion / liquidize / binary-copy rules as mold derive.
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
+/// - Marker `lineDeletions` drop inclusive line ranges from matching text
+///   files before liquidize.
 /// - Overlapping `template/` paths are overwritten with freshly generated
 ///   content.
 /// - Root `pubspec.yaml`, root `variables.dart`, `hooks/`, and any other
@@ -103,6 +105,7 @@ Future<Directory> syncMoldFromPattern({
       templateRoot: stagedTemplate,
       patternRootPath: report.rootPath,
       ignoreGlobs: report.ignoreGlobs,
+      lineDeletions: report.lineDeletions,
     );
 
     await commitSyncedMoldTemplate(

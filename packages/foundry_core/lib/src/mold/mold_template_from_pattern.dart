@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:foundry_core/src/pattern/pattern_ignore.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
+import 'package:foundry_core/src/pattern/pattern_line_deletion.dart';
 import 'package:foundry_core/src/pattern/transforms/resolve_pattern_content.dart';
 import 'package:foundry_core/src/rendering/template_liquidize.dart';
 import 'package:path/path.dart' as p;
@@ -13,18 +14,19 @@ import 'package:path/path.dart' as p;
 const _excludedTemplatePrefixes = {'.foundry'};
 
 /// Writes a liquidized `template/` tree under [templateRoot] from the pattern
-/// at [patternRootPath], applying [ignoreGlobs].
+/// at [patternRootPath], applying [ignoreGlobs] and [lineDeletions].
 ///
 /// Creates [templateRoot] when missing. Existing files under [templateRoot] are
 /// left untouched unless overwritten by a matching pattern file.
 ///
 /// Binary files (NUL bytes) are copied unchanged. Text files are resolved via
-/// [resolvePatternContent] (currently liquidize only).
+/// [resolvePatternContent] (line deletions, then liquidize).
 /// `.foundry/` is always excluded even when not listed in [ignoreGlobs].
 Future<void> writeLiquidizedTemplateFromPattern({
   required Directory templateRoot,
   required String patternRootPath,
   required List<String> ignoreGlobs,
+  List<PatternLineDeletion> lineDeletions = const [],
 }) async {
   await templateRoot.create(recursive: true);
 
@@ -43,6 +45,8 @@ Future<void> writeLiquidizedTemplateFromPattern({
     await _copyPatternFileToTemplate(
       source: file,
       destination: destinationFile,
+      relativePosixPath: relativePosix,
+      lineDeletions: lineDeletions,
     );
   }
 }
@@ -66,6 +70,8 @@ bool _shouldSkipTemplatePath(
 Future<void> _copyPatternFileToTemplate({
   required File source,
   required File destination,
+  required String relativePosixPath,
+  required List<PatternLineDeletion> lineDeletions,
 }) async {
   final bytes = await source.readAsBytes();
   if (looksLikeBinaryTemplateBytes(bytes)) {
@@ -75,7 +81,11 @@ Future<void> _copyPatternFileToTemplate({
 
   final content = utf8.decode(bytes, allowMalformed: true);
   await destination.writeAsString(
-    resolvePatternContent(content),
+    resolvePatternContent(
+      content,
+      relativePosixPath: relativePosixPath,
+      lineDeletions: lineDeletions,
+    ),
     flush: true,
   );
 }

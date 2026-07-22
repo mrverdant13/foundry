@@ -164,6 +164,54 @@ void main() {
       expect(report.isValid, isTrue);
     });
 
+    test('applies marker lineDeletions when writing template/', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: deletions_pattern\n'
+            'lineDeletions:\n'
+            '  - filePath: lib/greeter.dart\n'
+            '    ranges:\n'
+            '      - start: 1\n'
+            '        end: 2\n'
+            '  - filePath: missing.dart\n'
+            '    ranges:\n'
+            '      - start: 0\n'
+            '        end: 0\n',
+      );
+      await _writePatternFile(
+        pattern,
+        'lib/greeter.dart',
+        'line0\n'
+            'line1-drop\n'
+            'line2-drop\n'
+            'line3\n',
+      );
+      await _writePatternFile(
+        pattern,
+        'README.md',
+        'keep-all\n'
+            'also-keep\n',
+      );
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(p.join(workDir.path, 'out_mold')),
+        tempParent: workDir,
+      );
+
+      final greeter = await File(
+        p.join(moldDir.path, 'template', 'lib', 'greeter.dart'),
+      ).readAsString();
+      expect(greeter, 'line0\nline3\n');
+
+      final readme = await File(
+        p.join(moldDir.path, 'template', 'README.md'),
+      ).readAsString();
+      expect(readme, 'keep-all\nalso-keep\n');
+    });
+
     test('names the mold from the pattern directory basename', () async {
       final pattern = Directory(p.join(workDir.path, 'hello_world'))
         ..createSync();
