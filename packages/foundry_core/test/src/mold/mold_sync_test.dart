@@ -136,7 +136,7 @@ void main() {
       final readme = await File(
         p.join(mold.path, 'template', 'README.md'),
       ).readAsString();
-      expect(readme, '{% raw %}# Hello {{ project_name }}\n{% endraw %}');
+      expect(readme, '# Hello {{ "{{" }} project_name }}\n');
       expect(
         File(p.join(mold.path, 'template', 'lib', 'app.dart')).existsSync(),
         isTrue,
@@ -218,6 +218,84 @@ void main() {
       expect(
         await File(p.join(mold.path, 'variables.dart')).readAsString(),
         variablesBefore,
+      );
+    });
+
+    test('applies marker replacements to paths and contents', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writeFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: sync_replacements\n'
+            'replacements:\n'
+            '  - from: ref_pkg\n'
+            '    to: "{{ package_name }}"\n',
+      );
+      await _writeFile(
+        pattern,
+        'lib/ref_pkg.dart',
+        'library ref_pkg;\n',
+      );
+      await _writeFile(pattern, 'README.md', 'use ref_pkg\n');
+
+      final mold = await _createMold(workDir);
+      final variablesBefore = await File(
+        p.join(mold.path, 'variables.dart'),
+      ).readAsString();
+
+      await syncMoldFromPattern(
+        patternPath: pattern.path,
+        moldDirectory: mold,
+        tempParent: workDir,
+      );
+
+      expect(
+        File(p.join(mold.path, 'template', 'lib', 'ref_pkg.dart')).existsSync(),
+        isFalse,
+      );
+      expect(
+        await File(
+          p.join(mold.path, 'template', 'lib', '{{ package_name }}.dart'),
+        ).readAsString(),
+        'library {{ package_name }};\n',
+      );
+      expect(
+        await File(p.join(mold.path, 'template', 'README.md')).readAsString(),
+        'use {{ package_name }}\n',
+      );
+      expect(
+        await File(p.join(mold.path, 'variables.dart')).readAsString(),
+        variablesBefore,
+      );
+    });
+
+    test('rejects path replacements that escape the template root', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writeFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: sync_bad_path\n'
+            'replacements:\n'
+            '  - from: "README.md"\n'
+            '    to: "../escape.txt"\n',
+      );
+      await _writeFile(pattern, 'README.md', 'x\n');
+
+      final mold = await _createMold(workDir);
+
+      expect(
+        () => syncMoldFromPattern(
+          patternPath: pattern.path,
+          moldDirectory: mold,
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldSyncException>().having(
+            (error) => error.message,
+            'message',
+            contains('outside the template directory'),
+          ),
+        ),
       );
     });
 

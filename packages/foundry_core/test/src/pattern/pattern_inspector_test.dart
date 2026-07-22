@@ -25,6 +25,7 @@ void main() {
       expect(report.name, isNull);
       expect(report.ignoreGlobs, isEmpty);
       expect(report.lineDeletions, isEmpty);
+      expect(report.replacements, isEmpty);
       expect(report.ignoredPaths, isEmpty);
       expect(report.fileCount, 2);
       expect(report.topLevelEntries, ['README.md', 'lib']);
@@ -59,6 +60,7 @@ ignore:
       expect(report.name, 'marked_pattern');
       expect(report.ignoreGlobs, ['build/**', '**/*.tmp']);
       expect(report.lineDeletions, isEmpty);
+      expect(report.replacements, isEmpty);
       expect(report.fileCount, 3);
       expect(report.ignoredPaths, ['build/out.txt', 'scratch.tmp']);
       expect(report.topLevelEntries, containsAll(['.foundry', 'README.md']));
@@ -92,6 +94,34 @@ lineDeletions:
       expect(report.lineDeletions.single.ranges, hasLength(1));
       expect(report.lineDeletions.single.ranges.single.start, 1);
       expect(report.lineDeletions.single.ranges.single.end, 2);
+      expect(report.replacements, isEmpty);
+    });
+
+    test('surfaces replacements from the pattern marker', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'foundry_pattern_replacements_',
+      );
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      await Directory(p.join(tempDir.path, '.foundry')).create();
+      await File(p.join(tempDir.path, patternMarkerRelativePath)).writeAsString(
+        '''
+name: with_replacements
+replacements:
+  - from: ref_pkg
+    to: "{{ package_name }}"
+''',
+      );
+      await File(p.join(tempDir.path, 'README.md')).writeAsString('# Pattern');
+
+      final report = await inspectPattern(tempDir.path);
+
+      expect(report.isValid, isTrue);
+      expect(report.hasMarker, isTrue);
+      expect(report.replacements, hasLength(1));
+      expect(report.replacements.single.from.pattern, 'ref_pkg');
+      expect(report.replacements.single.to, '{{ package_name }}');
+      expect(report.lineDeletions, isEmpty);
     });
 
     test('returns a structured error when the path is missing', () async {

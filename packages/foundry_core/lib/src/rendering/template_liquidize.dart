@@ -1,16 +1,18 @@
-/// Escapes Liquid-like sequences so pattern file contents survive as literal
+/// Escapes Liquid-like openers so pattern file contents survive as literal
 /// text when later rendered by Foundry's template engine.
 ///
-/// Best-effort: when [source] contains `{{` or `{%`, the entire string is
-/// wrapped in `{% raw %}…{% endraw %}`. Files that already use `{% raw %}` /
-/// `{% endraw %}`, or that embed those tags inside other constructs, may need
-/// hand editing after derive. Binary files should not be passed through this
-/// helper — copy them byte-for-byte instead.
+/// Best-effort per-delimiter pre-pass: each source `{{` becomes
+/// `{{ "{{" }}` and each source `{%` becomes `{{ "{%" }}`, so accidental
+/// braces render as literals while later transforms can still inject live
+/// Liquid tags. Binary files should not be passed through this helper —
+/// copy them byte-for-byte instead.
 String liquidizeTemplateContents(String source) {
   if (!_looksLikeLiquid(source)) {
     return source;
   }
-  return '{% raw %}$source{% endraw %}';
+  // Escape `{{` before `{%` so the escape payloads themselves are not
+  // re-processed as Liquid openers.
+  return source.replaceAll('{{', '{{ "{{" }}').replaceAll('{%', '{{ "{%" }}');
 }
 
 /// Whether [bytes] look like binary content that should not be liquidized.

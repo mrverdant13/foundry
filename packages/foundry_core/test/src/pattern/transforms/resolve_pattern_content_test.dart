@@ -11,14 +11,14 @@ void main() {
     test('liquidizes content that contains mustache-style braces', () {
       expect(
         resolvePatternContent('Hello {{ name }}'),
-        '{% raw %}Hello {{ name }}{% endraw %}',
+        'Hello {{ "{{" }} name }}',
       );
     });
 
     test('liquidizes content that contains Liquid tags', () {
       expect(
         resolvePatternContent('{% if true %}yes{% endif %}'),
-        '{% raw %}{% if true %}yes{% endif %}{% endraw %}',
+        '{{ "{%" }} if true %}yes{{ "{%" }} endif %}',
       );
     });
 
@@ -50,7 +50,7 @@ void main() {
             ),
           ],
         ),
-        '{% raw %}Hello {{ name }}\n{% endraw %}',
+        'Hello {{ "{{" }} name }}\n',
       );
     });
 
@@ -67,6 +67,51 @@ void main() {
           ],
         ),
         'a\nb\n',
+      );
+    });
+
+    test('applies content replacements after liquidize', () {
+      expect(
+        resolvePatternContent(
+          'use ref_pkg',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('ref_pkg'),
+              to: '{{ package_name }}',
+            ),
+          ],
+        ),
+        'use {{ package_name }}',
+      );
+    });
+
+    test('keeps injected Liquid live while escaping source braces', () {
+      expect(
+        resolvePatternContent(
+          'Hello {{ literal }} and ref_pkg',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('ref_pkg'),
+              to: '{{ package_name }}',
+            ),
+          ],
+        ),
+        'Hello {{ "{{" }} literal }} and {{ package_name }}',
+      );
+    });
+
+    test('applies replacements with capture interpolation', () {
+      expect(
+        resolvePatternContent(
+          'FooWidget',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('Foo(.*)'),
+              to: r'Bar${1}',
+            ),
+          ],
+        ),
+        'BarWidget',
       );
     });
   });

@@ -11,17 +11,17 @@ void main() {
       expect(liquidizeTemplateContents('Hello world'), 'Hello world');
     });
 
-    test('wraps content that contains mustache-style braces', () {
+    test('escapes mustache-style openers per delimiter', () {
       expect(
         liquidizeTemplateContents('Hello {{ name }}'),
-        '{% raw %}Hello {{ name }}{% endraw %}',
+        'Hello {{ "{{" }} name }}',
       );
     });
 
-    test('wraps content that contains Liquid tags', () {
+    test('escapes Liquid tag openers per delimiter', () {
       expect(
         liquidizeTemplateContents('{% if true %}yes{% endif %}'),
-        '{% raw %}{% if true %}yes{% endif %}{% endraw %}',
+        '{{ "{%" }} if true %}yes{{ "{%" }} endif %}',
       );
     });
   });
@@ -68,6 +68,29 @@ void main() {
       expect(
         await File(p.join(outputDirectory.path, 'note.txt')).readAsString(),
         'Keep {{ project_name }} literal',
+      );
+    });
+
+    test('unescaped injected Liquid still renders', () async {
+      final templateDirectory = Directory(p.join(tempRoot.path, 'template'))
+        ..createSync();
+      final outputDirectory = Directory(p.join(tempRoot.path, 'output'))
+        ..createSync();
+
+      final escapedPrefix = liquidizeTemplateContents('prefix ');
+      await File(p.join(templateDirectory.path, 'note.txt')).writeAsString(
+        '$escapedPrefix{{ project_name }}',
+      );
+
+      await renderTemplate(
+        templateDirectory: templateDirectory,
+        outputDirectory: outputDirectory,
+        context: SnapshotFoundryContext({'project_name': 'my_app'}),
+      );
+
+      expect(
+        await File(p.join(outputDirectory.path, 'note.txt')).readAsString(),
+        'prefix my_app',
       );
     });
   });
