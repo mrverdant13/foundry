@@ -6,6 +6,7 @@ import 'package:foundry_core/src/mold/mold_pubspec_parser.dart';
 import 'package:foundry_core/src/mold/mold_sync_exception.dart';
 import 'package:foundry_core/src/mold/mold_template_from_pattern.dart';
 import 'package:foundry_core/src/pattern/pattern_inspector.dart';
+import 'package:foundry_core/src/pattern/transforms/resolve_template_relative_path.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
@@ -40,11 +41,14 @@ Future<void> Function({
 ///
 /// **Merge rules**
 /// - Refreshes files under `template/` from non-ignored pattern files, using
-///   the same line-deletion / liquidize / binary-copy rules as mold derive.
+///   the same line-deletion / replacement / liquidize / binary-copy rules as
+///   mold derive.
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
 /// - Marker `lineDeletions` drop inclusive line ranges from matching text
 ///   files before liquidize.
+/// - Marker `replacements` rename template-relative paths and rewrite contents
+///   after liquidize so injected Liquid stays live.
 /// - Overlapping `template/` paths are overwritten with freshly generated
 ///   content.
 /// - Root `pubspec.yaml`, root `variables.dart`, `hooks/`, and any other
@@ -106,6 +110,7 @@ Future<Directory> syncMoldFromPattern({
       patternRootPath: report.rootPath,
       ignoreGlobs: report.ignoreGlobs,
       lineDeletions: report.lineDeletions,
+      replacements: report.replacements,
     );
 
     await commitSyncedMoldTemplate(
@@ -116,6 +121,8 @@ Future<Directory> syncMoldFromPattern({
     return normalizedMold;
   } on MoldSyncException {
     rethrow;
+  } on TemplatePathReplacementException catch (error) {
+    throw MoldSyncException(error.message);
   } on FileSystemException catch (error) {
     final path = error.path;
     final pathSuffix = (path == null || path.isEmpty) ? '' : ' ($path)';

@@ -221,6 +221,54 @@ void main() {
       );
     });
 
+    test('applies marker replacements to paths and contents', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writeFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: sync_replacements\n'
+            'replacements:\n'
+            '  - from: ref_pkg\n'
+            '    to: "{{ package_name }}"\n',
+      );
+      await _writeFile(
+        pattern,
+        'lib/ref_pkg.dart',
+        'library ref_pkg;\n',
+      );
+      await _writeFile(pattern, 'README.md', 'use ref_pkg\n');
+
+      final mold = await _createMold(workDir);
+      final variablesBefore = await File(
+        p.join(mold.path, 'variables.dart'),
+      ).readAsString();
+
+      await syncMoldFromPattern(
+        patternPath: pattern.path,
+        moldDirectory: mold,
+        tempParent: workDir,
+      );
+
+      expect(
+        File(p.join(mold.path, 'template', 'lib', 'ref_pkg.dart')).existsSync(),
+        isFalse,
+      );
+      expect(
+        await File(
+          p.join(mold.path, 'template', 'lib', '{{ package_name }}.dart'),
+        ).readAsString(),
+        'library {{ package_name }};\n',
+      );
+      expect(
+        await File(p.join(mold.path, 'template', 'README.md')).readAsString(),
+        'use {{ package_name }}\n',
+      );
+      expect(
+        await File(p.join(mold.path, 'variables.dart')).readAsString(),
+        variablesBefore,
+      );
+    });
+
     test('force replaces template and removes orphans', () async {
       final pattern = await _createPattern(workDir);
       final mold = await _createMold(workDir);

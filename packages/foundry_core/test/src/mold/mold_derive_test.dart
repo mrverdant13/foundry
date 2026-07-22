@@ -212,6 +212,84 @@ void main() {
       expect(readme, 'keep-all\nalso-keep\n');
     });
 
+    test('applies marker replacements to paths and contents', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: replacements_pattern\n'
+            'replacements:\n'
+            '  - from: ref_pkg\n'
+            '    to: "{{ package_name }}"\n'
+            '  - from: "Foo(.*)"\n'
+            '    to: "Bar\${1}"\n',
+      );
+      await _writePatternFile(
+        pattern,
+        'lib/ref_pkg.dart',
+        'library ref_pkg;\n'
+            'class FooWidget {}\n'
+            'const keep = "{{ already_liquid }}";\n',
+      );
+      await _writePatternFile(pattern, 'README.md', 'plain readme\n');
+
+      final moldDir = await deriveMoldFromPattern(
+        patternPath: pattern.path,
+        destination: Directory(p.join(workDir.path, 'out_mold')),
+        tempParent: workDir,
+      );
+
+      expect(
+        File(
+          p.join(moldDir.path, 'template', 'lib', 'ref_pkg.dart'),
+        ).existsSync(),
+        isFalse,
+      );
+      final renamed = await File(
+        p.join(moldDir.path, 'template', 'lib', '{{ package_name }}.dart'),
+      ).readAsString();
+      expect(
+        renamed,
+        'library {{ package_name }};\n'
+        'class BarWidget {}\n'
+        r'const keep = "{{ "{{" }} already_liquid }}";'
+        '\n',
+      );
+
+      final readme = await File(
+        p.join(moldDir.path, 'template', 'README.md'),
+      ).readAsString();
+      expect(readme, 'plain readme\n');
+    });
+
+    test('rejects path replacements that escape the template root', () async {
+      final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
+      await _writePatternFile(
+        pattern,
+        '.foundry/pattern.yaml',
+        'name: bad_path_pattern\n'
+            'replacements:\n'
+            '  - from: "README.md"\n'
+            '    to: "../escape.txt"\n',
+      );
+      await _writePatternFile(pattern, 'README.md', 'x\n');
+
+      expect(
+        () => deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out_mold')),
+          tempParent: workDir,
+        ),
+        throwsA(
+          isA<MoldDeriveException>().having(
+            (error) => error.message,
+            'message',
+            contains('outside the template directory'),
+          ),
+        ),
+      );
+    });
+
     test('names the mold from the pattern directory basename', () async {
       final pattern = Directory(p.join(workDir.path, 'hello_world'))
         ..createSync();
