@@ -110,6 +110,52 @@ keep-after
       }
     });
 
+    group('empty replacement bodies by comment flavor', () {
+      for (final case_ in [
+        (
+          start: '/*replace-start*/',
+          withMarker: '/*with*/',
+          end: '/*replace-end*/',
+        ),
+        (
+          start: '#replace-start#',
+          withMarker: '#with#',
+          end: '#replace-end#',
+        ),
+        (
+          start: '<!--replace-start-->',
+          withMarker: '<!--with-->',
+          end: '<!--replace-end-->',
+        ),
+      ]) {
+        test(
+          'discards scaffold for empty ${case_.start} … ${case_.end}',
+          () {
+            final input = '''
+keep-before
+${case_.start}
+scaffold
+${case_.withMarker}
+${case_.end}
+keep-after
+''';
+            const expected = '''
+keep-before
+
+keep-after
+''';
+
+            final result = applyReplaceBlocks(content: input);
+
+            expect(result, expected);
+            expect(result, isNot(contains('replace-start')));
+            expect(result, isNot(contains('with')));
+            expect(result, isNot(contains('scaffold')));
+          },
+        );
+      }
+    });
+
     test('throws FormatException when with section line is invalid', () {
       const input = '''
 line/*replace-start*/
