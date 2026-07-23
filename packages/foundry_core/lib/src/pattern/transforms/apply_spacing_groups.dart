@@ -40,4 +40,3 @@ const List<String> _groupPatterns = [
 ];
 
 final RegExp _actionRegex = RegExp(r'(?<actionTimes>\d+)(?<actionType>[v>]) ?');
-
