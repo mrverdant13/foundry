@@ -32,18 +32,21 @@ typedef ParkedLiquidTag = ({
 /// [restoreParkedLiquidTags] writes the live tag and applies any `x`
 /// whitespace flags.
 ({String content, List<ParkedLiquidTag> replacements}) parkLiquidTagAnnotations(
-    String content) {
+  String content,
+) {
   final replacements = <ParkedLiquidTag>[];
   final parked = _liquidTagTokenPatterns.fold(content, (resolved, pattern) {
     final regex = RegExp(pattern, dotAll: true);
     return resolved.replaceAllMapped(regex, (match) {
       match as RegExpMatch;
       final index = replacements.length;
-      replacements.add((
-        tag: match.namedGroup('liquidTag') ?? '',
-        dropLeading: (match.namedGroup('dropLeading') ?? '').isNotEmpty,
-        dropTrailing: (match.namedGroup('dropTrailing') ?? '').isNotEmpty,
-      ));
+      replacements.add(
+        (
+          tag: match.namedGroup('liquidTag') ?? '',
+          dropLeading: (match.namedGroup('dropLeading') ?? '').isNotEmpty,
+          dropTrailing: (match.namedGroup('dropTrailing') ?? '').isNotEmpty,
+        ),
+      );
       return '$_placeholderPrefix$index$_placeholderSuffix';
     });
   });
@@ -90,33 +93,45 @@ const _placeholderPrefix = '<<FOUNDRY_LIQUID_TAG_';
 const _placeholderSuffix = '>>';
 
 /// `{{…}}` or `{%…%}` (non-greedy inner match).
-const _liquidTag = r'(?:{{.*?}}|{%.*?%})';
+const _liquidTag = '(?:{{.*?}}|{%.*?%})';
 
 /// Full match including adjacent whitespace (used by [applyLiquidTags]).
-const _liquidTagPatterns = [
-  r'(?<leading>\s*)\/\*(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?\*\/(?<trailing>\s*)',
-  r'(?<leading>\s*)#(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?#(?<trailing>\s*)',
-  r'(?<leading>\s*)<!--(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?-->(?<trailing>\s*)',
+final List<String> _liquidTagPatterns = [
+  [
+    r'(?<leading>\s*)\/\*(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    r')(?<dropTrailing>x)?\*\/(?<trailing>\s*)',
+  ].join(),
+  [
+    r'(?<leading>\s*)#(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    r')(?<dropTrailing>x)?#(?<trailing>\s*)',
+  ].join(),
+  [
+    r'(?<leading>\s*)<!--(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    r')(?<dropTrailing>x)?-->(?<trailing>\s*)',
+  ].join(),
 ];
 
 /// Comment token only — no adjacent whitespace (used when parking so block
 /// annotation newlines stay intact until restore).
-const _liquidTagTokenPatterns = [
-  r'\/\*(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?\*\/',
-  r'#(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?#',
-  r'<!--(?<dropLeading>x)?(?<liquidTag>'
-      '$_liquidTag'
-      r')(?<dropTrailing>x)?-->',
+final List<String> _liquidTagTokenPatterns = [
+  [
+    r'\/\*(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    r')(?<dropTrailing>x)?\*\/',
+  ].join(),
+  [
+    '#(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    ')(?<dropTrailing>x)?#',
+  ].join(),
+  [
+    '<!--(?<dropLeading>x)?(?<liquidTag>',
+    _liquidTag,
+    ')(?<dropTrailing>x)?-->',
+  ].join(),
 ];
 
 String _resolveLiquidTagMatch(RegExpMatch match) {
