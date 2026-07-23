@@ -239,7 +239,7 @@ void main() {
         resolvePatternContent(
           'keep\n'
           '/*{{name}}*/\n'
-          '/*w 2v 4> w*/'
+          '/*w 2v 4> w*/ '
           'end\n',
         ),
         'keep\n'
