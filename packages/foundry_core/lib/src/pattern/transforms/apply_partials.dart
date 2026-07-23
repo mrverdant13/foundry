@@ -9,6 +9,10 @@ import 'package:path/path.dart' as p;
 /// `{% render 'name.partial' %}`. Supports C-style, hash, and HTML comment
 /// flavors.
 ///
+/// Partial names form a single namespace under [targetAbsolutePath] (typically
+/// the mold `template/` root). Writing the same name with identical content is
+/// allowed; a different payload for an existing name throws [FormatException].
+///
 /// Surrounding whitespace in markers is ignored. Partial names must not be
 /// empty, `.`, `..`, contain path separators, or include characters that are
 /// invalid in filenames. Invalid names throw [FormatException].
@@ -29,7 +33,19 @@ String applyPartials({
       final rawPartialName = match.namedGroup('partialName') ?? '';
       final partialName = _validatedPartialName(rawPartialName);
       final partialPayload = match.namedGroup('partialPayload') ?? '';
-      File(p.join(targetAbsolutePath, '$partialName.partial'))
+      final partialFile = File(
+        p.join(targetAbsolutePath, '$partialName.partial'),
+      );
+      if (partialFile.existsSync()) {
+        final existing = partialFile.readAsStringSync();
+        if (existing != partialPayload) {
+          throw FormatException(
+            'Partial name "$partialName" collides with an existing '
+            '"$partialName.partial" that has different content.',
+          );
+        }
+      }
+      partialFile
         ..createSync(recursive: true)
         ..writeAsStringSync(partialPayload);
       return "{% render '$partialName.partial' %}";

@@ -274,6 +274,39 @@ void main() {
       },
     );
 
+    test(
+      'rejects derive when two pattern files collide on a partial name',
+      () async {
+        final pattern = Directory(p.join(workDir.path, 'pattern'))
+          ..createSync();
+        await _writePatternFile(
+          pattern,
+          'a/one.md',
+          '/*partial v header*/Header from A/*partial ^ header*/\n',
+        );
+        await _writePatternFile(
+          pattern,
+          'b/two.md',
+          '/*partial v header*/Header from B/*partial ^ header*/\n',
+        );
+
+        await expectLater(
+          deriveMoldFromPattern(
+            patternPath: pattern.path,
+            destination: Directory(p.join(workDir.path, 'out_mold')),
+            tempParent: workDir,
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('header'), contains('collides')),
+            ),
+          ),
+        );
+      },
+    );
+
     test('applies marker replacements to paths and contents', () async {
       final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
       await _writePatternFile(

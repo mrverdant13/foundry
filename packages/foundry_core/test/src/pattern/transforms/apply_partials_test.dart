@@ -230,22 +230,50 @@ plain text
       }
     });
 
-    test('overwrites an existing partial file with the same name', () {
-      const input = '''
-/*partial v shared*/new content
-/*partial ^ shared*/
-''';
+    test('allows overwriting a partial when content is identical', () {
+      const input =
+          '/*partial v shared*/same content\n/*partial ^ shared*/';
       final partialPath = p.join(tempDir.path, 'shared.partial');
       File(partialPath)
         ..createSync(recursive: true)
-        ..writeAsStringSync('old content');
+        ..writeAsStringSync('same content\n');
 
-      applyPartials(
+      final result = applyPartials(
         content: input,
         targetAbsolutePath: tempDir.path,
       );
 
-      expect(File(partialPath).readAsStringSync(), 'new content\n');
+      expect(result, "{% render 'shared.partial' %}");
+      expect(File(partialPath).readAsStringSync(), 'same content\n');
     });
+
+    test(
+      'throws FormatException when a partial name collides with different content',
+      () {
+        const input = '''
+/*partial v shared*/new content
+/*partial ^ shared*/
+''';
+        final partialPath = p.join(tempDir.path, 'shared.partial');
+        File(partialPath)
+          ..createSync(recursive: true)
+          ..writeAsStringSync('old content');
+
+        expect(
+          () => applyPartials(
+            content: input,
+            targetAbsolutePath: tempDir.path,
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (error) => error.message,
+              'message',
+              contains('collides'),
+            ),
+          ),
+        );
+        expect(File(partialPath).readAsStringSync(), 'old content');
+      },
+    );
   });
 }
