@@ -293,5 +293,23 @@ void main() {
         'Hello {{ "{{" }} name }}\n',
       );
     });
+
+    test(
+      'throws when partial annotations are present without a target path',
+      () {
+        expect(
+          () => resolvePatternContent(
+            '/*partial v header*/Hello\n/*partial ^ header*/\n',
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => error.message,
+              'message',
+              contains('targetAbsolutePath is required'),
+            ),
+          ),
+        );
+      },
+    );
   });
 }

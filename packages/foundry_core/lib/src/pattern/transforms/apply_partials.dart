@@ -33,6 +33,12 @@ String applyPartials({
       final rawPartialName = match.namedGroup('partialName') ?? '';
       final partialName = _validatedPartialName(rawPartialName);
       final partialPayload = match.namedGroup('partialPayload') ?? '';
+      if (targetAbsolutePath.isEmpty) {
+        throw ArgumentError(
+          'targetAbsolutePath is required when content contains partial '
+          'annotations.',
+        );
+      }
       final partialFile = File(
         p.join(targetAbsolutePath, '$partialName.partial'),
       );

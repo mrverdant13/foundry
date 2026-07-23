@@ -43,8 +43,9 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 /// [resolveTemplateRelativePath] outside this helper.
 ///
 /// [targetAbsolutePath] is the mold `template/` directory where extracted
-/// partial files are written. Callers that never contain partial annotations
-/// may omit it; matched partials still require a writable directory.
+/// partial files are written. When [content] contains partial annotations,
+/// [targetAbsolutePath] must be a non-empty writable directory; an empty
+/// value throws from [applyPartials] instead of writing into the process cwd.
 String resolvePatternContent(
   String source, {
   String relativePosixPath = '',

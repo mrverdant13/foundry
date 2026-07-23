@@ -230,6 +230,31 @@ plain text
       }
     });
 
+    test(
+      'throws ArgumentError when a partial matches with an empty target path',
+      () {
+        const input = '''
+/*partial v header*/payload
+/*partial ^ header*/
+''';
+
+        expect(
+          () => applyPartials(
+            content: input,
+            targetAbsolutePath: '',
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => error.message,
+              'message',
+              contains('targetAbsolutePath is required'),
+            ),
+          ),
+        );
+        expect(tempDir.listSync(), isEmpty);
+      },
+    );
+
     test('allows overwriting a partial when content is identical', () {
       const input =
           '/*partial v shared*/same content\n/*partial ^ shared*/';
