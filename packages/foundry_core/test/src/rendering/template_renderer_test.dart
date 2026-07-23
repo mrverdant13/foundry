@@ -333,5 +333,141 @@ void main() {
 
       expect(writtenFiles, isEmpty);
     });
+
+    test(
+      'resolves {% render %} via filesystem Root and skips .partial outputs',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'header.partial'),
+          'Hello {{ name }}!\n',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'README.md'),
+          // Bare render tags receive cast context via renderTemplate expansion.
+          "{% render 'header.partial' %}\n"
+          "Static {% render 'footer.partial' %}\n",
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'footer.partial'),
+          'footer',
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'name': 'Foundry'}),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        expect(
+          await File(p.join(outputDirectory.path, 'README.md')).readAsString(),
+          'Hello Foundry!\n'
+          '\n'
+          'Static footer\n',
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'header.partial')).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'footer.partial')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('resolves nested {% render %} paths under template Root', () async {
+      await _writeFile(
+        p.join(templateDirectory.path, 'components', 'badge.partial'),
+        '[{{ label }}]',
+      );
+      await _writeFile(
+        p.join(templateDirectory.path, 'page.txt'),
+        "{% render 'components/badge.partial' %}\n",
+      );
+
+      final writtenFiles = await renderTemplate(
+        templateDirectory: templateDirectory,
+        outputDirectory: outputDirectory,
+        context: SnapshotFoundryContext({'label': 'ok'}),
+      );
+
+      expect(writtenFiles, hasLength(1));
+      expect(
+        await File(p.join(outputDirectory.path, 'page.txt')).readAsString(),
+        '[ok]\n',
+      );
+      expect(
+        Directory(p.join(outputDirectory.path, 'components')).existsSync(),
+        isFalse,
+      );
+    });
+
+    test(
+      'leaves render tags that already pass arguments unchanged',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'greet.partial'),
+          '{{ greeting }}, {{ name }}!',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'page.txt'),
+          """{% render 'greet.partial', greeting: greeting, name: 'explicit' %}\n""",
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({
+            'greeting': 'Hi',
+            'name': 'from-context',
+          }),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        expect(
+          await File(p.join(outputDirectory.path, 'page.txt')).readAsString(),
+          'Hi, explicit!\n',
+        );
+      },
+    );
+
+    test(
+      'forwards cast context through nested bare {% render %} in partials',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'inner.partial'),
+          'Inner: {{ name }}',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'outer.partial'),
+          "Outer wraps: {% render 'inner.partial' %}",
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'page.txt'),
+          "{% render 'outer.partial' %}\n",
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'name': 'Foundry'}),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        expect(
+          await File(p.join(outputDirectory.path, 'page.txt')).readAsString(),
+          'Outer wraps: Inner: Foundry\n',
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'outer.partial')).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'inner.partial')).existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 }

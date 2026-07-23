@@ -212,6 +212,101 @@ void main() {
       expect(readme, 'keep-all\nalso-keep\n');
     });
 
+    test(
+      'extracts partial annotations and renders them via {% render %}',
+      () async {
+        final pattern = Directory(p.join(workDir.path, 'pattern'))
+          ..createSync();
+        await _writePatternFile(
+          pattern,
+          'README.md',
+          '# App\n'
+              '/*partial v greeting*/Hello /*{{ project_name }}*/!\n'
+              '/*partial ^ greeting*/\n'
+              'Done.\n',
+        );
+
+        final moldDir = await deriveMoldFromPattern(
+          patternPath: pattern.path,
+          destination: Directory(p.join(workDir.path, 'out_mold')),
+          tempParent: workDir,
+        );
+
+        final templateReadme = await File(
+          p.join(moldDir.path, 'template', 'README.md'),
+        ).readAsString();
+        expect(
+          templateReadme,
+          '# App\n'
+          "{% render 'greeting.partial' %}\n"
+          'Done.\n',
+        );
+
+        final partialFile = File(
+          p.join(moldDir.path, 'template', 'greeting.partial'),
+        );
+        expect(partialFile.existsSync(), isTrue);
+        expect(
+          await partialFile.readAsString(),
+          'Hello {{ project_name }}!\n',
+        );
+
+        final outputDir = Directory(p.join(workDir.path, 'cast_out'))
+          ..createSync();
+        final written = await renderTemplate(
+          templateDirectory: Directory(p.join(moldDir.path, 'template')),
+          outputDirectory: outputDir,
+          context: SnapshotFoundryContext({'project_name': 'Foundry'}),
+        );
+
+        expect(written, hasLength(1));
+        expect(
+          await File(p.join(outputDir.path, 'README.md')).readAsString(),
+          '# App\n'
+          'Hello Foundry!\n'
+          '\n'
+          'Done.\n',
+        );
+        expect(
+          File(p.join(outputDir.path, 'greeting.partial')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'rejects derive when two pattern files collide on a partial name',
+      () async {
+        final pattern = Directory(p.join(workDir.path, 'pattern'))
+          ..createSync();
+        await _writePatternFile(
+          pattern,
+          'a/one.md',
+          '/*partial v header*/Header from A/*partial ^ header*/\n',
+        );
+        await _writePatternFile(
+          pattern,
+          'b/two.md',
+          '/*partial v header*/Header from B/*partial ^ header*/\n',
+        );
+
+        await expectLater(
+          deriveMoldFromPattern(
+            patternPath: pattern.path,
+            destination: Directory(p.join(workDir.path, 'out_mold')),
+            tempParent: workDir,
+          ),
+          throwsA(
+            isA<FormatException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('header'), contains('collides')),
+            ),
+          ),
+        );
+      },
+    );
+
     test('applies marker replacements to paths and contents', () async {
       final pattern = Directory(p.join(workDir.path, 'pattern'))..createSync();
       await _writePatternFile(

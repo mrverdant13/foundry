@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:foundry_core/foundry_core.dart';
 import 'package:foundry_core/src/pattern/transforms/resolve_pattern_content.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -255,5 +258,58 @@ void main() {
         'a\n  b',
       );
     });
+
+    test('extracts partials after spacing groups', () {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'foundry_resolve_partials_',
+      );
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          '/*partial v header*/Hello {{ name }}\n'
+          '/*partial ^ header*/\n'
+          // Intentionally missing whitespace between adjacent strings to test
+          // the spacing group expansion.
+          // ignore: missing_whitespace_between_adjacent_strings
+          '/*w 1v w*/'
+          'end\n',
+          targetAbsolutePath: tempDir.path,
+        ),
+        'keep\n'
+        "{% render 'header.partial' %}\n"
+        'end\n',
+      );
+
+      final partialFile = File(p.join(tempDir.path, 'header.partial'));
+      expect(partialFile.existsSync(), isTrue);
+      expect(
+        partialFile.readAsStringSync(),
+        'Hello {{ "{{" }} name }}\n',
+      );
+    });
+
+    test(
+      'throws when partial annotations are present without a target path',
+      () {
+        expect(
+          () => resolvePatternContent(
+            '/*partial v header*/Hello\n/*partial ^ header*/\n',
+          ),
+          throwsA(
+            isA<ArgumentError>().having(
+              (error) => error.message,
+              'message',
+              contains('targetAbsolutePath is required'),
+            ),
+          ),
+        );
+      },
+    );
   });
 }
