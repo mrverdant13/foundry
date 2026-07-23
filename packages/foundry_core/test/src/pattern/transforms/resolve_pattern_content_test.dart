@@ -172,5 +172,36 @@ void main() {
         'keep\nreplaced\nmidinserted\nend\n',
       );
     });
+
+    test('unwraps liquid tags after insert blocks as live Liquid', () {
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          'mid/*insert-start*/\n'
+          '// /*{{nested}}*/\n'
+          '/*insert-end*/\n'
+          '/*{{name}}*/\n'
+          '#{% if ready %}#\n'
+          'end\n',
+        ),
+        'keep\nmid{{nested}}\n{{name}}\n{% if ready %}\nend\n',
+      );
+    });
+
+    test('keeps accidental braces escaped while liquid tags stay live', () {
+      expect(
+        resolvePatternContent(
+          'Hello {{ literal }} and /*{{name}}*/',
+        ),
+        'Hello {{ "{{" }} literal }} and {{name}}',
+      );
+    });
+
+    test('honors liquid tag x flags through the full pipeline', () {
+      expect(
+        resolvePatternContent('before /*x{{name}}x*/ after'),
+        'before{{name}}after',
+      );
+    });
   });
 }
