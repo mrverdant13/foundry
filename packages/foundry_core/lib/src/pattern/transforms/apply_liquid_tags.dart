@@ -31,8 +31,8 @@ typedef ParkedLiquidTag = ({
 /// place so later block annotations such as insert/replace still parse).
 /// [restoreParkedLiquidTags] writes the live tag and applies any `x`
 /// whitespace flags.
-({String content, List<ParkedLiquidTag> replacements})
-parkLiquidTagAnnotations(String content) {
+({String content, List<ParkedLiquidTag> replacements}) parkLiquidTagAnnotations(
+    String content) {
   final replacements = <ParkedLiquidTag>[];
   final parked = _liquidTagTokenPatterns.fold(content, (resolved, pattern) {
     final regex = RegExp(pattern, dotAll: true);

@@ -147,7 +147,8 @@ plain text
       expect(restored, 'a{{name}}b');
     });
 
-    test('does not consume newlines while parking so block markers survive', () {
+    test('does not consume newlines while parking so block markers survive',
+        () {
       const input = '''
 mid/*insert-start*/
 // /*{{nested}}*/
