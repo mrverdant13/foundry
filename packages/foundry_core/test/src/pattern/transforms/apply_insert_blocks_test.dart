@@ -286,5 +286,72 @@ line 2
 
       expect(result, expected);
     });
+
+    test('resolves two insert blocks of the same comment flavor', () {
+      const input = '''
+a/*insert-start*/
+// one
+/*insert-end*/
+mid
+/*insert-start*/
+// two
+/*insert-end*/
+z
+''';
+      const expected = '''
+aone
+mid
+two
+z
+''';
+
+      final result = applyInsertBlocks(content: input);
+
+      expect(result, expected);
+    });
+
+    test('throws FormatException when insert body has a whitespace-only line',
+        () {
+      const input = '''
+/*insert-start*/
+// valid
+       
+/*insert-end*/
+''';
+
+      expect(
+        () => applyInsertBlocks(content: input),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('C-style comment'),
+          ),
+        ),
+      );
+    });
+
+    test('resolves adjacent insert blocks of different flavors', () {
+      const input = '''
+/*insert-start*/
+// c
+/*insert-end*/
+#insert-start#
+# h
+#insert-end#
+<!--insert-start-->
+<!-- html-->
+<!--insert-end-->
+''';
+      const expected = '''
+c
+h
+html
+''';
+
+      final result = applyInsertBlocks(content: input);
+
+      expect(result, expected);
+    });
   });
 }
