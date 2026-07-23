@@ -70,6 +70,10 @@ foundry pattern init --name=demo_pattern
 
 Creates `.foundry/pattern.yaml` and a README stub in the current directory. A
 pattern is a reference project tree used to inspect structure and seed molds.
+Annotate pattern files with comment markers, and optionally declare
+`replacements` / `lineDeletions` in `.foundry/pattern.yaml`, so derive/sync can
+produce a parametrized Liquid `template/` — see
+[`doc/annotations.md`](doc/annotations.md).
 
 ### Inspect a pattern
 
@@ -87,10 +91,12 @@ foundry mold derive --pattern=./demo_pattern --output=./flutter_app
 ```
 
 Generates a starter mold package (Liquidized `template/`, stub `variables.dart`,
-root `pubspec.yaml`, empty `hooks/`) from a pattern directory. Defaults to the
-current directory when `--output` is omitted; because that path already exists,
-omitting `--output` always requires `--force`. Use `--force` to overwrite any
-existing destination.
+root `pubspec.yaml`, empty `hooks/`) from a pattern directory. Content
+transforms honor pattern annotations and `.foundry/pattern.yaml`
+`replacements` / `lineDeletions` (see [`doc/annotations.md`](doc/annotations.md)).
+Defaults to the current directory when `--output` is omitted; because that path
+already exists, omitting `--output` always requires `--force`. Use `--force` to
+overwrite any existing destination.
 
 ### Sync a mold template from a pattern
 
@@ -100,8 +106,11 @@ foundry mold sync --pattern=./demo_pattern
 
 Refreshes `template/` in the current mold from a pattern directory while
 preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
-non-`template/` author edits. Use `--force` to replace `template/` wholesale
-(orphan template files that no longer exist in the pattern are removed).
+non-`template/` author edits. Uses the same annotation and
+`replacements` / `lineDeletions` rules as derive (see
+[`doc/annotations.md`](doc/annotations.md)). Use `--force` to replace
+`template/` wholesale (orphan template files that no longer exist in the
+pattern are removed).
 
 ### Scaffold a new mold
 
@@ -216,7 +225,9 @@ foundry pattern init [--name=<name>]
 | `--name` | Pattern name (defaults to the current directory basename) |
 
 Creates `.foundry/pattern.yaml` (name + starter ignore globs) and a README
-stub that describes the pattern layout.
+stub that describes the pattern layout. Authors may later add `replacements`
+and `lineDeletions` to the marker, or comment markers in pattern files — see
+[`doc/annotations.md`](doc/annotations.md).
 
 #### `foundry pattern inspect`
 
@@ -251,6 +262,10 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
 | `--force` | Overwrite the destination directory if it already exists |
 
+Resolves pattern annotations and `.foundry/pattern.yaml` `replacements` /
+`lineDeletions` into the mold `template/` (see
+[`doc/annotations.md`](doc/annotations.md)).
+
 #### `foundry mold sync`
 
 ```
@@ -263,8 +278,9 @@ foundry mold sync --pattern=<path> [--force]
 | `--force` | Replace `template/` wholesale (remove orphans); author edits outside `template/` are still preserved |
 
 Syncs the mold in the current directory. Refreshes `template/` from the pattern
-while preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
-non-`template/` files.
+(same annotation / `replacements` / `lineDeletions` rules as derive; see
+[`doc/annotations.md`](doc/annotations.md)) while preserving root
+`pubspec.yaml`, `variables.dart`, `hooks/`, and other non-`template/` files.
 
 #### `foundry mold import git`
 
@@ -346,7 +362,8 @@ foundry/
 ├── CONTRIBUTING.md              # Contributor guide
 ├── doc/
 │   ├── mold-pubspec.schema.json # JSON Schema for mold pubspec.yaml
-│   └── hooks.md                 # Mold lifecycle hooks reference
+│   ├── hooks.md                 # Mold lifecycle hooks reference
+│   └── annotations.md           # Pattern annotations and pattern.yaml
 ├── pubspec.yaml                 # Root tooling package
 ├── ripple.yaml                  # Ripple package discovery and scripts
 ├── packages/
@@ -370,7 +387,8 @@ rendering, and cast orchestration are exported from
 `package:foundry_core/foundry_core.dart`.
 
 Mold hooks depend on **`foundry_core`** (not `foundry_cli`). See
-[`doc/hooks.md`](doc/hooks.md) for the full hook contract.
+[`doc/hooks.md`](doc/hooks.md) for the full hook contract. Pattern derive/sync
+transforms are documented in [`doc/annotations.md`](doc/annotations.md).
 
 ```dart
 import 'package:foundry_core/foundry_core.dart';
