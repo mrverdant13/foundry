@@ -154,5 +154,23 @@ void main() {
         'keep\n\nvalue\nend\n',
       );
     });
+
+    test('applies insert blocks after replace blocks', () {
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          '/*replace-start*/\n'
+          'scaffold\n'
+          '/*with*/\n'
+          '// replaced\n'
+          '/*replace-end*/\n'
+          'mid/*insert-start*/\n'
+          '// inserted\n'
+          '/*insert-end*/\n'
+          'end\n',
+        ),
+        'keep\nreplaced\nmidinserted\nend\n',
+      );
+    });
   });
 }

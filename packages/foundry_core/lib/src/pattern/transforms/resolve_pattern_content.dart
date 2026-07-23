@@ -1,5 +1,6 @@
 import 'package:foundry_core/src/pattern/pattern_line_deletion.dart';
 import 'package:foundry_core/src/pattern/pattern_replacement.dart';
+import 'package:foundry_core/src/pattern/transforms/apply_insert_blocks.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_line_deletions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_remotions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replace_blocks.dart';
@@ -20,6 +21,8 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 ///    `remove-end` blocks (C-style, hash, and HTML comment flavors)
 /// 5. [applyReplaceBlocks] resolves `replace-start` / `with` / `replace-end`
 ///    blocks (C-style, hash, and HTML comment flavors)
+/// 6. [applyInsertBlocks] resolves `insert-start` / `insert-end` blocks
+///    (C-style, hash, and HTML comment flavors)
 ///
 /// This is the single entry point used when writing a pattern file into
 /// `template/`. Binary files are not passed through this helper — copy them
@@ -42,5 +45,6 @@ String resolvePatternContent(
     replacements: replacements,
   );
   final withRemotions = applyRemotions(content: withReplacements);
-  return applyReplaceBlocks(content: withRemotions);
+  final withReplaceBlocks = applyReplaceBlocks(content: withRemotions);
+  return applyInsertBlocks(content: withReplaceBlocks);
 }
