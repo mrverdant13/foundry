@@ -9,12 +9,14 @@
 /// - `-x` after `remove-end` drops trailing whitespace
 /// - Without a flag, adjacent whitespace on that side is kept
 ///
-/// `drop` removes from the marker through end of file. Paired remove blocks
-/// remove the markers and everything between them.
+/// Paired remove blocks are applied first so a nested `drop` does not delete
+/// past `remove-end`. `drop` then removes from the marker through end of file.
+/// Paired remove blocks remove the markers and everything between them.
 String applyRemotions({required String content}) {
-  final afterDropContent = content.replaceAll(_blockDropRegex, '');
-
-  return _blockRemotionPatterns.fold(afterDropContent, (resolved, pattern) {
+  final afterRemoveBlocks = _blockRemotionPatterns.fold(content, (
+    resolved,
+    pattern,
+  ) {
     final regex = RegExp(pattern, dotAll: true);
     return resolved.replaceAllMapped(regex, (match) {
       match as RegExpMatch;
@@ -28,6 +30,7 @@ String applyRemotions({required String content}) {
       ].join();
     });
   });
+  return afterRemoveBlocks.replaceAll(_blockDropRegex, '');
 }
 
 final RegExp _blockDropRegex = RegExp(
