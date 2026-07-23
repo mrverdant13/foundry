@@ -76,6 +76,8 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///   replacements.
 /// - Replace-block annotations (`replace-start` / `with` / `replace-end`) run
 ///   after remotions.
+/// - Insert-block annotations (`insert-start` / `insert-end`) run after
+///   replace blocks.
 ///
 /// When [destination] already exists as any filesystem entity (directory,
 /// file, or symlink) and [force] is `false`, throws [MoldDeriveException].
