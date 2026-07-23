@@ -78,6 +78,9 @@ Future<void> _defaultCommitDerivedMoldStaging({
 ///   after remotions.
 /// - Insert-block annotations (`insert-start` / `insert-end`) run after
 ///   replace blocks.
+/// - Liquid-tag annotations (`{{…}}` / `{%…%}` in comments) unwrap after
+///   insert blocks; source annotations are parked before liquidize so their
+///   braces stay live.
 ///
 /// When [destination] already exists as any filesystem entity (directory,
 /// file, or symlink) and [force] is `false`, throws [MoldDeriveException].
