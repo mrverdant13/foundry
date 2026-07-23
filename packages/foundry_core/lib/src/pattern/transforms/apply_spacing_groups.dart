@@ -13,7 +13,7 @@
 /// removes the marker and merges the surrounding text.
 String applySpacingGroups({required String content}) {
   return _groupPatterns.fold(content, (resolved, groupPattern) {
-    final groupRegex = RegExp(groupPattern, dotAll: true);
+    final groupRegex = RegExp(groupPattern);
     return resolved.replaceAllMapped(groupRegex, (match) {
       match as RegExpMatch;
       final spacingGroups = match.namedGroup('spacingGroups') ?? '';
@@ -39,7 +39,5 @@ const List<String> _groupPatterns = [
   r'\s*<!--w ?(?<spacingGroups>(?:\d+[v>] ?)*) ?w-->\s*',
 ];
 
-final RegExp _actionRegex = RegExp(
-  r'(?<actionTimes>\d+)(?<actionType>[v>]) ?',
-  dotAll: true,
-);
+final RegExp _actionRegex = RegExp(r'(?<actionTimes>\d+)(?<actionType>[v>]) ?');
+
