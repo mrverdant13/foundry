@@ -128,6 +128,46 @@ keep-after
       }
     });
 
+    group('empty insert bodies by comment flavor', () {
+      for (final case_ in [
+        (
+          start: '/*insert-start*/',
+          end: '/*insert-end*/',
+        ),
+        (
+          start: '#insert-start#',
+          end: '#insert-end#',
+        ),
+        (
+          start: '<!--insert-start-->',
+          end: '<!--insert-end-->',
+        ),
+      ]) {
+        test(
+          'removes markers for empty ${case_.start} … ${case_.end}',
+          () {
+            final input = '''
+keep-before
+${case_.start}
+${case_.end}
+keep-after
+''';
+            const expected = '''
+keep-before
+
+keep-after
+''';
+
+            final result = applyInsertBlocks(content: input);
+
+            expect(result, expected);
+            expect(result, isNot(contains('insert-start')));
+            expect(result, isNot(contains('insert-end')));
+          },
+        );
+      }
+    });
+
     test('throws FormatException when insert section line is invalid', () {
       const input = '''
 line/*insert-start*/

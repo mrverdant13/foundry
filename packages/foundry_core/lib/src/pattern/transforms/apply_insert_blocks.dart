@@ -9,7 +9,9 @@ import 'dart:convert';
 /// Each line between `insert-start` and `insert-end` must be comment-prefixed
 /// for that flavor; leading and trailing whitespace on the line is trimmed
 /// before the prefix is matched. The comment wrappers are stripped and the
-/// inner text is emitted at the marker site.
+/// inner text is emitted at the marker site. An empty body (`insert-start`
+/// immediately followed by `insert-end`, with or without a blank separator
+/// line) removes the markers and emits nothing.
 ///
 /// Throws [FormatException] when an insert line is not comment-prefixed for
 /// the matched flavor.
@@ -21,9 +23,9 @@ String applyInsertBlocks({required String content}) {
       [
         r'\/\*insert-start\*\/ *',
         nl,
-        '(?<insertion>.*?)',
+        '(?:(?<insertion>.*?)',
         nl,
-        r' *\/\*insert-end\*\/',
+        r')? *\/\*insert-end\*\/',
       ].join(),
       r'^\/\/ (?<line>.*)$',
     ),
@@ -32,9 +34,9 @@ String applyInsertBlocks({required String content}) {
       [
         '#insert-start# *',
         nl,
-        '(?<insertion>.*?)',
+        '(?:(?<insertion>.*?)',
         nl,
-        ' *#insert-end#',
+        ')? *#insert-end#',
       ].join(),
       r'^# (?<line>.*)$',
     ),
@@ -43,9 +45,9 @@ String applyInsertBlocks({required String content}) {
       [
         '<!--insert-start--> *',
         nl,
-        '(?<insertion>.*?)',
+        '(?:(?<insertion>.*?)',
         nl,
-        ' *<!--insert-end-->',
+        ')? *<!--insert-end-->',
       ].join(),
       r'^<!-- (?<line>.*?)-->$',
     ),
