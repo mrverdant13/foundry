@@ -8,42 +8,80 @@
 /// - `x` after the tag (e.g. `#{{name}}x#`) drops trailing whitespace
 /// - Without a flag, adjacent whitespace on that side is kept
 String applyLiquidTags({required String content}) {
-  return _mapLiquidTagAnnotations(content, (resolved) => resolved);
+  return _liquidTagPatterns.fold(content, (resolved, pattern) {
+    final regex = RegExp(pattern, dotAll: true);
+    return resolved.replaceAllMapped(regex, (match) {
+      match as RegExpMatch;
+      return _resolveLiquidTagMatch(match);
+    });
+  });
 }
 
-/// Parks liquid-tag annotations as placeholders so a later liquidize pass does
-/// not escape their braces.
+/// A liquid-tag annotation parked before liquidize so its braces stay live.
+typedef ParkedLiquidTag = ({
+  String tag,
+  bool dropLeading,
+  bool dropTrailing,
+});
+
+/// Parks liquid-tag comment tokens as placeholders so a later liquidize pass
+/// does not escape their braces.
 ///
-/// Each match is resolved the same way as [applyLiquidTags] (tag extracted,
-/// optional `x` whitespace flags applied). The returned content replaces each
-/// annotation with a placeholder; [restoreParkedLiquidTags] puts the live
-/// resolved strings back.
-({String content, List<String> replacements}) parkLiquidTagAnnotations(
-  String content,
-) {
-  final replacements = <String>[];
-  final parked = _mapLiquidTagAnnotations(content, (resolved) {
-    final index = replacements.length;
-    replacements.add(resolved);
-    return '$_placeholderPrefix$index$_placeholderSuffix';
+/// Only the comment token itself is replaced (newlines around it are left in
+/// place so later block annotations such as insert/replace still parse).
+/// [restoreParkedLiquidTags] writes the live tag and applies any `x`
+/// whitespace flags.
+({String content, List<ParkedLiquidTag> replacements})
+parkLiquidTagAnnotations(String content) {
+  final replacements = <ParkedLiquidTag>[];
+  final parked = _liquidTagTokenPatterns.fold(content, (resolved, pattern) {
+    final regex = RegExp(pattern, dotAll: true);
+    return resolved.replaceAllMapped(regex, (match) {
+      match as RegExpMatch;
+      final index = replacements.length;
+      replacements.add((
+        tag: match.namedGroup('liquidTag') ?? '',
+        dropLeading: (match.namedGroup('dropLeading') ?? '').isNotEmpty,
+        dropTrailing: (match.namedGroup('dropTrailing') ?? '').isNotEmpty,
+      ));
+      return '$_placeholderPrefix$index$_placeholderSuffix';
+    });
   });
   return (content: parked, replacements: replacements);
 }
 
 /// Restores placeholders produced by [parkLiquidTagAnnotations].
+///
+/// Applies optional `x` whitespace flags against adjacent whitespace at
+/// restore time (after other annotation transforms have run).
 String restoreParkedLiquidTags(
   String content, {
-  required List<String> replacements,
+  required List<ParkedLiquidTag> replacements,
 }) {
   if (replacements.isEmpty) {
     return content;
   }
   var restored = content;
   for (var i = 0; i < replacements.length; i++) {
-    restored = restored.replaceAll(
-      '$_placeholderPrefix$i$_placeholderSuffix',
-      replacements[i],
-    );
+    final placeholder = '$_placeholderPrefix$i$_placeholderSuffix';
+    final parked = replacements[i];
+    final index = restored.indexOf(placeholder);
+    if (index < 0) {
+      continue;
+    }
+    var start = index;
+    var end = index + placeholder.length;
+    if (parked.dropLeading) {
+      while (start > 0 && _isWhitespace(restored.codeUnitAt(start - 1))) {
+        start--;
+      }
+    }
+    if (parked.dropTrailing) {
+      while (end < restored.length && _isWhitespace(restored.codeUnitAt(end))) {
+        end++;
+      }
+    }
+    restored = restored.replaceRange(start, end, parked.tag);
   }
   return restored;
 }
@@ -54,6 +92,7 @@ const _placeholderSuffix = '>>';
 /// `{{…}}` or `{%…%}` (non-greedy inner match).
 const _liquidTag = r'(?:{{.*?}}|{%.*?%})';
 
+/// Full match including adjacent whitespace (used by [applyLiquidTags]).
 const _liquidTagPatterns = [
   r'(?<leading>\s*)\/\*(?<dropLeading>x)?(?<liquidTag>'
       '$_liquidTag'
@@ -66,25 +105,36 @@ const _liquidTagPatterns = [
       r')(?<dropTrailing>x)?-->(?<trailing>\s*)',
 ];
 
-String _mapLiquidTagAnnotations(
-  String content,
-  String Function(String resolved) replace,
-) {
-  return _liquidTagPatterns.fold(content, (resolved, pattern) {
-    final regex = RegExp(pattern, dotAll: true);
-    return resolved.replaceAllMapped(regex, (match) {
-      match as RegExpMatch;
-      final liquidTag = match.namedGroup('liquidTag') ?? '';
-      final keepLeading = (match.namedGroup('dropLeading') ?? '').isEmpty;
-      final keepTrailing = (match.namedGroup('dropTrailing') ?? '').isEmpty;
-      final leading = match.namedGroup('leading') ?? '';
-      final trailing = match.namedGroup('trailing') ?? '';
-      final replacement = [
-        if (keepLeading) leading,
-        liquidTag,
-        if (keepTrailing) trailing,
-      ].join();
-      return replace(replacement);
-    });
-  });
+/// Comment token only — no adjacent whitespace (used when parking so block
+/// annotation newlines stay intact until restore).
+const _liquidTagTokenPatterns = [
+  r'\/\*(?<dropLeading>x)?(?<liquidTag>'
+      '$_liquidTag'
+      r')(?<dropTrailing>x)?\*\/',
+  r'#(?<dropLeading>x)?(?<liquidTag>'
+      '$_liquidTag'
+      r')(?<dropTrailing>x)?#',
+  r'<!--(?<dropLeading>x)?(?<liquidTag>'
+      '$_liquidTag'
+      r')(?<dropTrailing>x)?-->',
+];
+
+String _resolveLiquidTagMatch(RegExpMatch match) {
+  final liquidTag = match.namedGroup('liquidTag') ?? '';
+  final keepLeading = (match.namedGroup('dropLeading') ?? '').isEmpty;
+  final keepTrailing = (match.namedGroup('dropTrailing') ?? '').isEmpty;
+  final leading = match.namedGroup('leading') ?? '';
+  final trailing = match.namedGroup('trailing') ?? '';
+  return [
+    if (keepLeading) leading,
+    liquidTag,
+    if (keepTrailing) trailing,
+  ].join();
+}
+
+bool _isWhitespace(int codeUnit) {
+  return codeUnit == 0x09 || // tab
+      codeUnit == 0x0A || // line feed
+      codeUnit == 0x0D || // carriage return
+      codeUnit == 0x20; // space
 }

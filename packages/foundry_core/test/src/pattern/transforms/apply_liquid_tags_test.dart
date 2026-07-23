@@ -123,7 +123,10 @@ plain text
 
       expect(parked.content.contains('{{'), isFalse);
       expect(parked.content.contains('{%'), isFalse);
-      expect(parked.replacements, [' {{name}} ', ' {% if x %} ']);
+      expect(parked.replacements, [
+        (tag: '{{name}}', dropLeading: false, dropTrailing: false),
+        (tag: '{% if x %}', dropLeading: false, dropTrailing: false),
+      ]);
 
       final restored = restoreParkedLiquidTags(
         parked.content,
@@ -142,6 +145,23 @@ plain text
       );
 
       expect(restored, 'a{{name}}b');
+    });
+
+    test('does not consume newlines while parking so block markers survive', () {
+      const input = '''
+mid/*insert-start*/
+// /*{{nested}}*/
+/*insert-end*/
+''';
+
+      final parked = parkLiquidTagAnnotations(input);
+
+      expect(parked.content, contains('/*insert-start*/'));
+      expect(parked.content, contains('/*insert-end*/'));
+      expect(parked.content, contains('\n// <<FOUNDRY_LIQUID_TAG_0>>\n'));
+      expect(parked.replacements, [
+        (tag: '{{nested}}', dropLeading: false, dropTrailing: false),
+      ]);
     });
 
     test('restore is a no-op when no replacements were parked', () {
