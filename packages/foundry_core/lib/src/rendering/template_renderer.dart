@@ -17,12 +17,14 @@ import 'package:path/path.dart' as p;
 ///
 /// Files whose names end in `.partial` are template includes for
 /// `{% render %}` and are **not** written to [outputDirectory]. Content
-/// rendering uses a [FileSystemRoot] rooted at [templateDirectory] so
-/// `{% render 'name.partial' %}` resolves against that tree.
+/// rendering resolves `{% render %}` through a [MapRoot] of every
+/// `*.partial` under [templateDirectory].
 ///
-/// Bare `{% render 'file' %}` tags (no arguments) are expanded before
-/// render so every cast context entry is forwarded into Liquid's isolated
-/// render scope. Tags that already pass arguments are left unchanged.
+/// Bare `{% render 'file' %}` tags (no arguments) are expanded in both
+/// top-level template contents and loaded `.partial` sources so every cast
+/// context entry is forwarded into Liquid's isolated render scope — including
+/// when one partial renders another. Tags that already pass arguments are
+/// left unchanged.
 ///
 /// When [force] is `false` (the default) and a destination file already
 /// exists, a [TemplateRenderException] is thrown before any file is written
@@ -50,7 +52,10 @@ Future<List<File>> renderTemplate({
 
   final resolvedOutputDirectory = outputDirectory.absolute;
   final values = Map<String, dynamic>.from(context.entries);
-  final templateRoot = FileSystemRoot(resolvedTemplateDirectory.path);
+  final templateRoot = await _partialRenderRoot(
+    resolvedTemplateDirectory,
+    values.keys,
+  );
   final sourceFiles = Glob('**', recursive: true)
       .listSync(root: resolvedTemplateDirectory.path, followLinks: false)
       .whereType<File>()
@@ -141,6 +146,29 @@ Future<List<File>> renderTemplate({
 }
 
 bool _isPartialTemplateFile(String path) => p.extension(path) == '.partial';
+
+/// Loads every `*.partial` under [templateDirectory] into a [MapRoot],
+/// expanding bare `{% render %}` tags so nested partial renders receive the
+/// same cast context forwarding as top-level templates.
+Future<Root> _partialRenderRoot(
+  Directory templateDirectory,
+  Iterable<String> variableNames,
+) async {
+  final partials = <String, String>{};
+  final partialFiles = Glob('**', recursive: true)
+      .listSync(root: templateDirectory.path, followLinks: false)
+      .whereType<File>()
+      .where((file) => _isPartialTemplateFile(file.path));
+
+  for (final file in partialFiles) {
+    final relative = p.relative(file.path, from: templateDirectory.path);
+    final posixRelative = p.posix.joinAll(p.split(relative));
+    final contents = await file.readAsString();
+    partials[posixRelative] = _expandBareRenderTags(contents, variableNames);
+  }
+
+  return MapRoot(partials);
+}
 
 /// Expands bare `{% render 'file' %}` tags so cast context variables are
 /// forwarded into the isolated Liquid render scope.

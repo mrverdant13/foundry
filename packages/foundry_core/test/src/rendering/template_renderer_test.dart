@@ -431,5 +431,43 @@ void main() {
         );
       },
     );
+
+    test(
+      'forwards cast context through nested bare {% render %} in partials',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'inner.partial'),
+          'Inner: {{ name }}',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'outer.partial'),
+          "Outer wraps: {% render 'inner.partial' %}",
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'page.txt'),
+          "{% render 'outer.partial' %}\n",
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'name': 'Foundry'}),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        expect(
+          await File(p.join(outputDirectory.path, 'page.txt')).readAsString(),
+          'Outer wraps: Inner: Foundry\n',
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'outer.partial')).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'inner.partial')).existsSync(),
+          isFalse,
+        );
+      },
+    );
   });
 }
