@@ -345,7 +345,7 @@ void main() {
           p.join(templateDirectory.path, 'README.md'),
           // Bare render tags receive cast context via renderTemplate expansion.
           "{% render 'header.partial' %}\n"
-          'Static {% render \'footer.partial\' %}\n',
+          "Static {% render 'footer.partial' %}\n",
         );
         await _writeFile(
           p.join(templateDirectory.path, 'footer.partial'),
@@ -412,7 +412,7 @@ void main() {
         );
         await _writeFile(
           p.join(templateDirectory.path, 'page.txt'),
-          "{% render 'greet.partial', greeting: greeting, name: 'explicit' %}\n",
+          """{% render 'greet.partial', greeting: greeting, name: 'explicit' %}\n""",
         );
 
         final writtenFiles = await renderTemplate(

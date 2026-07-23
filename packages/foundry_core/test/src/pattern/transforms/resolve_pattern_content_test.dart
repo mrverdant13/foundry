@@ -274,6 +274,9 @@ void main() {
           'keep\n'
           '/*partial v header*/Hello {{ name }}\n'
           '/*partial ^ header*/\n'
+          // Intentionally missing whitespace between adjacent strings to test
+          // the spacing group expansion.
+          // ignore: missing_whitespace_between_adjacent_strings
           '/*w 1v w*/'
           'end\n',
           targetAbsolutePath: tempDir.path,
