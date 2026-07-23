@@ -84,6 +84,48 @@ line 2
       }
     });
 
+    group('drop nested inside remove blocks', () {
+      for (final case_ in [
+        (
+          start: '/*x-remove-start*/',
+          drop: '/*drop*/',
+          end: '/*remove-end-x*/',
+        ),
+        (
+          start: '#x-remove-start#',
+          drop: '#drop#',
+          end: '#remove-end-x#',
+        ),
+        (
+          start: '<!--x-remove-start-->',
+          drop: '<!--drop-->',
+          end: '<!--remove-end-x-->',
+        ),
+      ]) {
+        test(
+          'keeps content after remove block when ${case_.drop} is nested',
+          () {
+            final input = '''
+keep-before
+${case_.start}
+scaffold
+${case_.drop}
+more
+${case_.end}
+keep-after
+''';
+            const expected = 'keep-beforekeep-after\n';
+
+            final result = applyRemotions(content: input);
+
+            expect(result, expected);
+            expect(result, isNot(contains('remove-start')));
+            expect(result, isNot(contains('drop')));
+          },
+        );
+      }
+    });
+
     test('returns content unchanged when no remotion markers are present', () {
       const input = '''
 line 0
