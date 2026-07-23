@@ -233,5 +233,27 @@ void main() {
         'use{{name}}here',
       );
     });
+
+    test('applies spacing groups after liquid tag unwrap', () {
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          '/*{{name}}*/\n'
+          '/*w 2v 4> w*/'
+          'end\n',
+        ),
+        'keep\n'
+        '{{name}}\n'
+        '\n'
+        '    end\n',
+      );
+    });
+
+    test('expands mixed spacing group actions in the pipeline', () {
+      expect(
+        resolvePatternContent('a/*w 1v 2> w*/b'),
+        'a\n  b',
+      );
+    });
   });
 }
