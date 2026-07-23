@@ -23,7 +23,9 @@ tree, and optional lifecycle hooks. This library provides:
 - **Import** — copy molds from a local path or shallow git clone
 - **Pattern inspect / mold derive / mold sync** — summarize pattern directories,
   best-effort derive a starter mold, and refresh an existing mold's `template/`
-  while preserving `variables.dart` and `hooks/`
+  while preserving `variables.dart` and `hooks/`. Derive/sync resolve pattern
+  comment annotations and `.foundry/pattern.yaml` `replacements` /
+  `lineDeletions` into Liquid templates.
 
 For day-to-day use, install the [`foundry_cli`](https://pub.dev/packages/foundry_cli)
 package (`foundry mold init`, `foundry cast`, and related commands). Use this
@@ -99,6 +101,7 @@ Import `package:foundry_core/foundry_core.dart`.
 ## Resources
 
 - [Hook authoring guide](https://github.com/mrverdant13/foundry/blob/main/doc/hooks.md)
+- [Pattern annotations and `.foundry/pattern.yaml`](https://github.com/mrverdant13/foundry/blob/main/doc/annotations.md)
 - [Repository](https://github.com/mrverdant13/foundry/tree/main/packages/foundry_core)
 - [Issue tracker](https://github.com/mrverdant13/foundry/issues)
 - [Changelog](CHANGELOG.md)
