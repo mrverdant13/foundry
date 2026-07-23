@@ -15,6 +15,15 @@ import 'package:path/path.dart' as p;
 /// renders `template/`; it does not run lifecycle hooks or the rest of a
 /// cast.
 ///
+/// Files whose names end in `.partial` are template includes for
+/// `{% render %}` and are **not** written to [outputDirectory]. Content
+/// rendering uses a [FileSystemRoot] rooted at [templateDirectory] so
+/// `{% render 'name.partial' %}` resolves against that tree.
+///
+/// Bare `{% render 'file' %}` tags (no arguments) are expanded before
+/// render so every cast context entry is forwarded into Liquid's isolated
+/// render scope. Tags that already pass arguments are left unchanged.
+///
 /// When [force] is `false` (the default) and a destination file already
 /// exists, a [TemplateRenderException] is thrown before any file is written
 /// and the output directory is left untouched. When [force] is `true`,
@@ -40,10 +49,12 @@ Future<List<File>> renderTemplate({
   }
 
   final resolvedOutputDirectory = outputDirectory.absolute;
-  final values = context.entries;
+  final values = Map<String, dynamic>.from(context.entries);
+  final templateRoot = FileSystemRoot(resolvedTemplateDirectory.path);
   final sourceFiles = Glob('**', recursive: true)
       .listSync(root: resolvedTemplateDirectory.path, followLinks: false)
       .whereType<File>()
+      .where((file) => !_isPartialTemplateFile(file.path))
       .toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 
@@ -99,8 +110,9 @@ Future<List<File>> renderTemplate({
     try {
       final templateContents = await sourceFile.readAsString();
       renderedContents = Template.parse(
-        templateContents,
+        _expandBareRenderTags(templateContents, values.keys),
         data: values,
+        root: templateRoot,
       ).render();
     } catch (error) {
       throw TemplateRenderException(
@@ -128,7 +140,32 @@ Future<List<File>> renderTemplate({
   return writtenFiles;
 }
 
-String _renderPathSegments(String relativePath, Map<String, Object?> values) {
+bool _isPartialTemplateFile(String path) => p.extension(path) == '.partial';
+
+/// Expands bare `{% render 'file' %}` tags so cast context variables are
+/// forwarded into the isolated Liquid render scope.
+///
+/// Tags that already pass arguments (named args, `with`, or `for`) are left
+/// unchanged. Variable names are assumed to be Liquid-safe identifiers (as
+/// produced by Foundry molds).
+String _expandBareRenderTags(String contents, Iterable<String> variableNames) {
+  final names = variableNames.toList(growable: false);
+  if (names.isEmpty) {
+    return contents;
+  }
+  final args = names.map((name) => '$name: $name').join(', ');
+  return contents.replaceAllMapped(_bareRenderTagPattern, (match) {
+    final quote = match.group(1)!;
+    final templateName = match.group(2)!;
+    return '{% render $quote$templateName$quote, $args %}';
+  });
+}
+
+final RegExp _bareRenderTagPattern = RegExp(
+  r"""\{%-?\s*render\s+(['"])([^'"]+)\1\s*-?%\}""",
+);
+
+String _renderPathSegments(String relativePath, Map<String, dynamic> values) {
   final renderedSegments = p.split(relativePath).map((segment) {
     return Template.parse(segment, data: values).render();
   });
