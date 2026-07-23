@@ -114,5 +114,27 @@ void main() {
         'BarWidget',
       );
     });
+
+    test('applies remotions after replacements', () {
+      expect(
+        resolvePatternContent(
+          'keep ref_pkg /*x-remove-start*/ gone /*remove-end-x*/end',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('ref_pkg'),
+              to: '{{ package_name }}',
+            ),
+          ],
+        ),
+        'keep {{ package_name }}end',
+      );
+    });
+
+    test('applies drop remotion through end of file', () {
+      expect(
+        resolvePatternContent('keep\n/*drop*/\ngone\n'),
+        'keep\n',
+      );
+    });
   });
 }
