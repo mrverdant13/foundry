@@ -6,7 +6,8 @@ import 'dart:convert';
 /// flavors. Scaffold text between `replace-start` and `with` is discarded.
 /// Each line between `with` and `replace-end` must be comment-prefixed for
 /// that flavor; the comment wrappers are stripped and the inner text is
-/// emitted.
+/// emitted. An empty body (`with` immediately followed by `replace-end`)
+/// discards the scaffold and emits nothing.
 ///
 /// Optional `i<N>` on the `with` marker indents each replacement line by N
 /// spaces (`/*with i2*/`, `#with i2#`, `<!--with i2-->`). Omitting `i<N>`
@@ -26,9 +27,9 @@ String applyReplaceBlocks({required String content}) {
         nl,
         r'* *\/\*with(?: +i(?<indentation>\d+))?\*\/ *',
         nl,
-        '(?<replacement>.*?)',
+        '(?:(?<replacement>.*?)',
         nl,
-        r' *\/\*replace-end\*\/',
+        r')? *\/\*replace-end\*\/',
       ].join(),
       r'\/\/ (?<line>.*)',
     ),
@@ -41,9 +42,9 @@ String applyReplaceBlocks({required String content}) {
         nl,
         r'* *#with(?: +i(?<indentation>\d+))?# *',
         nl,
-        '(?<replacement>.*?)',
+        '(?:(?<replacement>.*?)',
         nl,
-        ' *#replace-end#',
+        ')? *#replace-end#',
       ].join(),
       '# (?<line>.*)',
     ),
@@ -56,9 +57,9 @@ String applyReplaceBlocks({required String content}) {
         nl,
         r'* *<!--with(?: +i(?<indentation>\d+))?--> *',
         nl,
-        '(?<replacement>.*?)',
+        '(?:(?<replacement>.*?)',
         nl,
-        ' *<!--replace-end-->',
+        ')? *<!--replace-end-->',
       ].join(),
       '<!-- (?<line>.*)-->',
     ),
