@@ -1,13 +1,16 @@
-/// Expands spacing-group annotations in [content].
+/// Expands spacing-group (`w`) annotations in [content].
 ///
-/// Supports C-style (`/* */`), hash (`# #`), and HTML (`<!-- -->`) comment
-/// flavors. Actions are space-separated:
+/// The marker letter `w` stands for whitespace. Supports C-style (`/* */`),
+/// hash (`# #`), and HTML (`<!-- -->`) comment flavors. Actions are
+/// space-separated:
 ///
 /// - `Nv` — emit `N` newline characters (e.g. `2v` → two newlines)
 /// - `N>` — emit `N` space characters (e.g. `4>` → four spaces)
 ///
-/// An empty action list (`/*w w*/`, `#w w#`, `<!--w w-->`) removes the marker
-/// and any adjacent whitespace on the marker itself.
+/// Contiguous whitespace on either side of the marker is always discarded;
+/// only the spacing produced by the actions survives. An empty action list
+/// (`/*w w*/`, `#w w#`, `<!--w w-->`, including the tight hash form `#ww#`)
+/// removes the marker and merges the surrounding text.
 String applySpacingGroups({required String content}) {
   return _groupPatterns.fold(content, (resolved, groupPattern) {
     final groupRegex = RegExp(groupPattern, dotAll: true);
