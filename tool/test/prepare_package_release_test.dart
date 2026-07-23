@@ -14,8 +14,12 @@ void main() {
   });
 
   tearDown(() {
-    if (tempRoot.existsSync()) {
-      tempRoot.deleteSync(recursive: true);
+    try {
+      if (tempRoot.existsSync()) {
+        tempRoot.deleteSync(recursive: true);
+      }
+    } on PathNotFoundException {
+      // Already removed — can race on macOS CI runners.
     }
   });
 
