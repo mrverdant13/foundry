@@ -6,6 +6,7 @@ import 'package:foundry_core/src/pattern/transforms/apply_liquid_tags.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_remotions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replace_blocks.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replacements.dart';
+import 'package:foundry_core/src/pattern/transforms/apply_spacing_groups.dart';
 import 'package:foundry_core/src/pattern/transforms/resolve_template_relative_path.dart';
 import 'package:foundry_core/src/rendering/template_liquidize.dart';
 
@@ -29,6 +30,8 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 /// 8. [applyLiquidTags] unwraps `{{…}}` / `{%…%}` from comment wrappers
 ///    (including tags introduced by earlier annotation steps)
 /// 9. [restoreParkedLiquidTags] restores parked annotations as live Liquid
+/// 10. [applySpacingGroups] expands `w <actions> w` markers (`Nv` newlines,
+///     `N>` spaces)
 ///
 /// This is the single entry point used when writing a pattern file into
 /// `template/`. Binary files are not passed through this helper — copy them
@@ -55,8 +58,9 @@ String resolvePatternContent(
   final withReplaceBlocks = applyReplaceBlocks(content: withRemotions);
   final withInsertBlocks = applyInsertBlocks(content: withReplaceBlocks);
   final withLiquidTags = applyLiquidTags(content: withInsertBlocks);
-  return restoreParkedLiquidTags(
+  final withRestoredTags = restoreParkedLiquidTags(
     withLiquidTags,
     replacements: parked.replacements,
   );
+  return applySpacingGroups(content: withRestoredTags);
 }

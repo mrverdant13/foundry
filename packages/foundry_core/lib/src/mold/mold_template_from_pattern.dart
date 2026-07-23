@@ -25,7 +25,7 @@ const _excludedTemplatePrefixes = {'.foundry'};
 /// Binary files (NUL bytes) are copied unchanged (path replacements still
 /// apply). Text files are resolved via [resolvePatternContent] (line
 /// deletions, liquidize pre-pass, content replacements, remotions,
-/// replace blocks, insert blocks, then Liquid tag unwrap).
+/// replace blocks, insert blocks, Liquid tag unwrap, then spacing groups).
 /// Destination paths are renamed with the same [replacements] list.
 /// `.foundry/` is always excluded even when not listed in [ignoreGlobs].
 ///
