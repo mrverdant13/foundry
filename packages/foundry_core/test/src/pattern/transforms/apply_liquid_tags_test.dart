@@ -113,6 +113,27 @@ plain text
 
       expect(result, input);
     });
+
+    test('honors dropLeading on the second of two adjacent tags', () {
+      expect(
+        applyLiquidTags(content: 'A /*{{a}}*/ /*x{{b}}*/ B'),
+        'A {{a}}{{b}} B',
+      );
+    });
+
+    test('keeps shared whitespace when the second adjacent tag has no x', () {
+      expect(
+        applyLiquidTags(content: 'A /*{{a}}*/ /*{{b}}*/ B'),
+        'A {{a}} {{b}} B',
+      );
+    });
+
+    test('honors dropTrailing on the first of two adjacent tags', () {
+      expect(
+        applyLiquidTags(content: 'A /*{{a}}x*/  /*{{b}}*/ B'),
+        'A {{a}}{{b}} B',
+      );
+    });
   });
 
   group('parkLiquidTagAnnotations / restoreParkedLiquidTags', () {

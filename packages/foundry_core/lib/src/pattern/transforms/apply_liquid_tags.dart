@@ -7,14 +7,16 @@
 /// - `x` before the tag (e.g. `/*x{{name}}*/`) drops leading whitespace
 /// - `x` after the tag (e.g. `#{{name}}x#`) drops trailing whitespace
 /// - Without a flag, adjacent whitespace on that side is kept
+///
+/// Implemented via [parkLiquidTagAnnotations] + [restoreParkedLiquidTags] so
+/// each tag's whitespace flags are applied independently (adjacent tags do
+/// not steal each other's surrounding whitespace).
 String applyLiquidTags({required String content}) {
-  return _liquidTagPatterns.fold(content, (resolved, pattern) {
-    final regex = RegExp(pattern, dotAll: true);
-    return resolved.replaceAllMapped(regex, (match) {
-      match as RegExpMatch;
-      return _resolveLiquidTagMatch(match);
-    });
-  });
+  final parked = parkLiquidTagAnnotations(content);
+  return restoreParkedLiquidTags(
+    parked.content,
+    replacements: parked.replacements,
+  );
 }
 
 /// A liquid-tag annotation parked before liquidize so its braces stay live.
@@ -95,25 +97,6 @@ const _placeholderSuffix = '>>';
 /// `{{…}}` or `{%…%}` (non-greedy inner match).
 const _liquidTag = '(?:{{.*?}}|{%.*?%})';
 
-/// Full match including adjacent whitespace (used by [applyLiquidTags]).
-final List<String> _liquidTagPatterns = [
-  [
-    r'(?<leading>\s*)\/\*(?<dropLeading>x)?(?<liquidTag>',
-    _liquidTag,
-    r')(?<dropTrailing>x)?\*\/(?<trailing>\s*)',
-  ].join(),
-  [
-    r'(?<leading>\s*)#(?<dropLeading>x)?(?<liquidTag>',
-    _liquidTag,
-    r')(?<dropTrailing>x)?#(?<trailing>\s*)',
-  ].join(),
-  [
-    r'(?<leading>\s*)<!--(?<dropLeading>x)?(?<liquidTag>',
-    _liquidTag,
-    r')(?<dropTrailing>x)?-->(?<trailing>\s*)',
-  ].join(),
-];
-
 /// Comment token only — no adjacent whitespace (used when parking so block
 /// annotation newlines stay intact until restore).
 final List<String> _liquidTagTokenPatterns = [
@@ -133,19 +116,6 @@ final List<String> _liquidTagTokenPatterns = [
     ')(?<dropTrailing>x)?-->',
   ].join(),
 ];
-
-String _resolveLiquidTagMatch(RegExpMatch match) {
-  final liquidTag = match.namedGroup('liquidTag') ?? '';
-  final keepLeading = (match.namedGroup('dropLeading') ?? '').isEmpty;
-  final keepTrailing = (match.namedGroup('dropTrailing') ?? '').isEmpty;
-  final leading = match.namedGroup('leading') ?? '';
-  final trailing = match.namedGroup('trailing') ?? '';
-  return [
-    if (keepLeading) leading,
-    liquidTag,
-    if (keepTrailing) trailing,
-  ].join();
-}
 
 bool _isWhitespace(int codeUnit) {
   return codeUnit == 0x09 || // tab
