@@ -203,5 +203,35 @@ void main() {
         'before{{name}}after',
       );
     });
+
+    test('unwraps liquid tags introduced by replacements', () {
+      expect(
+        resolvePatternContent(
+          'use PLACEHOLDER here',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('PLACEHOLDER'),
+              to: '/*{{name}}*/',
+            ),
+          ],
+        ),
+        'use {{name}} here',
+      );
+    });
+
+    test('honors x flags on liquid tags introduced by replacements', () {
+      expect(
+        resolvePatternContent(
+          'use PLACEHOLDER here',
+          replacements: [
+            PatternReplacement(
+              from: RegExp('PLACEHOLDER'),
+              to: '/*x{{name}}x*/',
+            ),
+          ],
+        ),
+        'use{{name}}here',
+      );
+    });
   });
 }
