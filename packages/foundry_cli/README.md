@@ -14,7 +14,10 @@ for the full mold lifecycle:
 - **`foundry mold init`** — scaffold a new mold package in the current directory
 - **`foundry mold inspect`** — validate mold layout, variables, and hooks
 - **`foundry mold derive`** — generate a starter mold from a pattern directory
+  (resolves pattern annotations and `.foundry/pattern.yaml` `replacements` /
+  `lineDeletions`)
 - **`foundry mold sync`** — refresh an existing mold `template/` from a pattern
+  (same annotation rules as derive)
 - **`foundry mold import`** — copy a mold from git or a local path
 - **`foundry cast`** — gather variables, run hooks, and render templates to
   `--output`
@@ -24,7 +27,8 @@ for the full mold lifecycle:
 
 Molds are Dart packages with a root `pubspec.yaml`, `variables.dart`, a
 `template/` tree, and optional lifecycle hooks. See the
-[hook authoring guide](https://github.com/mrverdant13/foundry/blob/main/doc/hooks.md)
+[hook authoring guide](https://github.com/mrverdant13/foundry/blob/main/doc/hooks.md),
+[pattern annotations](https://github.com/mrverdant13/foundry/blob/main/doc/annotations.md),
 and the [mold pubspec schema](https://github.com/mrverdant13/foundry/blob/main/doc/mold-pubspec.schema.json).
 
 ## Installation
@@ -160,6 +164,10 @@ foundry mold derive --pattern=<path> [--output=<dir>] [--force]
 | `--output` | Destination for the derived mold (defaults to the current directory; requires `--force` when omitted, since cwd already exists) |
 | `--force` | Overwrite the destination directory if it already exists |
 
+Resolves pattern annotations and `.foundry/pattern.yaml` `replacements` /
+`lineDeletions` into the mold `template/` (see
+[pattern annotations](https://github.com/mrverdant13/foundry/blob/main/doc/annotations.md)).
+
 #### `foundry mold sync`
 
 ```
@@ -172,7 +180,8 @@ foundry mold sync --pattern=<path> [--force]
 | `--force` | Replace `template/` wholesale (remove orphans); author edits outside `template/` are still preserved |
 
 Syncs the mold in the current directory. Refreshes `template/` from the pattern
-while preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
+(same annotation / `replacements` / `lineDeletions` rules as derive) while
+preserving root `pubspec.yaml`, `variables.dart`, `hooks/`, and other
 non-`template/` files.
 
 #### `foundry mold import git`
@@ -245,6 +254,7 @@ templates.
 
 - [Repository README](https://github.com/mrverdant13/foundry/blob/main/README.md) — product overview and full CLI guide
 - [Hook authoring guide](https://github.com/mrverdant13/foundry/blob/main/doc/hooks.md)
+- [Pattern annotations and `.foundry/pattern.yaml`](https://github.com/mrverdant13/foundry/blob/main/doc/annotations.md)
 - [Repository](https://github.com/mrverdant13/foundry/tree/main/packages/foundry_cli)
 - [Issue tracker](https://github.com/mrverdant13/foundry/issues)
 - [Changelog](CHANGELOG.md)
