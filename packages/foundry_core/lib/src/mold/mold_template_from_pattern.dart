@@ -25,8 +25,9 @@ const _excludedTemplatePrefixes = {'.foundry'};
 /// Binary files (NUL bytes) are copied unchanged (path replacements still
 /// apply). Text files are resolved via [resolvePatternContent] (line
 /// deletions, liquidize pre-pass, content replacements, remotions,
-/// replace blocks, insert blocks, Liquid tag unwrap, then spacing groups).
-/// Destination paths are renamed with the same [replacements] list.
+/// replace blocks, insert blocks, Liquid tag unwrap, spacing groups, then
+/// partials). Destination paths are renamed with the same [replacements]
+/// list. Extracted `name.partial` files are written under [templateRoot].
 /// `.foundry/` is always excluded even when not listed in [ignoreGlobs].
 ///
 /// Throws [TemplatePathReplacementException] when a path replacement would
@@ -60,6 +61,7 @@ Future<void> writeLiquidizedTemplateFromPattern({
     await _copyPatternFileToTemplate(
       source: file,
       destination: destinationFile,
+      templateRootPath: templateRoot.path,
       relativePosixPath: relativePosix,
       lineDeletions: lineDeletions,
       replacements: replacements,
@@ -86,6 +88,7 @@ bool _shouldSkipTemplatePath(
 Future<void> _copyPatternFileToTemplate({
   required File source,
   required File destination,
+  required String templateRootPath,
   required String relativePosixPath,
   required List<PatternLineDeletion> lineDeletions,
   required List<PatternReplacement> replacements,
@@ -101,6 +104,7 @@ Future<void> _copyPatternFileToTemplate({
     resolvePatternContent(
       content,
       relativePosixPath: relativePosixPath,
+      targetAbsolutePath: templateRootPath,
       lineDeletions: lineDeletions,
       replacements: replacements,
     ),

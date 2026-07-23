@@ -3,6 +3,7 @@ import 'package:foundry_core/src/pattern/pattern_replacement.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_insert_blocks.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_line_deletions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_liquid_tags.dart';
+import 'package:foundry_core/src/pattern/transforms/apply_partials.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_remotions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replace_blocks.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replacements.dart';
@@ -32,14 +33,22 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 /// 9. [restoreParkedLiquidTags] restores parked annotations as live Liquid
 /// 10. [applySpacingGroups] expands `w <actions> w` markers (`Nv` newlines,
 ///     `N>` spaces)
+/// 11. [applyPartials] extracts `partial v` / `partial ^` blocks into
+///     `name.partial` files under [targetAbsolutePath] and emits
+///     `{% render 'name.partial' %}`
 ///
 /// This is the single entry point used when writing a pattern file into
 /// `template/`. Binary files are not passed through this helper — copy them
 /// unchanged. Path renames use the same [replacements] list via
 /// [resolveTemplateRelativePath] outside this helper.
+///
+/// [targetAbsolutePath] is the mold `template/` directory where extracted
+/// partial files are written. Callers that never contain partial annotations
+/// may omit it; matched partials still require a writable directory.
 String resolvePatternContent(
   String source, {
   String relativePosixPath = '',
+  String targetAbsolutePath = '',
   List<PatternLineDeletion> lineDeletions = const [],
   List<PatternReplacement> replacements = const [],
 }) {
@@ -62,5 +71,9 @@ String resolvePatternContent(
     withLiquidTags,
     replacements: parked.replacements,
   );
-  return applySpacingGroups(content: withRestoredTags);
+  final withSpacing = applySpacingGroups(content: withRestoredTags);
+  return applyPartials(
+    content: withSpacing,
+    targetAbsolutePath: targetAbsolutePath,
+  );
 }

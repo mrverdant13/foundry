@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:foundry_core/foundry_core.dart';
 import 'package:foundry_core/src/pattern/transforms/resolve_pattern_content.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
@@ -253,6 +256,38 @@ void main() {
       expect(
         resolvePatternContent('a/*w 1v 2> w*/b'),
         'a\n  b',
+      );
+    });
+
+    test('extracts partials after spacing groups', () {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'foundry_resolve_partials_',
+      );
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          '/*partial v header*/Hello {{ name }}\n'
+          '/*partial ^ header*/\n'
+          '/*w 1v w*/'
+          'end\n',
+          targetAbsolutePath: tempDir.path,
+        ),
+        'keep\n'
+        "{% render 'header.partial' %}\n"
+        'end\n',
+      );
+
+      final partialFile = File(p.join(tempDir.path, 'header.partial'));
+      expect(partialFile.existsSync(), isTrue);
+      expect(
+        partialFile.readAsStringSync(),
+        'Hello {{ "{{" }} name }}\n',
       );
     });
   });
