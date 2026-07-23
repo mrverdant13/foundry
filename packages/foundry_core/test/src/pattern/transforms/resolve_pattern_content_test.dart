@@ -136,5 +136,23 @@ void main() {
         'keep\n',
       );
     });
+
+    test('applies replace blocks after remotions', () {
+      expect(
+        resolvePatternContent(
+          'keep\n'
+          '/*remove-start*/\n'
+          'gone\n'
+          '/*remove-end*/\n'
+          '/*replace-start*/\n'
+          'scaffold\n'
+          '/*with*/\n'
+          '// value\n'
+          '/*replace-end*/\n'
+          'end\n',
+        ),
+        'keep\n\nvalue\nend\n',
+      );
+    });
   });
 }

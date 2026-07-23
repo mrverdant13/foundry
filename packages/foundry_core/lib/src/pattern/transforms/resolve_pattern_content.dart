@@ -2,6 +2,7 @@ import 'package:foundry_core/src/pattern/pattern_line_deletion.dart';
 import 'package:foundry_core/src/pattern/pattern_replacement.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_line_deletions.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_remotions.dart';
+import 'package:foundry_core/src/pattern/transforms/apply_replace_blocks.dart';
 import 'package:foundry_core/src/pattern/transforms/apply_replacements.dart';
 import 'package:foundry_core/src/pattern/transforms/resolve_template_relative_path.dart';
 import 'package:foundry_core/src/rendering/template_liquidize.dart';
@@ -17,6 +18,8 @@ import 'package:foundry_core/src/rendering/template_liquidize.dart';
 ///    Liquid tags such as `{{ package_name }}`)
 /// 4. [applyRemotions] resolves `drop` markers and `remove-start` /
 ///    `remove-end` blocks (C-style, hash, and HTML comment flavors)
+/// 5. [applyReplaceBlocks] resolves `replace-start` / `with` / `replace-end`
+///    blocks (C-style, hash, and HTML comment flavors)
 ///
 /// This is the single entry point used when writing a pattern file into
 /// `template/`. Binary files are not passed through this helper — copy them
@@ -38,5 +41,6 @@ String resolvePatternContent(
     input: liquidized,
     replacements: replacements,
   );
-  return applyRemotions(content: withReplacements);
+  final withRemotions = applyRemotions(content: withReplacements);
+  return applyReplaceBlocks(content: withRemotions);
 }

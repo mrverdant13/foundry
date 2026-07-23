@@ -41,8 +41,8 @@ Future<void> Function({
 ///
 /// **Merge rules**
 /// - Refreshes files under `template/` from non-ignored pattern files, using
-///   the same line-deletion / liquidize / replacement / remotion / binary-copy
-///   rules as mold derive.
+///   the same line-deletion / liquidize / replacement / remotion /
+///   replace-block / binary-copy rules as mold derive.
 /// - Marker ignore globs exclude files from `template/`; `.foundry/` is always
 ///   excluded even when not listed in the marker.
 /// - Marker `lineDeletions` drop inclusive line ranges from matching text
@@ -51,6 +51,8 @@ Future<void> Function({
 ///   after liquidize so injected Liquid stays live.
 /// - Remotion annotations (`drop`, `remove-start` / `remove-end`) run after
 ///   replacements.
+/// - Replace-block annotations (`replace-start` / `with` / `replace-end`) run
+///   after remotions.
 /// - Overlapping `template/` paths are overwritten with freshly generated
 ///   content.
 /// - Root `pubspec.yaml`, root `variables.dart`, `hooks/`, and any other
