@@ -256,8 +256,7 @@ plain text
     );
 
     test('allows overwriting a partial when content is identical', () {
-      const input =
-          '/*partial v shared*/same content\n/*partial ^ shared*/';
+      const input = '/*partial v shared*/same content\n/*partial ^ shared*/';
       final partialPath = p.join(tempDir.path, 'shared.partial');
       File(partialPath)
         ..createSync(recursive: true)
@@ -273,7 +272,8 @@ plain text
     });
 
     test(
-      'throws FormatException when a partial name collides with different content',
+      'throws FormatException '
+      'when a partial name collides with different content',
       () {
         const input = '''
 /*partial v shared*/new content
