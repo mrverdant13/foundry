@@ -476,6 +476,34 @@ void main() {
       expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
     });
 
+    test(
+      'fails with a user error when a finish hook throws during complete',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeFinishHookFailingMold(directory: moldDir, name: 'demo_app');
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+            seedValues = const {},
+          }) async =>
+              {'project_name': 'Ada'},
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('MoldHookException(finish,')),
+        );
+      },
+    );
+
     test('fails with a user error when template rendering fails', () async {
       final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
       await writeBrokenTemplateMold(directory: moldDir, name: 'demo_app');

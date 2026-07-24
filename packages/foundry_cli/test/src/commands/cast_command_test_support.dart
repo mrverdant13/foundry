@@ -88,6 +88,21 @@ Future<void> run(FoundryContext context) async {
 ''');
 }
 
+/// Writes a mold whose finish hook fails during casting.
+Future<void> writeFinishHookFailingMold({
+  required Directory directory,
+  required String name,
+}) async {
+  await writeCastableMoldWithFinishHook(directory: directory, name: name);
+  await File(p.join(directory.path, 'hooks', 'finish.dart')).writeAsString('''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  throw const FoundryHookException('finish always fails');
+}
+''');
+}
+
 /// Writes a mold whose prepare hook creates a file under `--output`.
 Future<void> writeCastableMoldWithPrepareArtifact({
   required Directory directory,
