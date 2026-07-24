@@ -241,6 +241,7 @@ class CastCommand extends Command<int> {
       );
     } on MoldHookException catch (exception) {
       logger.error(exception.toString());
+      await _removeOutputIfEmpty(outputPath);
       return FoundryExitCode.userError.code;
     }
 

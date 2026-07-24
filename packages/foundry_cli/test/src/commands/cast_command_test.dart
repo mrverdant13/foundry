@@ -431,6 +431,9 @@ void main() {
         errorMessages,
         contains(contains('MoldHookException(prepare,')),
       );
+      // Prepare creates --output before the hook runs; failure removes it
+      // when empty.
+      expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
     });
 
     test('fails with a user error when template rendering fails', () async {
