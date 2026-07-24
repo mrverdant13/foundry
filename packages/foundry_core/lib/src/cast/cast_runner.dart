@@ -62,7 +62,7 @@ Future<FoundryContext> prepareCastContext({
 /// validation, [MoldHookException] when a hook fails, and
 /// [TemplateRenderException] when rendering fails (including destination
 /// conflicts without [force]). A failed cast does **not** roll back files
-/// already written under [context.outputDirectory] (REQUIREMENTS.md §6.2).
+/// already written under `context.outputDirectory` (REQUIREMENTS.md §6.2).
 Future<CastOutcome> completeCast({
   required Mold mold,
   required FoundryContext context,

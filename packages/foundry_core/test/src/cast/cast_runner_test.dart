@@ -351,14 +351,14 @@ Future<void> run(FoundryContext context) async {
 
     test('completeCast skips prepare so it is not run twice', () async {
       final counterPath = p.join(outputDirectory.path, 'prepare_count.txt');
-      await writeHook(MoldHooks.preparePath, '''
+      await writeHook(MoldHooks.preparePath, r'''
 import 'dart:io';
 import 'package:foundry_core/foundry_core.dart';
 
 Future<void> run(FoundryContext context) async {
-  final file = File('\${context.outputDirectory.path}/prepare_count.txt');
+  final file = File('${context.outputDirectory.path}/prepare_count.txt');
   final current = file.existsSync() ? int.parse(file.readAsStringSync()) : 0;
-  file.writeAsStringSync('\${current + 1}');
+  file.writeAsStringSync('${current + 1}');
   context.set('seed', 'from-prepare');
 }
 ''');
