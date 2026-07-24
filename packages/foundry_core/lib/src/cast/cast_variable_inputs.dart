@@ -10,7 +10,11 @@ import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 /// when the flag is omitted). [varsFlag] is the raw `--vars` string of
 /// comma-separated `key=value` pairs (or `null`/empty when omitted).
 ///
-/// Merge order: file values first, then `--vars` overrides colliding keys.
+/// Merge order: file values first, then `--vars` overrides colliding keys
+/// (exact key strings). Dotted `--vars` keys (for example `publish.host`) are
+/// expanded into nested object maps along `FoundryObjectVariable` groups and
+/// deep-merged with nested JSON object values from `--vars-file`. Whole-object
+/// assignments conflict with dotted children for the same path.
 /// Unknown keys fail. Per-kind parse/type failures list offending keys.
 /// After a successful merge/parse, the group is evaluated and validated with
 /// the same visibility and validator rules as interactive cast.
@@ -33,18 +37,26 @@ CastVariableInputsParseResult parseCastVariableInputs({
     return CastVariableInputsParseFailure(varsFlagError: flagParse.error);
   }
 
-  final merged = <String, _RawInput>{
+  final flatMerged = <String, _RawInput>{
     if (varsFileValues != null)
       for (final entry in varsFileValues.entries)
         entry.key: _RawInput.json(entry.value),
     for (final entry in flagParse.pairs) entry.key: _RawInput.flag(entry.value),
   };
 
+  final expansion = _expandDottedInputs(
+    flatMerged: flatMerged,
+    variableGroup: variableGroup,
+  );
+  if (expansion.failure != null) {
+    return expansion.failure!;
+  }
+
   final unknownKeys = <String>[];
   final parseErrors = <String, String>{};
   final rawValues = <String, Object?>{};
 
-  for (final entry in merged.entries) {
+  for (final entry in expansion.values.entries) {
     final key = entry.key;
     final variable = variableGroup.variables[key];
     if (variable == null) {
@@ -52,9 +64,9 @@ CastVariableInputsParseResult parseCastVariableInputs({
       continue;
     }
 
-    final parsed = _parseInputForVariable(
+    final parsed = _parseMergedValue(
       variable: variable,
-      input: entry.value,
+      value: entry.value,
       keyPath: key,
     );
     switch (parsed) {
@@ -92,6 +104,362 @@ CastVariableInputsParseResult parseCastVariableInputs({
     rawValues: Map.unmodifiable(rawValues),
     evaluation: evaluation,
   );
+}
+
+/// Intermediate tree after expanding dotted `--vars` keys.
+sealed class _MergedValue {
+  const _MergedValue();
+}
+
+final class _MergedLeaf extends _MergedValue {
+  const _MergedLeaf(this.input);
+  final _RawInput input;
+}
+
+final class _MergedObject extends _MergedValue {
+  _MergedObject([Map<String, _MergedValue>? fields])
+      : fields = fields ?? <String, _MergedValue>{};
+
+  final Map<String, _MergedValue> fields;
+}
+
+final class _ExpandDottedResult {
+  const _ExpandDottedResult({
+    this.values = const {},
+    this.failure,
+  });
+
+  final Map<String, _MergedValue> values;
+  final CastVariableInputsParseFailure? failure;
+}
+
+/// Expands flat `key` / `a.b.c` inputs into a nested [_MergedValue] tree.
+///
+/// Whole-object assignments (JSON maps / JSON object flag strings) are
+/// converted to [_MergedObject] trees so dotted flag leaves can deep-merge.
+/// A whole-object leaf that is not a mergeable map conflicts with dotted
+/// children for the same path.
+_ExpandDottedResult _expandDottedInputs({
+  required Map<String, _RawInput> flatMerged,
+  required FoundryVariableGroup variableGroup,
+}) {
+  final values = <String, _MergedValue>{};
+  final parseErrors = <String, String>{};
+  final unknownKeys = <String>[];
+
+  final plainKeys = <String>[];
+  final dottedKeys = <String>[];
+  for (final key in flatMerged.keys) {
+    if (key.contains('.')) {
+      dottedKeys.add(key);
+    } else {
+      plainKeys.add(key);
+    }
+  }
+
+  // A flag whole-object assignment at `publish` (JSON object string) conflicts
+  // with `publish.*`. Nested JSON maps from `--vars-file` deep-merge with
+  // dotted flag leaves instead.
+  for (final dottedKey in dottedKeys) {
+    final segments = dottedKey.split('.');
+    if (segments.any((segment) => segment.isEmpty)) {
+      continue;
+    }
+    for (var index = 1; index < segments.length; index++) {
+      final prefix = segments.sublist(0, index).join('.');
+      final prefixInput = flatMerged[prefix];
+      if (prefixInput == null) {
+        continue;
+      }
+      final canDeepMerge = switch (prefixInput) {
+        _JsonRawInput(:final value) => value is Map,
+        _FlagRawInput() => false,
+      };
+      if (!canDeepMerge) {
+        parseErrors[dottedKey] =
+            'Conflicts with a whole-object assignment at "$prefix"; remove '
+            'the object value or the dotted children.';
+        break;
+      }
+    }
+  }
+  if (parseErrors.isNotEmpty) {
+    return _ExpandDottedResult(
+      failure: CastVariableInputsParseFailure(
+        parseErrors: Map.unmodifiable(parseErrors),
+      ),
+    );
+  }
+
+  for (final key in plainKeys) {
+    final input = flatMerged[key]!;
+    final variable = variableGroup.variables[key];
+    final converted = _mergedValueFromRaw(
+      input: input,
+      variable: variable,
+      keyPath: key,
+    );
+    switch (converted) {
+      case _MergedFromRawSuccess(:final value):
+        values[key] = value;
+      case _MergedFromRawFailure(:final message):
+        parseErrors[key] = message;
+    }
+  }
+
+  for (final key in dottedKeys) {
+    final segments = key.split('.');
+    if (segments.any((segment) => segment.isEmpty)) {
+      parseErrors[key] = 'Invalid dotted path; empty segments are not allowed.';
+      continue;
+    }
+
+    final conflict = _assignDottedPath(
+      root: values,
+      segments: segments,
+      input: flatMerged[key]!,
+      variableGroup: variableGroup,
+      fullPath: key,
+    );
+    if (conflict != null) {
+      if (conflict.unknown) {
+        unknownKeys.add(conflict.message);
+      } else {
+        parseErrors[key] = conflict.message;
+      }
+    }
+  }
+
+  if (unknownKeys.isNotEmpty || parseErrors.isNotEmpty) {
+    unknownKeys.sort();
+    return _ExpandDottedResult(
+      failure: CastVariableInputsParseFailure(
+        unknownKeys: List.unmodifiable(unknownKeys),
+        parseErrors: Map.unmodifiable(parseErrors),
+      ),
+    );
+  }
+
+  return _ExpandDottedResult(values: values);
+}
+
+final class _DottedAssignError {
+  const _DottedAssignError(this.message, {this.unknown = false});
+  final String message;
+  final bool unknown;
+}
+
+sealed class _MergedFromRawResult {
+  const _MergedFromRawResult();
+}
+
+final class _MergedFromRawSuccess extends _MergedFromRawResult {
+  const _MergedFromRawSuccess(this.value);
+  final _MergedValue value;
+}
+
+final class _MergedFromRawFailure extends _MergedFromRawResult {
+  const _MergedFromRawFailure(this.message);
+  final String message;
+}
+
+_MergedFromRawResult _mergedValueFromRaw({
+  required _RawInput input,
+  required FoundryVariable<dynamic>? variable,
+  required String keyPath,
+}) {
+  if (variable is! FoundryObjectVariable) {
+    return _MergedFromRawSuccess(_MergedLeaf(input));
+  }
+
+  switch (input) {
+    case _JsonRawInput(:final value):
+      if (value == null) {
+        return const _MergedFromRawSuccess(_MergedLeaf(_RawInput.json(null)));
+      }
+      if (value is! Map) {
+        return _MergedFromRawSuccess(_MergedLeaf(input));
+      }
+      return _mergedObjectFromJsonMap(
+        map: value,
+        group: variable.group,
+        keyPath: keyPath,
+      );
+    case _FlagRawInput(:final value):
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        return const _MergedFromRawSuccess(_MergedLeaf(_RawInput.flag('')));
+      }
+      if (!trimmed.startsWith('{')) {
+        return _MergedFromRawSuccess(_MergedLeaf(input));
+      }
+      late final Object decoded;
+      try {
+        decoded = jsonDecode(trimmed) as Object;
+      } on FormatException {
+        return const _MergedFromRawFailure('Invalid JSON object.');
+      }
+      if (decoded is! Map) {
+        return const _MergedFromRawFailure('Expected a JSON object.');
+      }
+      return _mergedObjectFromJsonMap(
+        map: decoded,
+        group: variable.group,
+        keyPath: keyPath,
+      );
+  }
+}
+
+_MergedFromRawResult _mergedObjectFromJsonMap({
+  required Map<dynamic, dynamic> map,
+  required FoundryVariableGroup group,
+  required String keyPath,
+}) {
+  final fields = <String, _MergedValue>{};
+  for (final entry in map.entries) {
+    final childKey = entry.key.toString();
+    final childPath = '$keyPath.$childKey';
+    final childVariable = group.variables[childKey];
+    final child = _mergedValueFromRaw(
+      input: _RawInput.json(entry.value),
+      variable: childVariable,
+      keyPath: childPath,
+    );
+    switch (child) {
+      case _MergedFromRawSuccess(:final value):
+        fields[childKey] = value;
+      case _MergedFromRawFailure(:final message):
+        return _MergedFromRawFailure(message);
+    }
+  }
+  return _MergedFromRawSuccess(_MergedObject(fields));
+}
+
+_DottedAssignError? _assignDottedPath({
+  required Map<String, _MergedValue> root,
+  required List<String> segments,
+  required _RawInput input,
+  required FoundryVariableGroup variableGroup,
+  required String fullPath,
+}) {
+  var group = variableGroup;
+  var cursor = root;
+  final pathParts = <String>[];
+
+  for (var index = 0; index < segments.length; index++) {
+    final segment = segments[index];
+    pathParts.add(segment);
+    final path = pathParts.join('.');
+    final isLeaf = index == segments.length - 1;
+    final variable = group.variables[segment];
+
+    if (variable == null) {
+      return _DottedAssignError(path, unknown: true);
+    }
+
+    if (isLeaf) {
+      final existing = cursor[segment];
+      if (existing is _MergedObject) {
+        return const _DottedAssignError(
+          'Conflicts with an object value at this path; use nested fields or '
+          'a single object assignment, not both.',
+        );
+      }
+      cursor[segment] = _MergedLeaf(input);
+      return null;
+    }
+
+    if (variable is! FoundryObjectVariable) {
+      return _DottedAssignError(
+        'Cannot use dotted path "$fullPath"; "$path" is not an object variable.',
+      );
+    }
+
+    final existing = cursor[segment];
+    if (existing == null) {
+      final objectNode = _MergedObject();
+      cursor[segment] = objectNode;
+      cursor = objectNode.fields;
+      group = variable.group;
+      continue;
+    }
+    if (existing is _MergedLeaf) {
+      return _DottedAssignError(
+        'Conflicts with a whole-object assignment at "$path"; remove the '
+        'object value or the dotted children.',
+      );
+    }
+    cursor = (existing as _MergedObject).fields;
+    group = variable.group;
+  }
+
+  return null;
+}
+
+_ParsedInput _parseMergedValue({
+  required FoundryVariable<dynamic> variable,
+  required _MergedValue value,
+  required String keyPath,
+}) {
+  return switch (value) {
+    _MergedLeaf(:final input) => _parseInputForVariable(
+        variable: variable,
+        input: input,
+        keyPath: keyPath,
+      ),
+    _MergedObject(:final fields) => variable is FoundryObjectVariable
+        ? _parseObjectMerged(
+            variable: variable,
+            fields: fields,
+            keyPath: keyPath,
+          )
+        : const _ParsedFailure(
+            'Expected a scalar value but found a nested object path.',
+          ),
+  };
+}
+
+_ParsedInput _parseObjectMerged({
+  required FoundryObjectVariable variable,
+  required Map<String, _MergedValue> fields,
+  required String keyPath,
+}) {
+  final unknown = <String>[];
+  final errors = <String, String>{};
+  final parsedMap = <String, Object?>{};
+
+  for (final entry in fields.entries) {
+    final childKey = entry.key;
+    final childPath = '$keyPath.$childKey';
+    final childVariable = variable.group.variables[childKey];
+    if (childVariable == null) {
+      unknown.add(childPath);
+      continue;
+    }
+
+    final parsed = _parseMergedValue(
+      variable: childVariable,
+      value: entry.value,
+      keyPath: childPath,
+    );
+    switch (parsed) {
+      case _ParsedValue(:final value):
+        parsedMap[childKey] = value;
+      case _ParsedFailure(:final message):
+        errors[childPath] = message;
+      case _ParsedNestedFailure(
+          unknown: final nestedUnknown,
+          errors: final nestedErrors,
+        ):
+        unknown.addAll(nestedUnknown);
+        errors.addAll(nestedErrors);
+    }
+  }
+
+  if (unknown.isNotEmpty || errors.isNotEmpty) {
+    return _ParsedNestedFailure(unknown: unknown, errors: errors);
+  }
+  return _ParsedValue(parsedMap);
 }
 
 final class _VarsFlagParse {

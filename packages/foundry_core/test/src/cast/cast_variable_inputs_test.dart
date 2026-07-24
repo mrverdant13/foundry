@@ -753,6 +753,118 @@ void main() {
       expect(success.resolvedValues['name'], 'from-flag');
       expect(success.rawValues['name'], 'from-flag');
     });
+
+    test('expands dotted object paths from --vars with flag leaf typing', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.host=api.example.com,publish.port=9',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['publish'], {
+        'host': 'api.example.com',
+        'port': 9,
+      });
+    });
+
+    test('deep-merges dotted --vars into nested --vars-file objects', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFileValues: const {
+          'publish': {
+            'host': 'localhost',
+            'port': 1,
+          },
+        },
+        varsFlag: 'publish.port=2',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['publish'], {
+        'host': 'localhost',
+        'port': 2,
+      });
+    });
+
+    test('expands multi-level dotted object paths', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'outer': FoundryObjectVariable(
+            label: 'Outer',
+            group: FoundryVariableGroup(
+              variables: {
+                'inner': FoundryObjectVariable(
+                  label: 'Inner',
+                  group: FoundryVariableGroup(
+                    variables: {
+                      'host': FoundryStringVariable(label: 'Host'),
+                    },
+                  ),
+                ),
+              },
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFlag: 'outer.inner.host=ok',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['outer'], {
+        'inner': {'host': 'ok'},
+      });
+    });
+
+    test('fails when a whole-object assignment conflicts with dotted children',
+        () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish={"host":"a"},publish.port=9',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['publish.port'], contains('Conflicts'));
+    });
+
+    test('fails on unknown dotted object paths', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.nope=1',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.unknownKeys, contains('publish.nope'));
+    });
+
+    test('rejects empty segments in dotted paths', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.=x',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['publish.'], contains('empty segments'));
+    });
+
+    test('fails when dotted path walks a non-object variable', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _scalarGroup(),
+        varsFlag: 'name.extra=x',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['name.extra'], contains('not an object'));
+    });
   });
 
   group('CastVariableInputsParseFailure', () {
