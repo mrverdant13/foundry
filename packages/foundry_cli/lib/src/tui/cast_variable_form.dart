@@ -25,6 +25,7 @@ class CastVariableForm extends StatefulComponent {
     required this.moldDescription,
     required this.onSubmit,
     required this.onCancel,
+    this.seedValues = const {},
     super.key,
   });
 
@@ -36,6 +37,11 @@ class CastVariableForm extends StatefulComponent {
 
   /// Shown in the form header.
   final String moldDescription;
+
+  /// Prepare-hook (or other) context merged under collected field values for
+  /// every evaluate pass. Keys are not marked dirty, so defaults still
+  /// recompute until the user edits a field.
+  final Map<String, Object?> seedValues;
 
   /// Called with the resolved, validated values once the user confirms the
   /// last field.
@@ -68,11 +74,21 @@ class _CastVariableFormState extends State<CastVariableForm> {
     super.dispose();
   }
 
+  FoundryVariableGroupEvaluation _evaluateWithSeed({
+    required Map<String, Object?> rawValues,
+    required Set<String> dirtyKeys,
+  }) {
+    return component.variableGroup.evaluate(
+      rawValues: {...component.seedValues, ...rawValues},
+      dirtyKeys: dirtyKeys,
+    );
+  }
+
   @override
   Component build(BuildContext context) {
     _reconcileFieldKinds();
     var collected = _collectRawValues();
-    var evaluation = component.variableGroup.evaluate(
+    var evaluation = _evaluateWithSeed(
       rawValues: collected.rawValues,
       dirtyKeys: collected.topLevelDirtyKeys,
     );
@@ -83,7 +99,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
     if (_needsValuesRecollect(collected.rawValues)) {
       collected = _collectRawValues();
-      evaluation = component.variableGroup.evaluate(
+      evaluation = _evaluateWithSeed(
         rawValues: collected.rawValues,
         dirtyKeys: collected.topLevelDirtyKeys,
       );
@@ -184,7 +200,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
         final objectVariable = entry.variable as FoundryObjectVariable;
         final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         final nestedValidation = objectVariable.group.validate(
           nestedEvaluation,
@@ -376,7 +392,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             _asStringKeyedMap(itemValue) ??
             const <String, Object?>{};
         final nestedEvaluation = itemVariable.group.evaluate(
-          rawValues: nestedMap,
+          rawValues: {...component.seedValues, ...nestedMap},
         );
         final nestedValidation = itemVariable.group.validate(
           nestedEvaluation,
@@ -1385,7 +1401,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
         final objectVariable = entry.variable as FoundryObjectVariable;
         final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         targets.addAll(
           _buildFocusTargets(
@@ -1424,7 +1440,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                 ) ??
                 const <String, Object?>{};
             final nestedEvaluation = itemVariable.group.evaluate(
-              rawValues: nestedMap,
+              rawValues: {...component.seedValues, ...nestedMap},
             );
             targets.addAll(
               _buildFocusTargets(
@@ -1789,7 +1805,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                 ) ??
                 const <String, Object?>{};
             final nestedEvaluation = objectItem.group.evaluate(
-              rawValues: nestedMap,
+              rawValues: {...component.seedValues, ...nestedMap},
             );
             _syncValuesListState(
               nestedEvaluation,
@@ -1807,7 +1823,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             _asStringKeyedMap(entry.value) ??
             const <String, Object?>{};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         _syncValuesListState(
           nestedEvaluation,
@@ -2058,7 +2074,73 @@ class _CastVariableFormState extends State<CastVariableForm> {
       setState(() => _showErrors = true);
       return;
     }
-    component.onSubmit(evaluation.resolvedValues);
+    // Nested object/values evaluation during build merges [seedValues] so
+    // nested defaultValue/visibleWhen can see prepare context. Root
+    // [FoundryObjectVariable.resolveValue] does not, so submit rebuilds
+    // nested maps with the same seed-aware evaluate used for display.
+    final collected = _collectRawValues();
+    component.onSubmit(
+      _seedAwareResolvedValues(
+        evaluation: _evaluateWithSeed(
+          rawValues: collected.rawValues,
+          dirtyKeys: collected.topLevelDirtyKeys,
+        ),
+        rawValues: collected.rawValues,
+      ),
+    );
+  }
+
+  /// Resolves [evaluation] while re-evaluating nested object groups with
+  /// [CastVariableForm.seedValues], matching the display-time merge sites.
+  Map<String, Object?> _seedAwareResolvedValues({
+    required FoundryVariableGroupEvaluation evaluation,
+    required Map<String, Object?> rawValues,
+  }) {
+    final resolved = <String, Object?>{};
+    for (final entry in evaluation.entries) {
+      final variable = entry.variable;
+      if (variable is FoundryObjectVariable) {
+        final nestedRaw = _asStringKeyedMap(rawValues[entry.key]) ??
+            const <String, Object?>{};
+        final nestedEvaluation = variable.group.evaluate(
+          rawValues: {...component.seedValues, ...nestedRaw},
+          dirtyKeys: nestedRaw.keys.toSet(),
+        );
+        resolved[entry.key] = _seedAwareResolvedValues(
+          evaluation: nestedEvaluation,
+          rawValues: nestedRaw,
+        );
+        continue;
+      }
+
+      if (variable is FoundryValuesVariable &&
+          variable.item is FoundryObjectVariable) {
+        final objectItem = variable.item as FoundryObjectVariable;
+        final rawList = rawValues[entry.key];
+        final items = rawList is List
+            ? rawList
+            : entry.value is List
+                ? entry.value! as List
+                : const <Object?>[];
+        resolved[entry.key] = [
+          for (final item in items)
+            _seedAwareResolvedValues(
+              evaluation: objectItem.group.evaluate(
+                rawValues: {
+                  ...component.seedValues,
+                  ...?_asStringKeyedMap(item),
+                },
+                dirtyKeys: (_asStringKeyedMap(item) ?? const {}).keys.toSet(),
+              ),
+              rawValues: _asStringKeyedMap(item) ?? const <String, Object?>{},
+            ),
+        ];
+        continue;
+      }
+
+      resolved[entry.key] = entry.value;
+    }
+    return resolved;
   }
 }
 
