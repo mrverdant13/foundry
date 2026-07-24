@@ -26,7 +26,8 @@ void main() {
   CommandRunner<int> buildRunner({
     required Directory workingDirectory,
     CastVariableGatherer? gatherVariables,
-    CastRunner? runCast,
+    CastPreparer? prepareCast,
+    CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
@@ -37,7 +38,8 @@ void main() {
           logger: Logger(onInfo: onInfo, onError: onError),
           workingDirectory: workingDirectory,
           gatherVariables: gatherVariables,
-          runCast: runCast,
+          prepareCast: prepareCast,
+          completeCastRun: completeCastRun,
           readVarsFileContents: readVarsFileContents,
         ),
       );
@@ -67,6 +69,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async =>
               {'project_name': 'Ada'},
         );
@@ -172,6 +175,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async =>
               {'project_name': 'Ada'},
         );
@@ -202,6 +206,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async =>
               {'project_name': 42},
         );
@@ -226,6 +231,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async =>
               null,
         );
@@ -234,8 +240,68 @@ void main() {
 
         expect(exitCode, FoundryExitCode.userError.code);
         expect(infoMessages, contains(contains('cancelled')));
+        // Prepare creates --output before gather; cancel removes it when empty.
+        expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
       },
     );
+
+    test('runs prepare before gather and passes seedValues', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeCastableMold(
+        directory: moldDir,
+        name: 'demo_app',
+        withHooks: true,
+      );
+      Map<String, Object?>? seenSeed;
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          seenSeed = Map<String, Object?>.of(seedValues);
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      expect(seenSeed, isNotNull);
+      expect(seenSeed!['from_prepare'], 'yes');
+    });
+
+    test('does not seed gather from prepare when --no-hooks is set', () async {
+      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+      await writeCastableMold(
+        directory: moldDir,
+        name: 'demo_app',
+        withHooks: true,
+      );
+      Map<String, Object?>? seenSeed;
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          seenSeed = Map<String, Object?>.of(seedValues);
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      final exitCode = await runner.run(
+        ['cast', 'mold', '--output=out', '--no-hooks'],
+      );
+
+      expect(exitCode, FoundryExitCode.success.code);
+      expect(seenSeed, isNotNull);
+      expect(seenSeed!.containsKey('from_prepare'), isFalse);
+    });
 
     test('skips hooks when --no-hooks is passed', () async {
       final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
@@ -250,6 +316,7 @@ void main() {
           required variableGroup,
           required moldName,
           required moldDescription,
+          seedValues = const {},
         }) async =>
             {'project_name': 'Ada'},
       );
@@ -276,6 +343,7 @@ void main() {
           required variableGroup,
           required moldName,
           required moldDescription,
+          seedValues = const {},
         }) async =>
             {'project_name': 'Ada'},
       );
@@ -300,12 +368,12 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async =>
               {'project_name': 'Ada'},
-          runCast: ({
+          completeCastRun: ({
             required mold,
-            required outputPath,
-            required values,
+            required context,
             force = false,
             noHooks = false,
           }) async {
@@ -351,6 +419,7 @@ void main() {
           required variableGroup,
           required moldName,
           required moldDescription,
+          seedValues = const {},
         }) async =>
             {'project_name': 'Ada'},
       );
@@ -375,6 +444,7 @@ void main() {
           required variableGroup,
           required moldName,
           required moldDescription,
+          seedValues = const {},
         }) async =>
             {'project_name': 'Ada'},
       );
@@ -401,6 +471,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async {
             gatherCalls++;
             return {'project_name': 'should_not_be_used'};
@@ -435,6 +506,7 @@ void main() {
             required variableGroup,
             required moldName,
             required moldDescription,
+            seedValues = const {},
           }) async {
             gatherCalls++;
             return null;
@@ -633,6 +705,7 @@ void main() {
               required variableGroup,
               required moldName,
               required moldDescription,
+              seedValues = const {},
             }) async {
               gatherCalls++;
               return {'project_name': 'Ada'};

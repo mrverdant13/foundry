@@ -11,10 +11,14 @@ import 'package:path/path.dart' as p;
 ///
 /// Production code uses [gatherCastVariablesInteractively] (the Nocterm
 /// TUI); tests inject a fake implementation instead.
+///
+/// [seedValues] carries prepare-hook (or other) context so defaults and
+/// visibility can see those keys during interactive gather.
 typedef CastVariableGatherer = Future<Map<String, Object?>?> Function({
   required FoundryVariableGroup variableGroup,
   required String moldName,
   required String moldDescription,
+  Map<String, Object?> seedValues,
 });
 
 /// Reads persisted cast state from the process working directory.
@@ -56,14 +60,35 @@ Future<CastState?> readCastStateOrReportError({
   }
 }
 
-/// Runs the cast pipeline for a loaded mold.
+/// Runs the full cast pipeline for a loaded mold (`prepare` through `finish`).
 ///
-/// Production code uses [castMold]; tests inject a fake implementation to
-/// exercise error handling without building special-case molds.
+/// Production code uses `castMold`; recast and tests inject fakes.
+/// [CastCommand] uses [CastPreparer] + [CastCompleter] instead so prepare can
+/// run before variable gather.
 typedef CastRunner = Future<CastOutcome> Function({
   required Mold mold,
   required String outputPath,
   required Map<String, Object?> values,
+  bool force,
+  bool noHooks,
+});
+
+/// Runs prepare and returns the cast context (creates `--output`).
+///
+/// Production code uses `prepareCastContext`.
+typedef CastPreparer = Future<FoundryContext> Function({
+  required Mold mold,
+  required String outputPath,
+  Map<String, Object?> values,
+  bool noHooks,
+});
+
+/// Continues cast after prepare + gather (evaluate → shape → render → finish).
+///
+/// Production code uses `completeCast`.
+typedef CastCompleter = Future<CastOutcome> Function({
+  required Mold mold,
+  required FoundryContext context,
   bool force,
   bool noHooks,
 });
@@ -77,8 +102,8 @@ typedef VarsFileContentsReader = Future<String> Function(File file);
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
 /// `[--vars=<k=v,…>] [--vars-file=<path>]`
 ///
-/// Loads the mold at `<mold-path>`, gathers its variables through the
-/// Nocterm TUI (or batch flags), and casts an artifact at `--output`.
+/// Loads the mold at `<mold-path>`, runs prepare, gathers variables through
+/// the Nocterm TUI (or batch flags), then shapes, renders, and finishes.
 /// On success, persists `.foundry/last_cast.json` for `foundry recast` and
 /// `foundry finish`.
 /// {@endtemplate}
@@ -88,11 +113,13 @@ class CastCommand extends Command<int> {
     required this.logger,
     Directory? workingDirectory,
     CastVariableGatherer? gatherVariables,
-    CastRunner? runCast,
+    CastPreparer? prepareCast,
+    CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively,
-        _runCast = runCast ?? castMold,
+        _prepareCast = prepareCast ?? prepareCastContext,
+        _completeCast = completeCastRun ?? completeCast,
         _readVarsFileContents =
             readVarsFileContents ?? ((file) => file.readAsString()) {
     argParser
@@ -146,7 +173,8 @@ class CastCommand extends Command<int> {
   final Directory workingDirectory;
 
   final CastVariableGatherer _gatherVariables;
-  final CastRunner _runCast;
+  final CastPreparer _prepareCast;
+  final CastCompleter _completeCast;
   final VarsFileContentsReader _readVarsFileContents;
 
   @override
@@ -204,12 +232,25 @@ class CastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
+    final FoundryContext context;
+    try {
+      context = await _prepareCast(
+        mold: mold,
+        outputPath: outputPath,
+        noHooks: noHooks,
+      );
+    } on MoldHookException catch (exception) {
+      logger.error(exception.toString());
+      return FoundryExitCode.userError.code;
+    }
+
     final hasVars = argResults!.wasParsed(varsOptionName);
     final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
     final Map<String, Object?> values;
     if (hasVars || hasVarsFile) {
       final batchValues = await _resolveBatchValues(
         variableGroup: mold.variableGroup,
+        seedValues: context.copyValues(),
         hasVars: hasVars,
         hasVarsFile: hasVarsFile,
       );
@@ -222,20 +263,23 @@ class CastCommand extends Command<int> {
         variableGroup: mold.variableGroup,
         moldName: mold.name,
         moldDescription: mold.description,
+        seedValues: context.copyValues(),
       );
       if (gathered == null) {
+        await _removeOutputIfEmpty(outputPath);
         logger.info('Cast cancelled.');
         return FoundryExitCode.userError.code;
       }
       values = gathered;
     }
 
+    context.merge(values);
+
     final CastOutcome outcome;
     try {
-      outcome = await _runCast(
+      outcome = await _completeCast(
         mold: mold,
-        outputPath: outputPath,
-        values: values,
+        context: context,
         force: force,
         noHooks: noHooks,
       );
@@ -277,13 +321,26 @@ class CastCommand extends Command<int> {
     return FoundryExitCode.success.code;
   }
 
+  /// Removes [outputPath] when it exists and contains no entries (best-effort
+  /// cleanup after prepare + cancelled gather).
+  Future<void> _removeOutputIfEmpty(String outputPath) async {
+    final directory = Directory(outputPath);
+    if (!directory.existsSync()) {
+      return;
+    }
+    if (directory.listSync().isEmpty) {
+      await directory.delete();
+    }
+  }
+
   /// Reads `--vars-file` (when present), merges with `--vars`, and parses
-  /// against [variableGroup].
+  /// against [variableGroup], using [seedValues] for prepare-seeded defaults.
   ///
   /// Returns `null` after logging a user-facing error when the file cannot be
   /// read/decoded or when parse/validation fails.
   Future<Map<String, Object?>?> _resolveBatchValues({
     required FoundryVariableGroup variableGroup,
+    required Map<String, Object?> seedValues,
     required bool hasVars,
     required bool hasVarsFile,
   }) async {
@@ -331,6 +388,7 @@ class CastCommand extends Command<int> {
       variableGroup: variableGroup,
       varsFileValues: varsFileValues,
       varsFlag: hasVars ? argResults!.option(varsOptionName) : null,
+      seedValues: seedValues,
     );
     switch (result) {
       case CastVariableInputsParseSuccess(:final rawValues):

@@ -25,6 +25,7 @@ class CastVariableForm extends StatefulComponent {
     required this.moldDescription,
     required this.onSubmit,
     required this.onCancel,
+    this.seedValues = const {},
     super.key,
   });
 
@@ -36,6 +37,11 @@ class CastVariableForm extends StatefulComponent {
 
   /// Shown in the form header.
   final String moldDescription;
+
+  /// Prepare-hook (or other) context merged under collected field values for
+  /// every evaluate pass. Keys are not marked dirty, so defaults still
+  /// recompute until the user edits a field.
+  final Map<String, Object?> seedValues;
 
   /// Called with the resolved, validated values once the user confirms the
   /// last field.
@@ -68,11 +74,21 @@ class _CastVariableFormState extends State<CastVariableForm> {
     super.dispose();
   }
 
+  FoundryVariableGroupEvaluation _evaluateWithSeed({
+    required Map<String, Object?> rawValues,
+    required Set<String> dirtyKeys,
+  }) {
+    return component.variableGroup.evaluate(
+      rawValues: {...component.seedValues, ...rawValues},
+      dirtyKeys: dirtyKeys,
+    );
+  }
+
   @override
   Component build(BuildContext context) {
     _reconcileFieldKinds();
     var collected = _collectRawValues();
-    var evaluation = component.variableGroup.evaluate(
+    var evaluation = _evaluateWithSeed(
       rawValues: collected.rawValues,
       dirtyKeys: collected.topLevelDirtyKeys,
     );
@@ -83,7 +99,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
     );
     if (_needsValuesRecollect(collected.rawValues)) {
       collected = _collectRawValues();
-      evaluation = component.variableGroup.evaluate(
+      evaluation = _evaluateWithSeed(
         rawValues: collected.rawValues,
         dirtyKeys: collected.topLevelDirtyKeys,
       );
@@ -184,7 +200,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
         final objectVariable = entry.variable as FoundryObjectVariable;
         final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         final nestedValidation = objectVariable.group.validate(
           nestedEvaluation,
@@ -376,7 +392,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             _asStringKeyedMap(itemValue) ??
             const <String, Object?>{};
         final nestedEvaluation = itemVariable.group.evaluate(
-          rawValues: nestedMap,
+          rawValues: {...component.seedValues, ...nestedMap},
         );
         final nestedValidation = itemVariable.group.validate(
           nestedEvaluation,
@@ -1385,7 +1401,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
         final objectVariable = entry.variable as FoundryObjectVariable;
         final nestedRaw = _nestedRawMap(rawValues, path) ?? const {};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         targets.addAll(
           _buildFocusTargets(
@@ -1424,7 +1440,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                 ) ??
                 const <String, Object?>{};
             final nestedEvaluation = itemVariable.group.evaluate(
-              rawValues: nestedMap,
+              rawValues: {...component.seedValues, ...nestedMap},
             );
             targets.addAll(
               _buildFocusTargets(
@@ -1789,7 +1805,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
                 ) ??
                 const <String, Object?>{};
             final nestedEvaluation = objectItem.group.evaluate(
-              rawValues: nestedMap,
+              rawValues: {...component.seedValues, ...nestedMap},
             );
             _syncValuesListState(
               nestedEvaluation,
@@ -1807,7 +1823,7 @@ class _CastVariableFormState extends State<CastVariableForm> {
             _asStringKeyedMap(entry.value) ??
             const <String, Object?>{};
         final nestedEvaluation = objectVariable.group.evaluate(
-          rawValues: nestedRaw,
+          rawValues: {...component.seedValues, ...nestedRaw},
         );
         _syncValuesListState(
           nestedEvaluation,

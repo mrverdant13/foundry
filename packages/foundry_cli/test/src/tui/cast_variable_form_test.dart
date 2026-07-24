@@ -674,6 +674,39 @@ void main() {
     );
 
     test(
+      'uses seedValues for defaultValue and visibleWhen during gather',
+      () => testNocterm('seedValues defaults', (tester) async {
+        Map<String, Object?>? submitted;
+        await tester.pumpComponent(
+          CastVariableForm(
+            variableGroup: FoundryVariableGroup(
+              variables: {
+                'package_name': FoundryStringVariable(
+                  label: 'Package name',
+                  visibleWhen: (context) =>
+                      context.optionalString('seed') == 'from-prepare',
+                  defaultValue: (context) =>
+                      context.optionalString('seed') ?? 'fallback',
+                ),
+              },
+            ),
+            moldName: 'demo_app',
+            moldDescription: 'A demo mold.',
+            seedValues: const {'seed': 'from-prepare'},
+            onSubmit: (values) => submitted = values,
+            onCancel: () {},
+          ),
+        );
+
+        expect(tester.terminalState.getText(), contains('from-prepare'));
+        await tester.sendEnter();
+        await tester.pump();
+        expect(submitted, isNotNull);
+        expect(submitted!['package_name'], 'from-prepare');
+      }),
+    );
+
+    test(
       'typing into the focused field marks it dirty',
       () => testNocterm('typing marks dirty', (tester) async {
         await tester.pumpComponent(
