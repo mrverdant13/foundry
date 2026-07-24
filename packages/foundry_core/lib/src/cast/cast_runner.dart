@@ -18,9 +18,10 @@ import 'package:path/path.dart' as p;
 /// returned with [values] only.
 ///
 /// Callers that gather variables after prepare (for example the CLI) should
-/// merge gathered values into the returned context and then call
-/// [completeCast] so prepare is not run twice. Prefer [castMold] when the
-/// full pipeline should run in one shot with no separate gather step.
+/// seed gather from [FoundryContext.copyValues], merge gathered values into
+/// the returned context, and then call [completeCast] so prepare is not run
+/// twice. Prefer [castMold] when the full pipeline should run in one shot with
+/// no separate gather step.
 Future<FoundryContext> prepareCastContext({
   required Mold mold,
   required String outputPath,
