@@ -22,6 +22,11 @@ import 'package:path/path.dart' as p;
 /// the returned context, and then call [completeCast] so prepare is not run
 /// twice. Prefer [castMold] when the full pipeline should run in one shot with
 /// no separate gather step.
+///
+/// Throws [MoldHookException] when the prepare hook fails. On failure, the
+/// newly created [outputPath] directory (and any files the hook wrote before
+/// failing) are left on disk — this call is not a no-op with respect to the
+/// filesystem.
 Future<FoundryContext> prepareCastContext({
   required Mold mold,
   required String outputPath,
