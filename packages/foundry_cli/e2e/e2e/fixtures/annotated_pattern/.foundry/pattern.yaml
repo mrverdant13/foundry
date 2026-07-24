@@ -1,0 +1,8 @@
+name: annotated_e2e_pattern
+ignore:
+  - .dart_tool/**
+  - .git/**
+  - build/**
+replacements:
+  - from: ref_pkg
+    to: '{{ package_name }}'
