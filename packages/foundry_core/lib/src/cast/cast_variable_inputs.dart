@@ -360,8 +360,7 @@ _DottedAssignError? _assignDottedPath({
 
     if (variable == null) {
       // Echo the full user-typed path when an intermediate segment fails.
-      final unknownKey =
-          path == fullPath ? path : '$path (in "$fullPath")';
+      final unknownKey = path == fullPath ? path : '$path (in "$fullPath")';
       return _DottedAssignError(unknownKey, unknown: true);
     }
 
