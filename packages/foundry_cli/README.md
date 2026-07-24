@@ -93,6 +93,11 @@ foundry cast . --output=../hello_out --vars=project_name=Hello
 foundry cast . --output=../hello_out --vars-file=./vars.json
 ```
 
+Object fields accept dotted `--vars` paths (for example
+`publish.host=api.example.com,publish.port=443`) or a nested JSON object in
+`--vars-file`. Prefer `--vars-file` for deep nests. A whole-object assignment
+such as `publish={…}` cannot be combined with `publish.*` dotted children.
+
 Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to
 skip all hook phases.
 
@@ -230,8 +235,8 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 | `--output` | **Required.** Destination directory for rendered artifacts |
 | `--force` | Allow casting into a non-empty output directory |
 | `--no-hooks` | Skip prepare, shape, and finish hooks |
-| `--vars` | Comma-separated `key=value` pairs (skips the TUI) |
-| `--vars-file` | Path to a JSON object of variable values (skips the TUI) |
+| `--vars` | Comma-separated `key=value` pairs (skips the TUI); object fields may use dotted paths (`publish.host=…`) |
+| `--vars-file` | Path to a JSON object of variable values (skips the TUI); nested objects preferred for deep nests |
 
 #### `foundry recast`
 

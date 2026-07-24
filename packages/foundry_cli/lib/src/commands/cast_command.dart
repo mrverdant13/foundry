@@ -141,12 +141,14 @@ class CastCommand extends Command<int> {
       ..addOption(
         varsOptionName,
         help: 'Comma-separated key=value pairs for batch cast '
-            '(skips the interactive TUI).',
+            '(skips the interactive TUI). Object fields may use dotted paths '
+            '(for example publish.host=…).',
       )
       ..addOption(
         varsFileOptionName,
         help: 'Path to a JSON object of variable values for batch cast '
-            '(skips the interactive TUI).',
+            '(skips the interactive TUI). Nested objects are preferred for '
+            'deep object variables.',
       );
   }
 
