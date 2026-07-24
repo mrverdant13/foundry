@@ -413,5 +413,39 @@ Future<void> run(FoundryContext context) async {
 
       expect(context.entries.containsKey('seed'), isFalse);
     });
+
+    test(
+      'completeCast accepts a hand-built context without prepareCastContext',
+      () async {
+        await writeTemplateFile('README.md', '# {{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final context = FoundryContext(
+          values: const {'project_name': 'Ada'},
+          logger: Logger(),
+          moldDirectory: moldDirectory,
+          outputDirectory: outputDirectory,
+        );
+
+        final outcome = await completeCast(
+          mold: mold,
+          context: context,
+          noHooks: true,
+        );
+
+        expect(outcome.values['project_name'], 'Ada');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'README.md'),
+          ).readAsString(),
+          '# Ada\n',
+        );
+      },
+    );
   });
 }
