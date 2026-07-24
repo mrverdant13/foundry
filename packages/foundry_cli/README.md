@@ -93,6 +93,13 @@ foundry cast . --output=../hello_out --vars=project_name=Hello
 foundry cast . --output=../hello_out --vars-file=./vars.json
 ```
 
+Object fields accept dotted `--vars` paths (for example
+`publish.host=api.example.com,publish.port=443`) or a nested JSON object in
+`--vars-file`. Prefer `--vars-file` for deep nests. A whole-object `--vars`
+flag assignment such as `publish={…}` cannot be combined with `publish.*`
+dotted children; a `--vars-file` object value at that path can deep-merge with
+dotted `--vars` overrides.
+
 Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to
 skip all hook phases.
 
