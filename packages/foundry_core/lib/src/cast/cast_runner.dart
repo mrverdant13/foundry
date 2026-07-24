@@ -22,6 +22,11 @@ import 'package:path/path.dart' as p;
 /// the returned context, and then call [completeCast] so prepare is not run
 /// twice. Prefer [castMold] when the full pipeline should run in one shot with
 /// no separate gather step.
+///
+/// Throws [MoldHookException] when the prepare hook fails. On failure, the
+/// newly created [outputPath] directory (and any files the hook wrote before
+/// failing) are left on disk — this call is not a no-op with respect to the
+/// filesystem.
 Future<FoundryContext> prepareCastContext({
   required Mold mold,
   required String outputPath,
@@ -56,20 +61,28 @@ Future<FoundryContext> prepareCastContext({
 /// cast `--output` directory (typically from [prepareCastContext]). Merge
 /// any gathered variable values into [context] before calling this.
 ///
+/// [dirtyKeys] are forwarded to variable evaluation so explicitly cleared
+/// (null) fields are not replaced by `defaultValue` during this re-evaluate
+/// pass. Defaults to empty, matching historical `castMold` behavior.
+///
 /// When [noHooks] is `true`, shape and finish are skipped.
 ///
 /// Throws [CastVariablesInvalidException] when resolved variables fail
 /// validation, [MoldHookException] when a hook fails, and
 /// [TemplateRenderException] when rendering fails (including destination
 /// conflicts without [force]). A failed cast does **not** roll back files
-/// already written under `context.outputDirectory` (REQUIREMENTS.md §6.2).
+/// already written under `context.outputDirectory`.
 Future<CastOutcome> completeCast({
   required Mold mold,
   required FoundryContext context,
   bool force = false,
   bool noHooks = false,
+  Set<String> dirtyKeys = const {},
 }) async {
-  final evaluation = mold.variableGroup.evaluate(rawValues: context.entries);
+  final evaluation = mold.variableGroup.evaluate(
+    rawValues: context.entries,
+    dirtyKeys: dirtyKeys,
+  );
   final validation = mold.variableGroup.validate(evaluation);
   if (!validation.isValid) {
     throw CastVariablesInvalidException(validation);
@@ -131,19 +144,20 @@ Future<CastOutcome> completeCast({
 ///
 /// When [force] is `false` (the default), rendering fails if a destination
 /// file already exists. When [noHooks] is `true`, all three hook phases are
-/// skipped.
+/// skipped. [dirtyKeys] is forwarded to [completeCast].
 ///
 /// Throws [CastVariablesInvalidException] when resolved variables fail
 /// validation, [MoldHookException] when a hook fails, and
 /// [TemplateRenderException] when rendering fails (including destination
 /// conflicts without [force]). A failed cast does **not** roll back files
-/// already written to [outputPath] (REQUIREMENTS.md §6.2).
+/// already written to [outputPath].
 Future<CastOutcome> castMold({
   required Mold mold,
   required String outputPath,
   Map<String, Object?> values = const {},
   bool force = false,
   bool noHooks = false,
+  Set<String> dirtyKeys = const {},
 }) async {
   final context = await prepareCastContext(
     mold: mold,
@@ -156,5 +170,6 @@ Future<CastOutcome> castMold({
     context: context,
     force: force,
     noHooks: noHooks,
+    dirtyKeys: dirtyKeys,
   );
 }

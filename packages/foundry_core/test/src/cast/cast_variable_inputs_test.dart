@@ -607,6 +607,146 @@ void main() {
       );
     });
 
+    test('parses values lists of objects from --vars-file', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                  'port': FoundryIntVariable(label: 'Port'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFileValues: const {
+          'items': [
+            {'host': 'a', 'port': 1},
+            {'host': 'b', 'port': 2},
+          ],
+        },
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['items'], [
+        {'host': 'a', 'port': 1},
+        {'host': 'b', 'port': 2},
+      ]);
+    });
+
+    test('reports field type errors for values lists of objects', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFileValues: const {
+          'items': [
+            {'host': 1},
+          ],
+        },
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['items[0].host'], contains('string'));
+    });
+
+    test(
+      'propagates nested object failures inside values-list object items',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'items': FoundryValuesVariable<Map<String, Object?>>(
+              label: 'Items',
+              item: FoundryObjectVariable(
+                label: 'Item',
+                group: FoundryVariableGroup(
+                  variables: {
+                    'nested': FoundryObjectVariable(
+                      label: 'Nested',
+                      group: FoundryVariableGroup(
+                        variables: {
+                          'host': FoundryStringVariable(label: 'Host'),
+                        },
+                      ),
+                    ),
+                  },
+                ),
+              ),
+            ),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          varsFileValues: const {
+            'items': [
+              {
+                'nested': {
+                  'host': 'ok',
+                  'extra': true,
+                },
+              },
+            ],
+          },
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(failure.unknownKeys, ['items[0].nested.extra']);
+      },
+    );
+
+    test('rejects invalid JSON object tokens in values-list object items', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFlag: 'items={not-json',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['items[0]'], 'Invalid JSON object.');
+    });
+
     test('parses values lists from JSON array flags and empty lists', () {
       final empty = parseCastVariableInputs(
         variableGroup: _tagsGroup(),
@@ -752,6 +892,268 @@ void main() {
       final success = result as CastVariableInputsParseSuccess;
       expect(success.resolvedValues['name'], 'from-flag');
       expect(success.rawValues['name'], 'from-flag');
+    });
+
+    test(
+      'seedValues under a variable key resolve without a defaultValue callback',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          seedValues: const {'project_name': 'from-prepare'},
+        );
+
+        expect(result, isA<CastVariableInputsParseSuccess>());
+        final success = result as CastVariableInputsParseSuccess;
+        expect(success.resolvedValues['project_name'], 'from-prepare');
+        expect(success.rawValues.containsKey('project_name'), isFalse);
+      },
+    );
+
+    test('expands dotted object paths from --vars with flag leaf typing', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.host=api.example.com,publish.port=9',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['publish'], {
+        'host': 'api.example.com',
+        'port': 9,
+      });
+    });
+
+    test('deep-merges dotted --vars into nested --vars-file objects', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFileValues: const {
+          'publish': {
+            'host': 'localhost',
+            'port': 1,
+          },
+        },
+        varsFlag: 'publish.port=2',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['publish'], {
+        'host': 'localhost',
+        'port': 2,
+      });
+    });
+
+    test('expands multi-level dotted object paths', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'outer': FoundryObjectVariable(
+            label: 'Outer',
+            group: FoundryVariableGroup(
+              variables: {
+                'inner': FoundryObjectVariable(
+                  label: 'Inner',
+                  group: FoundryVariableGroup(
+                    variables: {
+                      'host': FoundryStringVariable(label: 'Host'),
+                    },
+                  ),
+                ),
+              },
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFlag: 'outer.inner.host=ok',
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['outer'], {
+        'inner': {'host': 'ok'},
+      });
+    });
+
+    test('fails when a whole-object assignment conflicts with dotted children',
+        () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish={"host":"a"},publish.port=9',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['publish.port'], contains('Conflicts'));
+    });
+
+    test(
+      'fails when a nested --vars-file non-map conflicts with dotted children',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'outer': FoundryObjectVariable(
+              label: 'Outer',
+              group: FoundryVariableGroup(
+                variables: {
+                  'inner': FoundryObjectVariable(
+                    label: 'Inner',
+                    group: FoundryVariableGroup(
+                      variables: {
+                        'host': FoundryStringVariable(label: 'Host'),
+                      },
+                    ),
+                  ),
+                },
+              ),
+            ),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          varsFileValues: const {
+            'outer': {
+              'inner': 'not-an-object',
+            },
+          },
+          varsFlag: 'outer.inner.host=ok',
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(failure.parseErrors['outer.inner.host'], contains('Conflicts'));
+      },
+    );
+
+    test(
+      'fails when a top-level --vars-file non-map conflicts with dotted '
+      'children',
+      () {
+        final result = parseCastVariableInputs(
+          variableGroup: _publishGroup(),
+          varsFileValues: const {
+            'publish': 'not-a-map',
+          },
+          varsFlag: 'publish.port=9',
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(failure.parseErrors['publish.port'], contains('Conflicts'));
+      },
+    );
+
+    test(
+      'deep-merges multi-level --vars-file objects with dotted --vars',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'outer': FoundryObjectVariable(
+              label: 'Outer',
+              group: FoundryVariableGroup(
+                variables: {
+                  'inner': FoundryObjectVariable(
+                    label: 'Inner',
+                    group: FoundryVariableGroup(
+                      variables: {
+                        'host': FoundryStringVariable(label: 'Host'),
+                        'port': FoundryIntVariable(label: 'Port'),
+                      },
+                    ),
+                  ),
+                },
+              ),
+            ),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          varsFileValues: const {
+            'outer': {
+              'inner': {
+                'host': 'localhost',
+                'port': 1,
+              },
+            },
+          },
+          varsFlag: 'outer.inner.port=2',
+        );
+
+        expect(result, isA<CastVariableInputsParseSuccess>());
+        final success = result as CastVariableInputsParseSuccess;
+        expect(success.resolvedValues['outer'], {
+          'inner': {
+            'host': 'localhost',
+            'port': 2,
+          },
+        });
+      },
+    );
+
+    test('fails on unknown dotted object paths', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.nope=1',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.unknownKeys, contains('publish.nope'));
+    });
+
+    test(
+      'includes the full typed path when an intermediate dotted segment is '
+      'unknown',
+      () {
+        final result = parseCastVariableInputs(
+          variableGroup: _publishGroup(),
+          varsFlag: 'publish.nope.extra=1',
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(
+          failure.unknownKeys,
+          contains('publish.nope (in "publish.nope.extra")'),
+        );
+        expect(
+          failure.toString(),
+          contains(
+            'Unknown variable "publish.nope" (in "publish.nope.extra").',
+          ),
+        );
+      },
+    );
+
+    test('rejects empty segments in dotted paths', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _publishGroup(),
+        varsFlag: 'publish.=x',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['publish.'], contains('empty segments'));
+    });
+
+    test('fails when dotted path walks a non-object variable', () {
+      final result = parseCastVariableInputs(
+        variableGroup: _scalarGroup(),
+        varsFlag: 'name.extra=x',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['name.extra'], contains('not an object'));
     });
   });
 

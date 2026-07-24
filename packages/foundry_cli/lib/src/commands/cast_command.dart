@@ -243,6 +243,7 @@ class CastCommand extends Command<int> {
       );
     } on MoldHookException catch (exception) {
       logger.error(exception.toString());
+      await _removeOutputIfEmpty(outputPath);
       return FoundryExitCode.userError.code;
     }
 
@@ -324,7 +325,11 @@ class CastCommand extends Command<int> {
   }
 
   /// Removes [outputPath] when it exists and contains no entries (best-effort
-  /// cleanup after prepare + cancelled gather).
+  /// cleanup after prepare failure or cancelled gather).
+  ///
+  /// When the directory is non-empty (for example a prepare hook wrote files
+  /// before abort), leaves it in place and warns so leftover output is not
+  /// silent.
   Future<void> _removeOutputIfEmpty(String outputPath) async {
     final directory = Directory(outputPath);
     if (!directory.existsSync()) {
@@ -332,7 +337,12 @@ class CastCommand extends Command<int> {
     }
     if (directory.listSync().isEmpty) {
       await directory.delete();
+      return;
     }
+    logger.warn(
+      'Output directory "$outputPath" is not empty; left in place after '
+      'aborted cast.',
+    );
   }
 
   /// Reads `--vars-file` (when present), merges with `--vars`, and parses

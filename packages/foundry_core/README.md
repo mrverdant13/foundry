@@ -93,7 +93,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Sync | `syncMoldFromPattern`, `MoldSyncException` |
 | Pattern | `inspectPattern`, `PatternInspectionReport`, `PatternMarker` |
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
-| Cast | `castMold`, `CastOutcome`, `readCastState`, `writeCastState` |
+| Cast | `castMold`, `prepareCastContext`, `completeCast`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
 | Render | `renderTemplate` |
 | Hooks | `runMoldHook`, `FoundryHookException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
