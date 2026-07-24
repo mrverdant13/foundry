@@ -372,7 +372,8 @@ _DottedAssignError? _assignDottedPath({
 
     if (variable is! FoundryObjectVariable) {
       return _DottedAssignError(
-        'Cannot use dotted path "$fullPath"; "$path" is not an object variable.',
+        'Cannot use dotted path "$fullPath"; '
+        '"$path" is not an object variable.',
       );
     }
 
