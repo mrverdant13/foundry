@@ -447,5 +447,50 @@ Future<void> run(FoundryContext context) async {
         );
       },
     );
+
+    test(
+      'completeCast preserves a dirty null over defaultValue when dirtyKeys '
+      'is set',
+      () async {
+        await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(
+                label: 'Project name',
+                defaultValue: (_) => 'from-default',
+              ),
+            },
+          ),
+        );
+
+        final withoutDirtyKeys = await completeCast(
+          mold: mold,
+          context: FoundryContext(
+            values: const {'project_name': null},
+            logger: Logger(),
+            moldDirectory: moldDirectory,
+            outputDirectory: outputDirectory,
+          ),
+          force: true,
+          noHooks: true,
+        );
+        expect(withoutDirtyKeys.values['project_name'], 'from-default');
+
+        final withDirtyKeys = await completeCast(
+          mold: mold,
+          context: FoundryContext(
+            values: const {'project_name': null},
+            logger: Logger(),
+            moldDirectory: moldDirectory,
+            outputDirectory: outputDirectory,
+          ),
+          dirtyKeys: const {'project_name'},
+          force: true,
+          noHooks: true,
+        );
+        expect(withDirtyKeys.values['project_name'], isNull);
+      },
+    );
   });
 }
