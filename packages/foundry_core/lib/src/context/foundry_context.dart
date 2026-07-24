@@ -53,4 +53,13 @@ class FoundryContext extends SnapshotFoundryContext {
   /// Used by the runtime to evaluate variable callbacks (`visibleWhen`,
   /// `defaultValue`, validators) against the latest hook mutations.
   SnapshotFoundryContext snapshot() => SnapshotFoundryContext(_values);
+
+  /// A shallow copy of the current cast values.
+  ///
+  /// Used by pipeline orchestration (for example the CLI) to seed interactive
+  /// or batch gather after `prepareCastContext` without relying on the
+  /// package-private `entries` accessor. Nested map/list values are shared by
+  /// reference with this context — mutations to those nested structures are
+  /// visible on both sides.
+  Map<String, Object?> copyValues() => Map<String, Object?>.of(_values);
 }

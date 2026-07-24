@@ -140,4 +140,19 @@ void main() {
       expect(snapshot.requiredString('name'), 'demo_app');
     });
   });
+
+  group('copyValues', () {
+    test('returns a defensive copy of current values', () {
+      final context = buildContext(values: const {'name': 'demo_app'})
+        ..set('seed', 'from-prepare');
+
+      final values = context.copyValues();
+      values['name'] = 'mutated';
+      context.set('seed', 'changed');
+
+      expect(context.requiredString('name'), 'demo_app');
+      expect(values['seed'], 'from-prepare');
+      expect(context.requiredString('seed'), 'changed');
+    });
+  });
 }

@@ -15,12 +15,21 @@ import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 /// After a successful merge/parse, the group is evaluated and validated with
 /// the same visibility and validator rules as interactive cast.
 ///
+/// [seedValues] are merged under the parsed user inputs for evaluation
+/// (for example prepare-hook context). User-provided keys win on collision.
+/// A non-null seed for a declared variable key is treated as that variable's
+/// raw value when the user did not supply one (it resolves directly, not only
+/// as callback context). Keys that are not variable names remain visible to
+/// `defaultValue` / `visibleWhen` callbacks. Seed entries are not returned in
+/// [CastVariableInputsParseSuccess.rawValues].
+///
 /// This API is pure (no I/O, no Nocterm). The CLI is responsible for reading
 /// the vars file from disk and decoding JSON before calling this function.
 CastVariableInputsParseResult parseCastVariableInputs({
   required FoundryVariableGroup variableGroup,
   Map<String, Object?>? varsFileValues,
   String? varsFlag,
+  Map<String, Object?> seedValues = const {},
 }) {
   final flagParse = _parseVarsFlag(varsFlag);
   if (flagParse.error != null) {
@@ -74,7 +83,7 @@ CastVariableInputsParseResult parseCastVariableInputs({
   }
 
   final evaluation = variableGroup.evaluate(
-    rawValues: rawValues,
+    rawValues: {...seedValues, ...rawValues},
     dirtyKeys: rawValues.keys.toSet(),
   );
   final validation = variableGroup.validate(evaluation);

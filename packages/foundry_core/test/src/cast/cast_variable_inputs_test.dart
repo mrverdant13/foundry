@@ -702,6 +702,78 @@ void main() {
       final success = result as CastVariableInputsParseSuccess;
       expect(success.resolvedValues['tags'], ['one', 'two', 'three']);
     });
+
+    test('seedValues feed defaultValue and visibleWhen during evaluate', () {
+      final group = FoundryVariableGroup(
+        variables: {
+          'package_name': FoundryStringVariable(
+            label: 'Package name',
+            visibleWhen: (context) =>
+                context.optionalString('seed') == 'from-prepare',
+            defaultValue: (context) =>
+                context.optionalString('seed') ?? 'fallback',
+          ),
+        },
+      );
+
+      final withoutSeed = parseCastVariableInputs(variableGroup: group);
+      expect(withoutSeed, isA<CastVariableInputsParseSuccess>());
+      final without = withoutSeed as CastVariableInputsParseSuccess;
+      expect(without.resolvedValues.containsKey('package_name'), isFalse);
+
+      final withSeed = parseCastVariableInputs(
+        variableGroup: group,
+        seedValues: const {'seed': 'from-prepare'},
+      );
+      expect(withSeed, isA<CastVariableInputsParseSuccess>());
+      final seeded = withSeed as CastVariableInputsParseSuccess;
+      expect(seeded.resolvedValues['package_name'], 'from-prepare');
+      expect(seeded.rawValues.containsKey('package_name'), isFalse);
+      expect(seeded.rawValues.containsKey('seed'), isFalse);
+    });
+
+    test('user inputs override colliding seedValues for variable keys', () {
+      final group = FoundryVariableGroup(
+        variables: {
+          'name': FoundryStringVariable(
+            label: 'Name',
+            defaultValue: (_) => 'from-default',
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFlag: 'name=from-flag',
+        seedValues: const {'name': 'from-seed'},
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['name'], 'from-flag');
+      expect(success.rawValues['name'], 'from-flag');
+    });
+
+    test(
+      'seedValues under a variable key resolve without a defaultValue callback',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          seedValues: const {'project_name': 'from-prepare'},
+        );
+
+        expect(result, isA<CastVariableInputsParseSuccess>());
+        final success = result as CastVariableInputsParseSuccess;
+        expect(success.resolvedValues['project_name'], 'from-prepare');
+        expect(success.rawValues.containsKey('project_name'), isFalse);
+      },
+    );
   });
 
   group('CastVariableInputsParseFailure', () {

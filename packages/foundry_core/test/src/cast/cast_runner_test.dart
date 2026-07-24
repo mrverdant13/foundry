@@ -320,4 +320,177 @@ Future<void> run(FoundryContext context) async {
       },
     );
   });
+
+  group('prepareCastContext and completeCast', () {
+    test('prepareCastContext runs prepare and creates the output directory',
+        () async {
+      await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final context = await prepareCastContext(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      );
+
+      expect(outputDirectory.existsSync(), isTrue);
+      expect(context.entries['seed'], 'from-prepare');
+      expect(context.outputDirectory.path, outputDirectory.path);
+    });
+
+    test('completeCast skips prepare so it is not run twice', () async {
+      final counterPath = p.join(outputDirectory.path, 'prepare_count.txt');
+      await writeHook(MoldHooks.preparePath, r'''
+import 'dart:io';
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  final file = File('${context.outputDirectory.path}/prepare_count.txt');
+  final current = file.existsSync() ? int.parse(file.readAsStringSync()) : 0;
+  file.writeAsStringSync('${current + 1}');
+  context.set('seed', 'from-prepare');
+}
+''');
+      await writeTemplateFile(
+        'output.txt',
+        'prepared={{ prepared_value }}',
+      );
+      final mold = buildMold(
+        variableGroup: FoundryVariableGroup(
+          variables: {
+            'prepared_value': FoundryStringVariable(
+              label: 'Prepared value',
+              defaultValue: (context) => context.requiredString('seed'),
+            ),
+          },
+        ),
+      );
+
+      final context = await prepareCastContext(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      );
+      expect(File(counterPath).readAsStringSync(), '1');
+
+      final outcome = await completeCast(mold: mold, context: context);
+
+      expect(File(counterPath).readAsStringSync(), '1');
+      expect(outcome.values['prepared_value'], 'from-prepare');
+    });
+
+    test('prepareCastContext skips prepare when noHooks is true', () async {
+      await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final context = await prepareCastContext(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        noHooks: true,
+      );
+
+      expect(context.entries.containsKey('seed'), isFalse);
+    });
+
+    test(
+      'completeCast accepts a hand-built context without prepareCastContext',
+      () async {
+        await writeTemplateFile('README.md', '# {{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final context = FoundryContext(
+          values: const {'project_name': 'Ada'},
+          logger: Logger(),
+          moldDirectory: moldDirectory,
+          outputDirectory: outputDirectory,
+        );
+
+        final outcome = await completeCast(
+          mold: mold,
+          context: context,
+          noHooks: true,
+        );
+
+        expect(outcome.values['project_name'], 'Ada');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'README.md'),
+          ).readAsString(),
+          '# Ada\n',
+        );
+      },
+    );
+
+    test(
+      'completeCast preserves a dirty null over defaultValue when dirtyKeys '
+      'is set',
+      () async {
+        await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(
+                label: 'Project name',
+                defaultValue: (_) => 'from-default',
+              ),
+            },
+          ),
+        );
+
+        final withoutDirtyKeys = await completeCast(
+          mold: mold,
+          context: FoundryContext(
+            values: const {'project_name': null},
+            logger: Logger(),
+            moldDirectory: moldDirectory,
+            outputDirectory: outputDirectory,
+          ),
+          force: true,
+          noHooks: true,
+        );
+        expect(withoutDirtyKeys.values['project_name'], 'from-default');
+
+        final withDirtyKeys = await completeCast(
+          mold: mold,
+          context: FoundryContext(
+            values: const {'project_name': null},
+            logger: Logger(),
+            moldDirectory: moldDirectory,
+            outputDirectory: outputDirectory,
+          ),
+          dirtyKeys: const {'project_name'},
+          force: true,
+          noHooks: true,
+        );
+        expect(withDirtyKeys.values['project_name'], isNull);
+      },
+    );
+  });
 }
