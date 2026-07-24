@@ -22,7 +22,8 @@ import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 /// [seedValues] are merged under the parsed user inputs for evaluation only
 /// (for example prepare-hook context). User-provided keys win on collision;
 /// prepare-only keys remain visible to `defaultValue` / `visibleWhen`
-/// callbacks. They are not returned in [CastVariableInputsParseSuccess.rawValues].
+/// callbacks. They are not returned in
+/// [CastVariableInputsParseSuccess.rawValues].
 ///
 /// This API is pure (no I/O, no Nocterm). The CLI is responsible for reading
 /// the vars file from disk and decoding JSON before calling this function.
