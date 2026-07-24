@@ -279,16 +279,12 @@ _MergedFromRawResult _mergedValueFromRaw({
 
   switch (input) {
     case _JsonRawInput(:final value):
-      if (value == null) {
-        return const _MergedFromRawSuccess(_MergedLeaf(_RawInput.json(null)));
-      }
-      if (value is! Map) {
-        return _MergedFromRawSuccess(_MergedLeaf(input));
-      }
-      return _mergedObjectFromJsonMap(
-        map: value,
-        group: variable.group,
-        keyPath: keyPath,
+      return _MergedFromRawSuccess(
+        _mergedJsonValue(
+          value: value,
+          variable: variable,
+          keyPath: keyPath,
+        ),
       );
     case _FlagRawInput(:final value):
       final trimmed = value.trim();
@@ -307,15 +303,39 @@ _MergedFromRawResult _mergedValueFromRaw({
       if (decoded is! Map) {
         return const _MergedFromRawFailure('Expected a JSON object.');
       }
-      return _mergedObjectFromJsonMap(
-        map: decoded,
-        group: variable.group,
-        keyPath: keyPath,
+      return _MergedFromRawSuccess(
+        _mergedObjectFromJsonMap(
+          map: decoded,
+          group: variable.group,
+          keyPath: keyPath,
+        ),
       );
   }
 }
 
-_MergedFromRawResult _mergedObjectFromJsonMap({
+/// Builds a [_MergedValue] tree from decoded JSON (never fails).
+_MergedValue _mergedJsonValue({
+  required Object? value,
+  required FoundryVariable<dynamic> variable,
+  required String keyPath,
+}) {
+  if (variable is! FoundryObjectVariable) {
+    return _MergedLeaf(_RawInput.json(value));
+  }
+  if (value == null) {
+    return const _MergedLeaf(_RawInput.json(null));
+  }
+  if (value is! Map) {
+    return _MergedLeaf(_RawInput.json(value));
+  }
+  return _mergedObjectFromJsonMap(
+    map: value,
+    group: variable.group,
+    keyPath: keyPath,
+  );
+}
+
+_MergedObject _mergedObjectFromJsonMap({
   required Map<dynamic, dynamic> map,
   required FoundryVariableGroup group,
   required String keyPath,
@@ -325,19 +345,18 @@ _MergedFromRawResult _mergedObjectFromJsonMap({
     final childKey = entry.key.toString();
     final childPath = '$keyPath.$childKey';
     final childVariable = group.variables[childKey];
-    final child = _mergedValueFromRaw(
-      input: _RawInput.json(entry.value),
+    if (childVariable == null) {
+      // Unknown nested keys are reported during parse, not merge.
+      fields[childKey] = _MergedLeaf(_RawInput.json(entry.value));
+      continue;
+    }
+    fields[childKey] = _mergedJsonValue(
+      value: entry.value,
       variable: childVariable,
       keyPath: childPath,
     );
-    switch (child) {
-      case _MergedFromRawSuccess(:final value):
-        fields[childKey] = value;
-      case _MergedFromRawFailure(:final message):
-        return _MergedFromRawFailure(message);
-    }
   }
-  return _MergedFromRawSuccess(_MergedObject(fields));
+  return _MergedObject(fields);
 }
 
 _DottedAssignError? _assignDottedPath({

@@ -607,6 +607,146 @@ void main() {
       );
     });
 
+    test('parses values lists of objects from --vars-file', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                  'port': FoundryIntVariable(label: 'Port'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFileValues: const {
+          'items': [
+            {'host': 'a', 'port': 1},
+            {'host': 'b', 'port': 2},
+          ],
+        },
+      );
+
+      expect(result, isA<CastVariableInputsParseSuccess>());
+      final success = result as CastVariableInputsParseSuccess;
+      expect(success.resolvedValues['items'], [
+        {'host': 'a', 'port': 1},
+        {'host': 'b', 'port': 2},
+      ]);
+    });
+
+    test('reports field type errors for values lists of objects', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFileValues: const {
+          'items': [
+            {'host': 1},
+          ],
+        },
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['items[0].host'], contains('string'));
+    });
+
+    test(
+      'propagates nested object failures inside values-list object items',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'items': FoundryValuesVariable<Map<String, Object?>>(
+              label: 'Items',
+              item: FoundryObjectVariable(
+                label: 'Item',
+                group: FoundryVariableGroup(
+                  variables: {
+                    'nested': FoundryObjectVariable(
+                      label: 'Nested',
+                      group: FoundryVariableGroup(
+                        variables: {
+                          'host': FoundryStringVariable(label: 'Host'),
+                        },
+                      ),
+                    ),
+                  },
+                ),
+              ),
+            ),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          varsFileValues: const {
+            'items': [
+              {
+                'nested': {
+                  'host': 'ok',
+                  'extra': true,
+                },
+              },
+            ],
+          },
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(failure.unknownKeys, ['items[0].nested.extra']);
+      },
+    );
+
+    test('rejects invalid JSON object tokens in values-list object items', () {
+      const group = FoundryVariableGroup(
+        variables: {
+          'items': FoundryValuesVariable<Map<String, Object?>>(
+            label: 'Items',
+            item: FoundryObjectVariable(
+              label: 'Item',
+              group: FoundryVariableGroup(
+                variables: {
+                  'host': FoundryStringVariable(label: 'Host'),
+                },
+              ),
+            ),
+          ),
+        },
+      );
+
+      final result = parseCastVariableInputs(
+        variableGroup: group,
+        varsFlag: 'items={not-json',
+      );
+
+      expect(result, isA<CastVariableInputsParseFailure>());
+      final failure = result as CastVariableInputsParseFailure;
+      expect(failure.parseErrors['items[0]'], 'Invalid JSON object.');
+    });
+
     test('parses values lists from JSON array flags and empty lists', () {
       final empty = parseCastVariableInputs(
         variableGroup: _tagsGroup(),
