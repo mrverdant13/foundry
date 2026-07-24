@@ -674,6 +674,85 @@ void main() {
     );
 
     test(
+      'uses seedValues for defaultValue and visibleWhen during gather',
+      () => testNocterm('seedValues defaults', (tester) async {
+        Map<String, Object?>? submitted;
+        await tester.pumpComponent(
+          CastVariableForm(
+            variableGroup: FoundryVariableGroup(
+              variables: {
+                'package_name': FoundryStringVariable(
+                  label: 'Package name',
+                  visibleWhen: (context) =>
+                      context.optionalString('seed') == 'from-prepare',
+                  defaultValue: (context) =>
+                      context.optionalString('seed') ?? 'fallback',
+                ),
+              },
+            ),
+            moldName: 'demo_app',
+            moldDescription: 'A demo mold.',
+            seedValues: const {'seed': 'from-prepare'},
+            onSubmit: (values) => submitted = values,
+            onCancel: () {},
+          ),
+        );
+
+        expect(tester.terminalState.getText(), contains('from-prepare'));
+        await tester.sendEnter();
+        await tester.pump();
+        expect(submitted, isNotNull);
+        expect(submitted!['package_name'], 'from-prepare');
+      }),
+    );
+
+    test(
+      'uses seedValues for nested object defaultValue and visibleWhen',
+      () => testNocterm(
+        'nested seedValues defaults',
+        size: const Size(80, 40),
+        (tester) async {
+          Map<String, Object?>? submitted;
+          await tester.pumpComponent(
+            CastVariableForm(
+              variableGroup: FoundryVariableGroup(
+                variables: {
+                  'publish': FoundryObjectVariable(
+                    label: 'Publish settings',
+                    group: FoundryVariableGroup(
+                      variables: {
+                        'host': FoundryStringVariable(
+                          label: 'Host',
+                          visibleWhen: (context) =>
+                              context.optionalString('seed') == 'from-prepare',
+                          defaultValue: (context) =>
+                              context.optionalString('seed') ?? 'fallback',
+                        ),
+                      },
+                    ),
+                  ),
+                },
+              ),
+              moldName: 'demo_app',
+              moldDescription: 'A demo mold.',
+              seedValues: const {'seed': 'from-prepare'},
+              onSubmit: (values) => submitted = values,
+              onCancel: () {},
+            ),
+          );
+
+          final output = tester.terminalState.getText();
+          expect(output, contains('host: Host'));
+          expect(output, contains('from-prepare'));
+          await tester.sendEnter();
+          await tester.pump();
+          expect(submitted, isNotNull);
+          expect(submitted!['publish'], {'host': 'from-prepare'});
+        },
+      ),
+    );
+
+    test(
       'typing into the focused field marks it dirty',
       () => testNocterm('typing marks dirty', (tester) async {
         await tester.pumpComponent(

@@ -19,10 +19,12 @@ import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 /// After a successful merge/parse, the group is evaluated and validated with
 /// the same visibility and validator rules as interactive cast.
 ///
-/// [seedValues] are merged under the parsed user inputs for evaluation only
-/// (for example prepare-hook context). User-provided keys win on collision;
-/// prepare-only keys remain visible to `defaultValue` / `visibleWhen`
-/// callbacks. They are not returned in
+/// [seedValues] are merged under the parsed user inputs for evaluation
+/// (for example prepare-hook context). User-provided keys win on collision.
+/// A non-null seed for a declared variable key is treated as that variable's
+/// raw value when the user did not supply one (it resolves directly, not only
+/// as callback context). Keys that are not variable names remain visible to
+/// `defaultValue` / `visibleWhen` callbacks. Seed entries are not returned in
 /// [CastVariableInputsParseSuccess.rawValues].
 ///
 /// This API is pure (no I/O, no Nocterm). The CLI is responsible for reading

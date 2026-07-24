@@ -754,6 +754,27 @@ void main() {
       expect(success.rawValues['name'], 'from-flag');
     });
 
+    test(
+      'seedValues under a variable key resolve without a defaultValue callback',
+      () {
+        const group = FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        );
+
+        final result = parseCastVariableInputs(
+          variableGroup: group,
+          seedValues: const {'project_name': 'from-prepare'},
+        );
+
+        expect(result, isA<CastVariableInputsParseSuccess>());
+        final success = result as CastVariableInputsParseSuccess;
+        expect(success.resolvedValues['project_name'], 'from-prepare');
+        expect(success.rawValues.containsKey('project_name'), isFalse);
+      },
+    );
+
     test('expands dotted object paths from --vars with flag leaf typing', () {
       final result = parseCastVariableInputs(
         variableGroup: _publishGroup(),
