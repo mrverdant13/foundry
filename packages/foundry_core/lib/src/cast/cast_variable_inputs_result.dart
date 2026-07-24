@@ -2,6 +2,8 @@ import 'package:foundry_core/src/variables/foundry_variable_evaluation.dart';
 import 'package:foundry_core/src/variables/foundry_variable_group_validation.dart';
 import 'package:meta/meta.dart';
 
+final RegExp _unknownKeyInPathPattern = RegExp(r'^(.+) \(in "(.+)"\)$');
+
 /// Outcome of parsing batch cast inputs (`--vars` / `--vars-file`).
 @immutable
 sealed class CastVariableInputsParseResult {
@@ -52,6 +54,8 @@ final class CastVariableInputsParseFailure
   /// Input keys that are not declared on the variable group.
   ///
   /// Nested unknown keys use dotted paths (for example `publish.extra`).
+  /// When an intermediate segment fails inside a longer path, the entry is
+  /// `failingPrefix (in "full.user.path")`.
   final List<String> unknownKeys;
 
   /// Per-key parse or type errors (offending key → message).
@@ -82,9 +86,15 @@ final class CastVariableInputsParseFailure
         ..write('  $varsFlagError');
     }
     for (final key in unknownKeys) {
-      buffer
-        ..writeln()
-        ..write('  Unknown variable "$key".');
+      buffer.writeln();
+      final contextMatch = _unknownKeyInPathPattern.firstMatch(key);
+      if (contextMatch != null) {
+        buffer.write(
+          '  Unknown variable "${contextMatch[1]}" (in "${contextMatch[2]}").',
+        );
+      } else {
+        buffer.write('  Unknown variable "$key".');
+      }
     }
     for (final entry in parseErrors.entries) {
       buffer

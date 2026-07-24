@@ -359,7 +359,10 @@ _DottedAssignError? _assignDottedPath({
     final variable = group.variables[segment];
 
     if (variable == null) {
-      return _DottedAssignError(path, unknown: true);
+      // Echo the full user-typed path when an intermediate segment fails.
+      final unknownKey =
+          path == fullPath ? path : '$path (in "$fullPath")';
+      return _DottedAssignError(unknownKey, unknown: true);
     }
 
     if (isLeaf) {

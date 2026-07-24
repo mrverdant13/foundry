@@ -865,6 +865,28 @@ void main() {
       expect(failure.unknownKeys, contains('publish.nope'));
     });
 
+    test(
+      'includes the full typed path when an intermediate dotted segment is '
+      'unknown',
+      () {
+        final result = parseCastVariableInputs(
+          variableGroup: _publishGroup(),
+          varsFlag: 'publish.nope.extra=1',
+        );
+
+        expect(result, isA<CastVariableInputsParseFailure>());
+        final failure = result as CastVariableInputsParseFailure;
+        expect(
+          failure.unknownKeys,
+          contains('publish.nope (in "publish.nope.extra")'),
+        );
+        expect(
+          failure.toString(),
+          contains('Unknown variable "publish.nope" (in "publish.nope.extra").'),
+        );
+      },
+    );
+
     test('rejects empty segments in dotted paths', () {
       final result = parseCastVariableInputs(
         variableGroup: _publishGroup(),
