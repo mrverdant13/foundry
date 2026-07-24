@@ -14,7 +14,7 @@ expectations, and collaboration conventions for this repository.
 - **Ripple** — package discovery and script runner for this monorepo. Install
   globally (pinned git SHA):
   ```bash
-  dart install 'ripple_cli@{git: {url: https://github.com/mrverdant13/ripple.git, ref: 74c8fe4c0e246c818071e1f83b207a0616c5f1d2}}'
+  dart install 'ripple_cli@{git: {url: https://github.com/mrverdant13/ripple.git, ref: 364f05aa0db1dd2a0f8a70856f312cfb1a6df73a}}'
   ```
 - **Git**
 

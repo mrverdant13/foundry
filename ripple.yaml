@@ -44,16 +44,16 @@ scripts:
       - dart run coverde@0.4.0 optimize-tests --include test/**_test.dart --output test/optimized_test.dart
       - dart test --color --coverage-path coverage/lcov.info --coverage-package ${RIPPLE_PACKAGE_NAME} --exclude-tags ci-only --reporter expanded --test-randomize-ordering-seed random test/optimized_test.dart
     filters:
-      dependsOn: [test]
-      dirExists: [test]
+      - dependsOn: [test]
+      - dirExists: [test]
   test.ci:
     description: Run tests for all packages (CI)
     exec:
       - dart run coverde@0.4.0 optimize-tests --include test/**_test.dart --output test/optimized_test.dart
       - dart test --coverage-path coverage/lcov.info --coverage-package ${RIPPLE_PACKAGE_NAME} --exclude-tags ci-only --reporter expanded --test-randomize-ordering-seed random test/optimized_test.dart
     filters:
-      dependsOn: [test]
-      dirExists: [test]
+      - dependsOn: [test]
+      - dirExists: [test]
 
   coverage.merge:
     description: Merge all packages coverage trace files
@@ -70,27 +70,27 @@ scripts:
       - dart run coverde@0.4.0 optimize-tests --include e2e/**_test.dart --output e2e/optimized_test.dart
       - dart test --color --tags e2e --reporter expanded --test-randomize-ordering-seed random e2e/optimized_test.dart
     filters:
-      group: e2e
-      dirExists: [e2e]
+      - group: e2e
+      - dirExists: [e2e]
   test.e2e.ci:
     description: Run E2E tests for all packages (CI)
     exec:
       - dart run coverde@0.4.0 optimize-tests --include e2e/**_test.dart --output e2e/optimized_test.dart
       - dart test --tags e2e --reporter expanded --test-randomize-ordering-seed random e2e/optimized_test.dart
     filters:
-      group: e2e
-      dirExists: [e2e]
+      - group: e2e
+      - dirExists: [e2e]
 
   pub-score.local:
     description: Check local pub.dev score for publishable packages
     exec: dart run pub_score_checker check_pub_score local --markdown-output ${RIPPLE_PACKAGE_PATH}/.dart_tool/local_pub_score.md --package-path ${RIPPLE_PACKAGE_PATH} --threshold 10
     filters:
-      group: publishable
+      - group: publishable
   pub-score.remote:
     description: Check remote pub.dev score for publishable packages
     exec: dart run pub_score_checker check_pub_score remote --markdown-output ${RIPPLE_PACKAGE_PATH}/.dart_tool/remote_pub_score.md --package-name ${RIPPLE_PACKAGE_NAME} --threshold 10
     filters:
-      group: publishable
+      - group: publishable
 
   release.prepare:
     description: >
@@ -100,7 +100,7 @@ scripts:
       - dart run ${RIPPLE_ROOT_PATH}/tool/prepare_package_release.dart --cwd ${RIPPLE_PACKAGE_PATH} --tag-format {name}/{version} --commit-types feat,fix,docs,refactor,test,build --bump build --apply
       - dart run ${RIPPLE_ROOT_PATH}/tool/sync_package_version.dart --cwd ${RIPPLE_PACKAGE_PATH}
     filters:
-      group: publishable
+      - group: publishable
 
   # Unscoped full gate. For a single package, run the package-filtered steps with
   # RIPPLE_PACKAGES=<package> (format.ci / analyze.ci stay repo-wide).
