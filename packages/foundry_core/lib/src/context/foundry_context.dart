@@ -57,7 +57,7 @@ class FoundryContext extends SnapshotFoundryContext {
   /// A defensive copy of the current cast values.
   ///
   /// Used by pipeline orchestration (for example the CLI) to seed interactive
-  /// or batch gather after [prepareCastContext] without relying on the
+  /// or batch gather after `prepareCastContext` without relying on the
   /// package-private `entries` accessor.
   Map<String, Object?> copyValues() => Map<String, Object?>.of(_values);
 }
