@@ -2074,7 +2074,73 @@ class _CastVariableFormState extends State<CastVariableForm> {
       setState(() => _showErrors = true);
       return;
     }
-    component.onSubmit(evaluation.resolvedValues);
+    // Nested object/values evaluation during build merges [seedValues] so
+    // nested defaultValue/visibleWhen can see prepare context. Root
+    // [FoundryObjectVariable.resolveValue] does not, so submit rebuilds
+    // nested maps with the same seed-aware evaluate used for display.
+    final collected = _collectRawValues();
+    component.onSubmit(
+      _seedAwareResolvedValues(
+        evaluation: _evaluateWithSeed(
+          rawValues: collected.rawValues,
+          dirtyKeys: collected.topLevelDirtyKeys,
+        ),
+        rawValues: collected.rawValues,
+      ),
+    );
+  }
+
+  /// Resolves [evaluation] while re-evaluating nested object groups with
+  /// [CastVariableForm.seedValues], matching the display-time merge sites.
+  Map<String, Object?> _seedAwareResolvedValues({
+    required FoundryVariableGroupEvaluation evaluation,
+    required Map<String, Object?> rawValues,
+  }) {
+    final resolved = <String, Object?>{};
+    for (final entry in evaluation.entries) {
+      final variable = entry.variable;
+      if (variable is FoundryObjectVariable) {
+        final nestedRaw = _asStringKeyedMap(rawValues[entry.key]) ??
+            const <String, Object?>{};
+        final nestedEvaluation = variable.group.evaluate(
+          rawValues: {...component.seedValues, ...nestedRaw},
+          dirtyKeys: nestedRaw.keys.toSet(),
+        );
+        resolved[entry.key] = _seedAwareResolvedValues(
+          evaluation: nestedEvaluation,
+          rawValues: nestedRaw,
+        );
+        continue;
+      }
+
+      if (variable is FoundryValuesVariable &&
+          variable.item is FoundryObjectVariable) {
+        final objectItem = variable.item as FoundryObjectVariable;
+        final rawList = rawValues[entry.key];
+        final items = rawList is List
+            ? rawList
+            : entry.value is List
+                ? entry.value! as List
+                : const <Object?>[];
+        resolved[entry.key] = [
+          for (final item in items)
+            _seedAwareResolvedValues(
+              evaluation: objectItem.group.evaluate(
+                rawValues: {
+                  ...component.seedValues,
+                  ...?_asStringKeyedMap(item),
+                },
+                dirtyKeys: (_asStringKeyedMap(item) ?? const {}).keys.toSet(),
+              ),
+              rawValues: _asStringKeyedMap(item) ?? const <String, Object?>{},
+            ),
+        ];
+        continue;
+      }
+
+      resolved[entry.key] = entry.value;
+    }
+    return resolved;
   }
 }
 
