@@ -72,7 +72,7 @@ void main() {
           File(
             p.join(moldDir.path, 'template', 'lib', '{{ package_name }}.dart'),
           ).readAsStringSync(),
-          contains("print('Hello from {{ package_name }}')"),
+          contains("stdout.writeln('Hello from {{ package_name }}')"),
         );
 
         // Hosted foundry_core would require network; pin the local package.

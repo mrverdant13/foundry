@@ -5,6 +5,6 @@ void main() {
 /*replace-start*/
   stdout.writeln('Hello from the runnable sample');
 /*with i2*/
-// print('Hello from ref_pkg');
+// stdout.writeln('Hello from ref_pkg');
 /*replace-end*/
 }
