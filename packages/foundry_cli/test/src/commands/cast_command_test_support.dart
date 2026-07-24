@@ -88,6 +88,24 @@ Future<void> run(FoundryContext context) async {
 ''');
 }
 
+/// Writes a mold whose prepare hook creates a file under `--output`.
+Future<void> writeCastableMoldWithPrepareArtifact({
+  required Directory directory,
+  required String name,
+}) async {
+  await writeCastableMold(directory: directory, name: name);
+  final hooksDir = Directory(p.join(directory.path, 'hooks'))..createSync();
+  await File(p.join(hooksDir.path, 'prepare.dart')).writeAsString('''
+import 'dart:io';
+
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  await File('prepare_artifact.txt').writeAsString('prepared');
+}
+''');
+}
+
 /// Writes a mold whose template cannot be rendered.
 Future<void> writeBrokenTemplateMold({
   required Directory directory,

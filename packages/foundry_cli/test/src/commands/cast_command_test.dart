@@ -30,12 +30,13 @@ void main() {
     CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
     void Function(String message)? onInfo,
+    void Function(String message)? onWarn,
     void Function(String message)? onError,
   }) {
     return CommandRunner<int>('foundry', 'test runner')
       ..addCommand(
         CastCommand(
-          logger: Logger(onInfo: onInfo, onError: onError),
+          logger: Logger(onInfo: onInfo, onWarn: onWarn, onError: onError),
           workingDirectory: workingDirectory,
           gatherVariables: gatherVariables,
           prepareCast: prepareCast,
@@ -242,6 +243,45 @@ void main() {
         expect(infoMessages, contains(contains('cancelled')));
         // Prepare creates --output before gather; cancel removes it when empty.
         expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'warns when cancel leaves a non-empty --output directory in place',
+      () async {
+        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await writeCastableMoldWithPrepareArtifact(
+          directory: moldDir,
+          name: 'demo_app',
+        );
+        final infoMessages = <String>[];
+        final warnMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onInfo: infoMessages.add,
+          onWarn: warnMessages.add,
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+            seedValues = const {},
+          }) async =>
+              null,
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(infoMessages, contains(contains('cancelled')));
+        expect(
+          warnMessages,
+          contains(contains('is not empty; left in place after aborted cast')),
+        );
+        final leftover = File(
+          p.join(workDir.path, 'out', 'prepare_artifact.txt'),
+        );
+        expect(leftover.existsSync(), isTrue);
+        expect(await leftover.readAsString(), 'prepared');
       },
     );
 
