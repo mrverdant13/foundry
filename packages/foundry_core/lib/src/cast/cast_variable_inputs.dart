@@ -14,7 +14,8 @@ import 'package:foundry_core/src/variables/foundry_variable_group.dart';
 /// (exact key strings). Dotted `--vars` keys (for example `publish.host`) are
 /// expanded into nested object maps along `FoundryObjectVariable` groups and
 /// deep-merged with nested JSON object values from `--vars-file`. Whole-object
-/// assignments conflict with dotted children for the same path.
+/// `--vars` flag assignments (JSON strings) never merge with dotted children,
+/// even if the JSON parses to an object; only `--vars-file` object values do.
 /// Unknown keys fail. Per-kind parse/type failures list offending keys.
 /// After a successful merge/parse, the group is evaluated and validated with
 /// the same visibility and validator rules as interactive cast.
@@ -138,10 +139,11 @@ final class _ExpandDottedResult {
 
 /// Expands flat `key` / `a.b.c` inputs into a nested [_MergedValue] tree.
 ///
-/// Whole-object assignments (JSON maps / JSON object flag strings) are
-/// converted to [_MergedObject] trees so dotted flag leaves can deep-merge.
-/// A whole-object leaf that is not a mergeable map conflicts with dotted
-/// children for the same path.
+/// Nested JSON maps from `--vars-file` become [_MergedObject] trees so dotted
+/// `--vars` leaves can deep-merge into them. A `--vars` flag assignment at the
+/// same path never deep-merges — even when its JSON string decodes to a map —
+/// and conflicts with any dotted children for that path. A `--vars-file` value
+/// that is not a map likewise conflicts with dotted children.
 _ExpandDottedResult _expandDottedInputs({
   required Map<String, _RawInput> flatMerged,
   required FoundryVariableGroup variableGroup,
