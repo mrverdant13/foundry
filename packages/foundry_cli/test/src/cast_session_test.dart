@@ -293,6 +293,123 @@ void main() {
       expect(failure.message, contains('prepare boom'));
     });
 
+    test('returns hook failure when shape throws', () async {
+      await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+      await touchHook(MoldHooks.shapePath);
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          shape: (_) {
+            throw const FoundryHookException('shape boom');
+          },
+        ),
+      ).runBatch(varsFlag: 'project_name=Ada');
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.shape);
+      expect(failure.message, contains('shape boom'));
+    });
+
+    test('returns hook failure when finish throws', () async {
+      await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+      await touchHook(MoldHooks.finishPath);
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) {
+            throw const FoundryHookException('finish boom');
+          },
+        ),
+      ).runBatch(varsFlag: 'project_name=Ada');
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.finish);
+      expect(failure.message, contains('finish boom'));
+      expect(
+        await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+        'name=Ada\n',
+      );
+    });
+
+    test(
+      'returns context failure when prepare seeds a wrong-typed variable',
+      () async {
+        await writeTemplateFile('out.txt', 'ok\n');
+        await touchHook(MoldHooks.preparePath);
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+
+        final result = await CastSession(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          hooks: CastSessionHooks(
+            prepare: (context) {
+              context.set('project_name', 42);
+            },
+          ),
+        ).runBatch();
+
+        expect(result, isA<BatchCastSessionContextFailure>());
+        final failure = result as BatchCastSessionContextFailure;
+        expect(failure.message, contains('project_name'));
+      },
+    );
+
+    test('returns parse failure when group validation fails', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      final mold = buildMold(
+        variableGroup: FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(
+              label: 'Project name',
+              validators: [
+                (value, _) {
+                  if (value == 'bad') {
+                    return 'Name is reserved';
+                  }
+                  return null;
+                },
+              ],
+            ),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runBatch(varsFlag: 'project_name=bad');
+
+      expect(result, isA<BatchCastSessionParseFailure>());
+      final failure = result as BatchCastSessionParseFailure;
+      expect(failure.message, contains('Name is reserved'));
+    });
+
     test('skips hooks when noHooks is true', () async {
       await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
       await touchHook(MoldHooks.preparePath);
@@ -346,6 +463,34 @@ void main() {
       ).runBatch(varsFlag: 'project_name=Ada');
 
       expect(result, isA<BatchCastSessionRenderFailure>());
+    });
+
+    test('overwrites conflicting output files when force is true', () async {
+      await writeTemplateFile('README.md', '# {{ project_name }}\n');
+      await File(p.join(outputDirectory.path, 'README.md'))
+          .writeAsString('existing\n');
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runBatch(
+        varsFlag: 'project_name=Ada',
+        force: true,
+      );
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(
+        await File(p.join(outputDirectory.path, 'README.md')).readAsString(),
+        '# Ada\n',
+      );
     });
   });
 }
