@@ -39,9 +39,12 @@ String moldHookFileUriImport({
 /// );
 /// ```
 ///
-/// The isolate working directory is temporarily set to
-/// [FoundryContext.outputDirectory] for the duration of [entryPoint], matching
-/// the subprocess hook runner's cwd contract.
+/// The **process** working directory ([Directory.current]) is temporarily set
+/// to [FoundryContext.outputDirectory] for the duration of [entryPoint],
+/// matching the subprocess hook runner's cwd contract. That state is
+/// process-wide, not isolate-local — callers must not invoke this concurrently
+/// in the same process (for example via `Future.wait`), or relative-path I/O
+/// in one hook can race against another's `outputDirectory`.
 ///
 /// Mutations [entryPoint] makes on [context] (including non-JSON `Object`
 /// values) remain visible to the caller after this future completes — there
