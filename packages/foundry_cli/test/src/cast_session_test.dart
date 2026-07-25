@@ -103,6 +103,7 @@ void main() {
         ).runBatch(varsFlag: 'project_type=package');
 
         expect(success, isA<BatchCastSessionSuccess>());
+        expect(success.isSuccess, isTrue);
         final result = success as BatchCastSessionSuccess;
         expect(result.artifactCount, 1);
         expect(result.vars['project_type'], 'package');
@@ -262,6 +263,7 @@ void main() {
       ).runBatch(varsFlag: 'unknown_key=value');
 
       expect(result, isA<BatchCastSessionParseFailure>());
+      expect(result.isSuccess, isFalse);
       final failure = result as BatchCastSessionParseFailure;
       expect(failure.message, contains('unknown_key'));
     });
@@ -463,6 +465,10 @@ void main() {
       ).runBatch(varsFlag: 'project_name=Ada');
 
       expect(result, isA<BatchCastSessionRenderFailure>());
+      expect(result.isSuccess, isFalse);
+      final failure = result as BatchCastSessionRenderFailure;
+      expect(failure.message, isNotEmpty);
+      expect(failure.message, failure.exception.message);
     });
 
     test('overwrites conflicting output files when force is true', () async {
