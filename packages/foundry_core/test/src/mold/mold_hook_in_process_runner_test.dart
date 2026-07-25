@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/foundry_core.dart';
+import 'package:foundry_core/src/mold/mold_hook_failure.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -229,5 +230,45 @@ void main() {
 
       expect(Directory.current.resolveSymbolicLinksSync(), cwdBefore);
     });
+
+    test('normalizes multi-line hook errors like the subprocess runner',
+        () async {
+      final hookFile = File(p.join(hooksDirectory.path, MoldHooks.shape))
+        ..writeAsStringSync('// multi-line throw fixture\n');
+      final context = buildContext();
+      const raw = '''
+Unhandled exception:
+line one
+line two
+#0      run (file:///tmp/hook.dart:1:1)
+''';
+
+      await expectLater(
+        runMoldHookInProcess(
+          phase: MoldHookPhase.shape,
+          hookFile: hookFile,
+          context: context,
+          entryPoint: (_) async {
+            throw _MultiLineHookError(raw);
+          },
+        ),
+        throwsA(
+          isA<MoldHookException>().having(
+            (error) => error.message,
+            'message',
+            normalizeMoldHookFailureText(raw),
+          ),
+        ),
+      );
+    });
   });
+}
+
+final class _MultiLineHookError implements Exception {
+  _MultiLineHookError(this.text);
+
+  final String text;
+
+  @override
+  String toString() => text;
 }

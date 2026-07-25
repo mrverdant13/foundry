@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:foundry_core/src/context/foundry_context.dart';
 import 'package:foundry_core/src/mold/mold_hook_exception.dart';
+import 'package:foundry_core/src/mold/mold_hook_failure.dart';
 
 /// Top-level mold hook entry point: `Future<void> run(FoundryContext context)`.
 typedef MoldHookEntryPoint = FutureOr<void> Function(FoundryContext context);
@@ -80,7 +81,7 @@ Future<void> runMoldHookInProcess({
     throw MoldHookException(
       phase: phase,
       hookPath: hookFile.path,
-      message: '$error',
+      message: normalizeMoldHookFailureText('$error'),
     );
   } finally {
     Directory.current = previousDirectory;
