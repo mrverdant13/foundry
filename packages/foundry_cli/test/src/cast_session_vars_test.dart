@@ -76,5 +76,29 @@ void main() {
         'items': ['ok', null, 2],
       });
     });
+
+    test('omits non-finite numbers that jsonEncode rejects', () {
+      final projected = projectEncodableCastVars({
+        'ok': 1.5,
+        'nan': double.nan,
+        'inf': double.infinity,
+        'negInf': double.negativeInfinity,
+        'nested': <String, Object?>{
+          'ratio': double.nan,
+          'port': 8080,
+        },
+        'items': <Object?>[1, double.infinity, 3],
+      });
+
+      expect(
+        projected,
+        {
+          'ok': 1.5,
+          'nested': {'port': 8080},
+          'items': [1, null, 3],
+        },
+      );
+      expect(() => jsonEncode(projected), returnsNormally);
+    });
   });
 }
