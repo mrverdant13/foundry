@@ -8,15 +8,28 @@ import 'package:foundry_core/src/mold/mold_hook_failure.dart';
 /// Top-level mold hook entry point: `Future<void> run(FoundryContext context)`.
 typedef MoldHookEntryPoint = FutureOr<void> Function(FoundryContext context);
 
+final RegExp _dartIdentifierPattern = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
+
 /// Builds a Dart `import` directive for [hookFile] using its absolute file URI.
 ///
 /// Cast-session bridges (and tests) use this so root-level `hooks/*.dart`
 /// files can be imported without living under `lib/`, matching the import
 /// style of the subprocess hook wrapper.
+///
+/// [asPrefix] must be a valid Dart identifier. Throws [ArgumentError]
+/// otherwise so callers get a clear failure instead of invalid generated
+/// source.
 String moldHookFileUriImport({
   required File hookFile,
   required String asPrefix,
 }) {
+  if (!_dartIdentifierPattern.hasMatch(asPrefix)) {
+    throw ArgumentError.value(
+      asPrefix,
+      'asPrefix',
+      'Must be a valid Dart identifier.',
+    );
+  }
   return "import '${hookFile.absolute.uri}' as $asPrefix;";
 }
 

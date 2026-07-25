@@ -75,6 +75,24 @@ void main() {
         "import '${hookFile.absolute.uri}' as _foundry_mold_hook;",
       );
     });
+
+    test('throws ArgumentError when asPrefix is not a Dart identifier', () {
+      final hookFile = File(p.join(hooksDirectory.path, MoldHooks.shape));
+
+      expect(
+        () => moldHookFileUriImport(
+          hookFile: hookFile,
+          asPrefix: 'not-a-valid-prefix',
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.name,
+            'name',
+            'asPrefix',
+          ),
+        ),
+      );
+    });
   });
 
   group('runMoldHookInProcess', () {
