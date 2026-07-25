@@ -128,8 +128,9 @@ final class BatchCastSessionContextFailure extends BatchCastSessionFailure {
 /// Pipeline: prepare → batch parse/evaluate/validate → shape → render →
 /// finish. Hooks use [runMoldHookInProcess] so prepare-seeded non-JSON values
 /// remain visible to later phases on the same [FoundryContext] instance.
-/// Batch user keys are forwarded as `dirtyKeys` so explicit JSON `null` is not
-/// overwritten by `defaultValue`.
+/// Batch parse marks user-supplied keys dirty so explicit JSON `null` is not
+/// overwritten by `defaultValue`; the parse evaluation is reused for shape
+/// and render (no second evaluate/validate pass).
 ///
 /// This API does not change host `foundry cast` behavior; callers (session
 /// bridges, tests) invoke it directly with an in-memory or same-isolate
@@ -188,20 +189,27 @@ final class CastSession {
       }
     }
 
-    final parseResult = parseCastVariableInputs(
-      variableGroup: mold.variableGroup,
-      varsFileValues: varsFileValues,
-      varsFlag: varsFlag,
-      seedValues: context.copyValues(),
-    );
+    final CastVariableInputsParseResult parseResult;
+    try {
+      parseResult = parseCastVariableInputs(
+        variableGroup: mold.variableGroup,
+        varsFileValues: varsFileValues,
+        varsFlag: varsFlag,
+        seedValues: context.copyValues(),
+      );
+    } on FoundryContextException catch (exception) {
+      return BatchCastSessionContextFailure(exception);
+    }
+
     switch (parseResult) {
       case CastVariableInputsParseFailure():
         return BatchCastSessionParseFailure(parseResult);
-      case CastVariableInputsParseSuccess(:final rawValues):
-        context.merge(rawValues);
+      case CastVariableInputsParseSuccess(:final evaluation):
+        // Reuse the parse-time evaluation (already dirtyKeys-aware and
+        // validated). Prepare-seeded non-variable keys stay on [context].
+        context.merge(evaluation.resolvedValues);
         return _completeBatch(
           context: context,
-          dirtyKeys: rawValues.keys.toSet(),
           force: force,
           noHooks: noHooks,
         );
@@ -210,28 +218,9 @@ final class CastSession {
 
   Future<BatchCastSessionResult> _completeBatch({
     required FoundryContext context,
-    required Set<String> dirtyKeys,
     required bool force,
     required bool noHooks,
   }) async {
-    final FoundryVariableGroupEvaluation evaluation;
-    try {
-      evaluation = mold.variableGroup.evaluate(
-        rawValues: context.copyValues(),
-        dirtyKeys: dirtyKeys,
-      );
-    } on FoundryContextException catch (exception) {
-      return BatchCastSessionContextFailure(exception);
-    }
-
-    final validation = mold.variableGroup.validate(evaluation);
-    if (!validation.isValid) {
-      return BatchCastSessionParseFailure(
-        CastVariableInputsParseFailure(validation: validation),
-      );
-    }
-    context.merge(evaluation.resolvedValues);
-
     if (!noHooks) {
       try {
         await runMoldHookInProcess(
