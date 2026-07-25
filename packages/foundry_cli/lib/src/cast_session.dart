@@ -135,6 +135,11 @@ final class BatchCastSessionContextFailure extends BatchCastSessionFailure {
 /// This API does not change host `foundry cast` behavior; callers (session
 /// bridges, tests) invoke it directly with an in-memory or same-isolate
 /// constructed [Mold].
+///
+/// Do not run multiple [runBatch] calls concurrently in the same process
+/// (for example via `Future.wait`): in-process hooks temporarily set
+/// process-global [Directory.current] to each cast's output directory, so
+/// overlapping sessions can race. See [runMoldHookInProcess].
 final class CastSession {
   /// Creates a cast session for [mold] writing into [outputPath].
   const CastSession({
