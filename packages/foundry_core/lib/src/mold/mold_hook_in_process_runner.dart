@@ -74,7 +74,7 @@ Future<void> runMoldHookInProcess({
   final previousDirectory = Directory.current;
   Directory.current = context.outputDirectory.absolute;
   try {
-    await Future<void>.sync(() => entryPoint(context));
+    await entryPoint(context);
   } on MoldHookException {
     rethrow;
   } catch (error) {
