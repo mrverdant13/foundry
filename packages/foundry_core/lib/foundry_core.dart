@@ -21,6 +21,8 @@ export 'src/mold/mold_derive.dart' show deriveMoldFromPattern;
 export 'src/mold/mold_derive_exception.dart';
 export 'src/mold/mold_git_import.dart' show importMoldFromGit;
 export 'src/mold/mold_hook_exception.dart';
+export 'src/mold/mold_hook_in_process_runner.dart'
+    show MoldHookEntryPoint, moldHookFileUriImport, runMoldHookInProcess;
 export 'src/mold/mold_hook_runner.dart' show runMoldHook;
 export 'src/mold/mold_hooks.dart';
 export 'src/mold/mold_import_exception.dart';

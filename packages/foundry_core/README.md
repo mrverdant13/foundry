@@ -95,7 +95,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
 | Cast | `castMold`, `prepareCastContext`, `completeCast`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
 | Render | `renderTemplate` |
-| Hooks | `runMoldHook`, `FoundryHookException` |
+| Hooks | `runMoldHook`, `runMoldHookInProcess`, `FoundryHookException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
 
 ## Resources

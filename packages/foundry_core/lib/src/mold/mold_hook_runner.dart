@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:foundry_core/src/context/foundry_context.dart';
 import 'package:foundry_core/src/mold/mold_hook_exception.dart';
+import 'package:foundry_core/src/mold/mold_hook_failure.dart';
 import 'package:foundry_core/src/mold/mold_pub_get.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
@@ -177,17 +178,7 @@ String _describeHookFailure(String stderrOutput) {
         '"Future<void> $_entryPointSymbol(FoundryContext context)".';
   }
 
-  final messageLines = <String>[];
-  for (final line in trimmed.split('\n')) {
-    final trimmedLine = line.trim();
-    if (trimmedLine.startsWith('#')) break;
-    if (trimmedLine.isEmpty || trimmedLine == 'Unhandled exception:') {
-      continue;
-    }
-    messageLines.add(trimmedLine);
-  }
-
-  return messageLines.isEmpty ? trimmed : messageLines.join(' ');
+  return normalizeMoldHookFailureText(trimmed);
 }
 
 String _wrapperSource({required Uri hookUri}) {
