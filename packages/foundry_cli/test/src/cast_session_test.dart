@@ -67,7 +67,7 @@ void main() {
         await writeTemplateFile(
           'out.txt',
           'type={{ project_type }}\n'
-          'package={{ package_name }}\n',
+              'package={{ package_name }}\n',
         );
 
         final mold = buildMold(
