@@ -75,6 +75,18 @@ final class MoldCastSessionLaunchFailure extends MoldCastSessionLaunchResult {
   String toString() => 'MoldCastSessionLaunchFailure($kind: $message)';
 }
 
+/// Runs `dart pub get` for a materialized session helper package.
+typedef MoldCastSessionPubGetRunner = Future<ProcessResult> Function(
+  Directory helperRoot,
+);
+
+/// Runs the generated session bridge and returns the child exit code.
+typedef MoldCastSessionChildRunner = Future<int> Function({
+  required Directory helperRoot,
+  required File entrypoint,
+  required File requestFile,
+});
+
 /// Launches a batch cast inside a synthetic helper package process.
 ///
 /// Creates a temporary package that depends on `foundry_cli` and the target
@@ -85,6 +97,8 @@ final class MoldCastSessionLaunchFailure extends MoldCastSessionLaunchResult {
 ///
 /// Stdio from the child process is inherited so session logs surface on the
 /// host terminal.
+///
+/// [pubGetRunner] and [childRunner] are seam points for unit tests.
 Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   required String moldPath,
   required String outputPath,
@@ -96,6 +110,8 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   Directory? tempParent,
   FoundryCliHelperDependency? foundryCliDependency,
   String? foundryCoreOverridePath,
+  MoldCastSessionPubGetRunner? pubGetRunner,
+  MoldCastSessionChildRunner? childRunner,
 }) async {
   final moldDirectory = Directory(moldPath);
   if (!moldDirectory.existsSync()) {
@@ -171,11 +187,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       moldDirectory: resolvedMoldDirectory,
     );
 
-    final resolveResult = await Process.run(
-      Platform.resolvedExecutable,
-      ['pub', 'get'],
-      workingDirectory: helperRoot.path,
-    );
+    final resolveResult = await (pubGetRunner ?? _runHelperPubGet)(helperRoot);
     if (resolveResult.exitCode != 0) {
       final output = '${resolveResult.stdout}${resolveResult.stderr}'.trim();
       return MoldCastSessionLaunchFailure(
@@ -204,13 +216,11 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
     final entrypoint = File(
       p.join(helperRoot.path, moldCastSessionHelperEntrypointRelativePath),
     );
-    final process = await Process.start(
-      Platform.resolvedExecutable,
-      ['run', entrypoint.path, requestFile.path],
-      workingDirectory: helperRoot.path,
-      mode: ProcessStartMode.inheritStdio,
+    final childExitCode = await (childRunner ?? _runHelperChild)(
+      helperRoot: helperRoot,
+      entrypoint: entrypoint,
+      requestFile: requestFile,
     );
-    final childExitCode = await process.exitCode;
 
     if (!resultFile.existsSync()) {
       return MoldCastSessionLaunchFailure(
@@ -223,7 +233,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       );
     }
 
-    return _decodeLaunchResult(
+    return decodeMoldCastSessionLaunchResult(
       resultFile: resultFile,
       fallbackExitCode: childExitCode,
     );
@@ -235,9 +245,11 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
 }
 
 /// Resolves whether the running `foundry_cli` should be path- or hosted-linked.
-Future<FoundryCliHelperDependency> resolveFoundryCliHelperDependency() async {
+Future<FoundryCliHelperDependency> resolveFoundryCliHelperDependency({
+  Map<String, String>? environment,
+}) async {
   final packageRoot = await resolvePackageRoot('foundry_cli');
-  if (_isInsidePubCache(packageRoot.path)) {
+  if (isPathInsidePubCache(packageRoot.path, environment: environment)) {
     return const FoundryCliHostedDependency(foundryCliVersion);
   }
   return FoundryCliPathDependency(packageRoot.path);
@@ -256,6 +268,28 @@ Future<Directory> resolvePackageRoot(String packageName) async {
   }
   // package:<name>/<name>.dart → <root>/lib/<name>.dart → package root.
   return File.fromUri(libraryUri).parent.parent;
+}
+
+Future<ProcessResult> _runHelperPubGet(Directory helperRoot) {
+  return Process.run(
+    Platform.resolvedExecutable,
+    ['pub', 'get'],
+    workingDirectory: helperRoot.path,
+  );
+}
+
+Future<int> _runHelperChild({
+  required Directory helperRoot,
+  required File entrypoint,
+  required File requestFile,
+}) async {
+  final process = await Process.start(
+    Platform.resolvedExecutable,
+    ['run', entrypoint.path, requestFile.path],
+    workingDirectory: helperRoot.path,
+    mode: ProcessStartMode.inheritStdio,
+  );
+  return process.exitCode;
 }
 
 Future<void> _materializeHelperPackage({
@@ -307,7 +341,8 @@ Uri? _existingHookUri(Directory moldDirectory, String relativePath) {
   return file.existsSync() ? file.absolute.uri : null;
 }
 
-MoldCastSessionLaunchResult _decodeLaunchResult({
+/// Decodes the JSON result payload written by the synthetic session bridge.
+MoldCastSessionLaunchResult decodeMoldCastSessionLaunchResult({
   required File resultFile,
   required int fallbackExitCode,
 }) {
@@ -380,13 +415,17 @@ MoldCastSessionLaunchResult _decodeLaunchResult({
   );
 }
 
-bool _isInsidePubCache(String path) {
+/// Whether [path] resolves inside the active pub cache roots.
+bool isPathInsidePubCache(
+  String path, {
+  Map<String, String>? environment,
+}) {
+  final env = environment ?? Platform.environment;
   final absolute = p.normalize(p.absolute(path));
   final candidates = <String>[
-    if (Platform.environment['PUB_CACHE'] case final pubCache?) pubCache,
-    if (Platform.environment['HOME'] case final home?)
-      p.join(home, '.pub-cache'),
-    if (Platform.environment['LOCALAPPDATA'] case final localAppData?)
+    if (env['PUB_CACHE'] case final pubCache?) pubCache,
+    if (env['HOME'] case final home?) p.join(home, '.pub-cache'),
+    if (env['LOCALAPPDATA'] case final localAppData?)
       p.join(localAppData, 'Pub', 'Cache'),
   ];
 

@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_helper.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
+import 'package:foundry_cli/src/version.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -44,10 +47,32 @@ void main() {
       );
 
       expect(result, isA<MoldCastSessionLaunchFailure>());
+      expect(result.isSuccess, isFalse);
       final failure = result as MoldCastSessionLaunchFailure;
       expect(failure.kind, 'load');
       expect(failure.message, contains('does not exist'));
+      expect(
+        '$failure',
+        contains('MoldCastSessionLaunchFailure(load:'),
+      );
       expect(helperParent.listSync(), isEmpty);
+    });
+
+    test('fails clearly when pubspec.yaml is missing', () async {
+      await File(p.join(moldDirectory.path, 'variables.dart')).writeAsString(
+        'final moldVariables = null;\n',
+      );
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'load');
+      expect(failure.message, contains('pubspec.yaml'));
     });
 
     test('fails clearly when variables.dart is missing', () async {
@@ -76,6 +101,26 @@ dependencies:
       expect(helperParent.listSync(), isEmpty);
     });
 
+    test('fails clearly when pubspec.yaml is invalid', () async {
+      await File(p.join(moldDirectory.path, 'pubspec.yaml')).writeAsString(
+        'name: [\n',
+      );
+      await File(p.join(moldDirectory.path, 'variables.dart')).writeAsString(
+        'final moldVariables = null;\n',
+      );
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'load');
+      expect(failure.exitCode, FoundryExitCode.userError.code);
+    });
+
     test(
       'launches a helper session with live visibleWhen and defaultValue',
       () async {
@@ -94,6 +139,7 @@ dependencies:
         );
 
         expect(packageResult, isA<MoldCastSessionLaunchSuccess>());
+        expect(packageResult.isSuccess, isTrue);
         final packageSuccess = packageResult as MoldCastSessionLaunchSuccess;
         expect(packageSuccess.artifactCount, 1);
         expect(packageSuccess.vars['project_type'], 'package');
@@ -141,6 +187,199 @@ dependencies:
         );
       },
     );
+
+    test(
+      'resolves foundry_cli/core automatically for path dependencies',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFileValues: const {
+            'project_type': 'package',
+            'project_name': 'AutoResolve',
+          },
+          noHooks: true,
+          tempParent: helperParent,
+          keepHelperForDebug: true,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+        final helpers = helperParent.listSync().whereType<Directory>().toList();
+        expect(helpers, hasLength(1));
+        expect(
+          File(p.join(helpers.single.path, 'pubspec_overrides.yaml'))
+              .existsSync(),
+          isTrue,
+        );
+        final request = Map<String, Object?>.from(
+          jsonDecode(
+            await File(p.join(helpers.single.path, 'request.json'))
+                .readAsString(),
+          ) as Map<dynamic, dynamic>,
+        );
+        expect(request['noHooks'], isTrue);
+        expect(request['varsFileValues'], isA<Map<dynamic, dynamic>>());
+      },
+    );
+
+    test(
+      'omits foundry_core overrides for hosted foundry_cli dependencies',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFlag: 'project_type=app,project_name=Hosted',
+          tempParent: helperParent,
+          keepHelperForDebug: true,
+          foundryCliDependency: const FoundryCliHostedDependency(
+            foundryCliVersion,
+          ),
+          pubGetRunner: (helperRoot) async {
+            expect(
+              File(p.join(helperRoot.path, 'pubspec_overrides.yaml'))
+                  .existsSync(),
+              isFalse,
+            );
+            return ProcessResult(1, 0, '', '');
+          },
+          childRunner: ({
+            required helperRoot,
+            required entrypoint,
+            required requestFile,
+          }) async {
+            final request = Map<String, Object?>.from(
+              jsonDecode(await requestFile.readAsString())
+                  as Map<dynamic, dynamic>,
+            );
+            final resultPath = request['resultPath']! as String;
+            await File(resultPath).writeAsString(
+              jsonEncode({
+                'ok': true,
+                'artifactCount': 0,
+                'vars': <String, Object?>{},
+                'writtenFiles': <String>[],
+                'outputDirectory': outputDirectory.path,
+              }),
+            );
+            return 0;
+          },
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+      },
+    );
+
+    test('uses the system temp directory when tempParent is omitted', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        foundryCliDependency: FoundryCliPathDependency(
+          (await resolveFoundryCliRoot()).path,
+        ),
+        foundryCoreOverridePath: foundryCorePackageRoot().path,
+        pubGetRunner: (_) async => ProcessResult(1, 1, '', 'boom'),
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      expect((result as MoldCastSessionLaunchFailure).kind, 'resolve');
+    });
+
+    test('reports resolve failures with pub get output', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+        foundryCliDependency: FoundryCliPathDependency(
+          (await resolveFoundryCliRoot()).path,
+        ),
+        foundryCoreOverridePath: foundryCorePackageRoot().path,
+        pubGetRunner: (_) async => ProcessResult(1, 1, 'out', 'err'),
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'resolve');
+      expect(failure.message, contains('dart pub get failed: outerr'));
+      expect(helperParent.listSync(), isEmpty);
+    });
+
+    test('reports resolve failures when pub get output is empty', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+        foundryCliDependency: FoundryCliPathDependency(
+          (await resolveFoundryCliRoot()).path,
+        ),
+        foundryCoreOverridePath: foundryCorePackageRoot().path,
+        pubGetRunner: (_) async => ProcessResult(1, 1, '', ''),
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'resolve');
+      expect(
+        failure.message,
+        'dart pub get failed for the mold cast session helper.',
+      );
+    });
+
+    test('fails when the child exits without a result payload', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final zeroExit = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+        foundryCliDependency: FoundryCliPathDependency(
+          (await resolveFoundryCliRoot()).path,
+        ),
+        foundryCoreOverridePath: foundryCorePackageRoot().path,
+        pubGetRunner: (_) async => ProcessResult(1, 0, '', ''),
+        childRunner: ({
+          required helperRoot,
+          required entrypoint,
+          required requestFile,
+        }) async =>
+            0,
+      );
+      expect(zeroExit, isA<MoldCastSessionLaunchFailure>());
+      final zeroFailure = zeroExit as MoldCastSessionLaunchFailure;
+      expect(zeroFailure.kind, 'internal');
+      expect(zeroFailure.exitCode, FoundryExitCode.internalError.code);
+      expect(zeroFailure.message, contains('exit code 0'));
+
+      final nonzeroExit = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        tempParent: helperParent,
+        foundryCliDependency: FoundryCliPathDependency(
+          (await resolveFoundryCliRoot()).path,
+        ),
+        foundryCoreOverridePath: foundryCorePackageRoot().path,
+        pubGetRunner: (_) async => ProcessResult(1, 0, '', ''),
+        childRunner: ({
+          required helperRoot,
+          required entrypoint,
+          required requestFile,
+        }) async =>
+            7,
+      );
+      expect(nonzeroExit, isA<MoldCastSessionLaunchFailure>());
+      final nonzeroFailure = nonzeroExit as MoldCastSessionLaunchFailure;
+      expect(nonzeroFailure.kind, 'internal');
+      expect(nonzeroFailure.exitCode, 7);
+    });
 
     test('removes the helper directory when the session fails', () async {
       await _writeLiveCallbackMold(moldDirectory);
@@ -212,21 +451,211 @@ dependencies:
     });
   });
 
-  test('resolveFoundryCliHelperDependency uses a path dep in this workspace',
-      () async {
-    final dependency = await resolveFoundryCliHelperDependency();
-    expect(dependency, isA<FoundryCliPathDependency>());
-    final pathDependency = dependency as FoundryCliPathDependency;
-    expect(
-      File(p.join(pathDependency.packageRoot, 'pubspec.yaml')).existsSync(),
-      isTrue,
-    );
-    expect(
-      await File(
-        p.join(pathDependency.packageRoot, 'pubspec.yaml'),
-      ).readAsString(),
-      contains('name: foundry_cli'),
-    );
+  group('resolveFoundryCliHelperDependency', () {
+    test('uses a path dep in this workspace', () async {
+      final dependency = await resolveFoundryCliHelperDependency();
+      expect(dependency, isA<FoundryCliPathDependency>());
+      final pathDependency = dependency as FoundryCliPathDependency;
+      expect(
+        File(p.join(pathDependency.packageRoot, 'pubspec.yaml')).existsSync(),
+        isTrue,
+      );
+      expect(
+        await File(
+          p.join(pathDependency.packageRoot, 'pubspec.yaml'),
+        ).readAsString(),
+        contains('name: foundry_cli'),
+      );
+    });
+
+    test('uses a hosted dep when the package root is inside pub-cache',
+        () async {
+      final cliRoot = await resolveFoundryCliRoot();
+      final dependency = await resolveFoundryCliHelperDependency(
+        environment: {'PUB_CACHE': cliRoot.path},
+      );
+      expect(
+        dependency,
+        const FoundryCliHostedDependency(foundryCliVersion),
+      );
+    });
+  });
+
+  group('resolvePackageRoot', () {
+    test('throws when the package cannot be resolved', () async {
+      await expectLater(
+        resolvePackageRoot('foundry_missing_package_for_session_tests'),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Could not resolve package:'),
+          ),
+        ),
+      );
+    });
+  });
+
+  group('isPathInsidePubCache', () {
+    test('detects pub-cache roots from environment candidates', () {
+      expect(
+        isPathInsidePubCache(
+          p.join('/cache', 'hosted', 'pkg'),
+          environment: const {'PUB_CACHE': '/cache'},
+        ),
+        isTrue,
+      );
+      expect(
+        isPathInsidePubCache(
+          '/cache',
+          environment: const {'PUB_CACHE': '/cache'},
+        ),
+        isTrue,
+      );
+      expect(
+        isPathInsidePubCache(
+          p.join('/home', '.pub-cache', 'pkg'),
+          environment: const {'HOME': '/home'},
+        ),
+        isTrue,
+      );
+      expect(
+        isPathInsidePubCache(
+          p.join('/local', 'Pub', 'Cache', 'pkg'),
+          environment: const {'LOCALAPPDATA': '/local'},
+        ),
+        isTrue,
+      );
+      expect(
+        isPathInsidePubCache(
+          '/tmp/outside',
+          environment: const {
+            'PUB_CACHE': '/cache',
+            'HOME': '/home',
+            'LOCALAPPDATA': '/local',
+          },
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('decodeMoldCastSessionLaunchResult', () {
+    late Directory tempDirectory;
+
+    setUp(() async {
+      tempDirectory = await Directory.systemTemp.createTemp(
+        'foundry_session_result_',
+      );
+    });
+
+    tearDown(() async {
+      if (tempDirectory.existsSync()) {
+        await tempDirectory.delete(recursive: true);
+      }
+    });
+
+    Future<File> writeResult(Object? value) async {
+      final file = File(p.join(tempDirectory.path, 'result.json'));
+      if (value is String) {
+        await file.writeAsString(value);
+      } else {
+        await file.writeAsString(jsonEncode(value));
+      }
+      return file;
+    }
+
+    test('decodes a success payload', () async {
+      final file = await writeResult(
+        '{'
+        '"ok":true,'
+        '"artifactCount":2,'
+        '"vars":{"name":"demo"},'
+        '"writtenFiles":["a.txt",1,"b.txt"],'
+        '"outputDirectory":"/tmp/out"'
+        '}',
+      );
+
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      );
+      expect(result, isA<MoldCastSessionLaunchSuccess>());
+      final success = result as MoldCastSessionLaunchSuccess;
+      expect(success.artifactCount, 2);
+      expect(success.vars, {'name': 'demo'});
+      expect(success.writtenFilePaths, ['a.txt', 'b.txt']);
+      expect(success.outputDirectory, '/tmp/out');
+      expect(success.exitCode, FoundryExitCode.success.code);
+    });
+
+    test('keeps a non-zero success exit code from the child', () async {
+      final file = await writeResult({
+        'ok': true,
+        'artifactCount': 0,
+        'vars': <String, Object?>{},
+        'writtenFiles': <String>[],
+        'outputDirectory': '/tmp/out',
+      });
+
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 3,
+      ) as MoldCastSessionLaunchSuccess;
+      expect(result.exitCode, 3);
+    });
+
+    test('rejects invalid JSON', () async {
+      final file = await writeResult('{');
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.kind, 'internal');
+      expect(result.message, contains('not valid JSON'));
+    });
+
+    test('rejects a non-object JSON root', () async {
+      final file = await writeResult(['nope']);
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.message, contains('JSON object'));
+    });
+
+    test('rejects success payloads with missing fields', () async {
+      final file = await writeResult({'ok': true, 'artifactCount': 'x'});
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.message, contains('missing required fields'));
+    });
+
+    test('decodes failure payloads and normalizes blank fields', () async {
+      final detailed = await writeResult({
+        'ok': false,
+        'kind': 'hook',
+        'message': 'boom',
+      });
+      final detailedResult = decodeMoldCastSessionLaunchResult(
+        resultFile: detailed,
+        fallbackExitCode: 9,
+      ) as MoldCastSessionLaunchFailure;
+      expect(detailedResult.kind, 'hook');
+      expect(detailedResult.message, 'boom');
+      expect(detailedResult.exitCode, 9);
+
+      final blank = await writeResult({'ok': false, 'kind': '', 'message': ''});
+      final blankResult = decodeMoldCastSessionLaunchResult(
+        resultFile: blank,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(blankResult.kind, 'internal');
+      expect(blankResult.message, 'Session failed without a message.');
+      expect(blankResult.exitCode, FoundryExitCode.userError.code);
+    });
   });
 }
 
