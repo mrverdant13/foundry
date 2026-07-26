@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
@@ -98,12 +99,29 @@ typedef CastCompleter = Future<CastOutcome> Function({
 /// Production code uses [File.readAsString]; tests inject failures.
 typedef VarsFileContentsReader = Future<String> Function(File file);
 
+/// Launches a batch mold cast session for `--vars` / `--vars-file`.
+///
+/// Production code uses [launchBatchMoldCastSession]; tests inject fakes.
+typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
+    Function({
+  required String moldPath,
+  required String outputPath,
+  Map<String, Object?>? varsFileValues,
+  String? varsFlag,
+  bool force,
+  bool noHooks,
+});
+
 /// {@template foundry_cli.cast_command}
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
 /// `[--vars=<k=v,…>] [--vars-file=<path>]`
 ///
-/// Loads the mold at `<mold-path>`, runs prepare, gathers variables through
-/// the Nocterm TUI (or batch flags), then shapes, renders, and finishes.
+/// With `--vars` and/or `--vars-file`, launches a mold cast session so live
+/// `variables.dart` callbacks run in a helper process, then persists
+/// `.foundry/last_cast.json` from the session's encodable vars projection.
+///
+/// Without batch flags, loads the mold on the host, runs prepare, gathers
+/// variables through the Nocterm TUI, then shapes, renders, and finishes.
 /// On success, persists `.foundry/last_cast.json` for `foundry recast` and
 /// `foundry finish`.
 /// {@endtemplate}
@@ -116,12 +134,14 @@ class CastCommand extends Command<int> {
     CastPreparer? prepareCast,
     CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
+    BatchMoldCastSessionLauncher? launchBatchSession,
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively,
         _prepareCast = prepareCast ?? prepareCastContext,
         _completeCast = completeCastRun ?? completeCast,
         _readVarsFileContents =
-            readVarsFileContents ?? ((file) => file.readAsString()) {
+            readVarsFileContents ?? ((file) => file.readAsString()),
+        _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
     argParser
       ..addOption(
         outputOptionName,
@@ -178,6 +198,7 @@ class CastCommand extends Command<int> {
   final CastPreparer _prepareCast;
   final CastCompleter _completeCast;
   final VarsFileContentsReader _readVarsFileContents;
+  final BatchMoldCastSessionLauncher _launchBatchSession;
 
   @override
   String get name => 'cast';
@@ -224,6 +245,90 @@ class CastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
+    final hasVars = argResults!.wasParsed(varsOptionName);
+    final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
+    if (hasVars || hasVarsFile) {
+      return _runBatchCastSession(
+        rawMoldPath: rawMoldPath,
+        rawOutputPath: rawOutputPath,
+        moldPath: moldPath,
+        outputPath: outputPath,
+        force: force,
+        noHooks: noHooks,
+        hasVars: hasVars,
+        hasVarsFile: hasVarsFile,
+      );
+    }
+
+    return _runInteractiveCast(
+      rawMoldPath: rawMoldPath,
+      rawOutputPath: rawOutputPath,
+      moldPath: moldPath,
+      outputPath: outputPath,
+      force: force,
+      noHooks: noHooks,
+    );
+  }
+
+  /// Batch cast via the synthetic mold cast session (live `variables.dart`).
+  Future<int> _runBatchCastSession({
+    required String rawMoldPath,
+    required String rawOutputPath,
+    required String moldPath,
+    required String outputPath,
+    required bool force,
+    required bool noHooks,
+    required bool hasVars,
+    required bool hasVarsFile,
+  }) async {
+    final varsFileValues = await _readVarsFileValues(hasVarsFile: hasVarsFile);
+    if (hasVarsFile && varsFileValues == null) {
+      return FoundryExitCode.userError.code;
+    }
+
+    final result = await _launchBatchSession(
+      moldPath: moldPath,
+      outputPath: outputPath,
+      varsFileValues: varsFileValues,
+      varsFlag: hasVars ? argResults!.option(varsOptionName) : null,
+      force: force,
+      noHooks: noHooks,
+    );
+
+    switch (result) {
+      case MoldCastSessionLaunchSuccess(
+          :final artifactCount,
+          :final vars,
+          :final exitCode,
+        ):
+        await writeCastState(
+          CastState(
+            moldPath: rawMoldPath,
+            outputPath: rawOutputPath,
+            vars: vars,
+            timestamp: DateTime.now(),
+          ),
+          cwd: workingDirectory,
+        );
+        logger
+          ..info('✓ Cast completed')
+          ..info('✓ $artifactCount artifacts generated at $outputPath');
+        return exitCode;
+      case MoldCastSessionLaunchFailure(:final message, :final exitCode):
+        logger.error(message);
+        return exitCode;
+    }
+  }
+
+  /// Interactive cast on the host (unchanged gather / prepare / complete path).
+  Future<int> _runInteractiveCast({
+    required String rawMoldPath,
+    required String rawOutputPath,
+    required String moldPath,
+    required String outputPath,
+    required bool force,
+    required bool noHooks,
+  }) async {
     final Mold mold;
     try {
       mold = await loadMold(moldPath);
@@ -247,36 +352,19 @@ class CastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
-    final hasVars = argResults!.wasParsed(varsOptionName);
-    final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
-    final Map<String, Object?> values;
-    if (hasVars || hasVarsFile) {
-      final batchValues = await _resolveBatchValues(
-        variableGroup: mold.variableGroup,
-        seedValues: context.copyValues(),
-        hasVars: hasVars,
-        hasVarsFile: hasVarsFile,
-      );
-      if (batchValues == null) {
-        return FoundryExitCode.userError.code;
-      }
-      values = batchValues;
-    } else {
-      final gathered = await _gatherVariables(
-        variableGroup: mold.variableGroup,
-        moldName: mold.name,
-        moldDescription: mold.description,
-        seedValues: context.copyValues(),
-      );
-      if (gathered == null) {
-        await _removeOutputIfEmpty(outputPath);
-        logger.info('Cast cancelled.');
-        return FoundryExitCode.userError.code;
-      }
-      values = gathered;
+    final gathered = await _gatherVariables(
+      variableGroup: mold.variableGroup,
+      moldName: mold.name,
+      moldDescription: mold.description,
+      seedValues: context.copyValues(),
+    );
+    if (gathered == null) {
+      await _removeOutputIfEmpty(outputPath);
+      logger.info('Cast cancelled.');
+      return FoundryExitCode.userError.code;
     }
 
-    context.merge(values);
+    context.merge(gathered);
 
     final CastOutcome outcome;
     try {
@@ -345,69 +433,52 @@ class CastCommand extends Command<int> {
     );
   }
 
-  /// Reads `--vars-file` (when present), merges with `--vars`, and parses
-  /// against [variableGroup], using [seedValues] for prepare-seeded defaults.
+  /// Reads and decodes `--vars-file` when [hasVarsFile] is true.
   ///
   /// Returns `null` after logging a user-facing error when the file cannot be
-  /// read/decoded or when parse/validation fails.
-  Future<Map<String, Object?>?> _resolveBatchValues({
-    required FoundryVariableGroup variableGroup,
-    required Map<String, Object?> seedValues,
-    required bool hasVars,
+  /// read or decoded. Returns `null` without error when [hasVarsFile] is false.
+  Future<Map<String, Object?>?> _readVarsFileValues({
     required bool hasVarsFile,
   }) async {
-    Map<String, Object?>? varsFileValues;
-    if (hasVarsFile) {
-      final rawVarsFilePath = argResults!.option(varsFileOptionName)!;
-      final varsFilePath = p.normalize(
-        p.join(workingDirectory.path, rawVarsFilePath),
-      );
-      final varsFile = File(varsFilePath);
-      if (!varsFile.existsSync()) {
-        logger.error('Vars file "$rawVarsFilePath" does not exist.');
-        return null;
-      }
-
-      final String contents;
-      try {
-        contents = await _readVarsFileContents(varsFile);
-      } on FileSystemException catch (exception) {
-        logger.error(
-          'Failed to read vars file "$rawVarsFilePath": $exception',
-        );
-        return null;
-      }
-
-      final Object? decoded;
-      try {
-        decoded = jsonDecode(contents);
-      } on FormatException catch (exception) {
-        logger.error(
-          'Vars file "$rawVarsFilePath" is not valid JSON: $exception',
-        );
-        return null;
-      }
-      if (decoded is! Map) {
-        logger.error(
-          'Vars file "$rawVarsFilePath" must contain a JSON object.',
-        );
-        return null;
-      }
-      varsFileValues = Map<String, Object?>.from(decoded);
+    if (!hasVarsFile) {
+      return null;
     }
 
-    final result = parseCastVariableInputs(
-      variableGroup: variableGroup,
-      varsFileValues: varsFileValues,
-      varsFlag: hasVars ? argResults!.option(varsOptionName) : null,
-      seedValues: seedValues,
+    final rawVarsFilePath = argResults!.option(varsFileOptionName)!;
+    final varsFilePath = p.normalize(
+      p.join(workingDirectory.path, rawVarsFilePath),
     );
-    switch (result) {
-      case CastVariableInputsParseSuccess(:final rawValues):
-        return rawValues;
-      case CastVariableInputsParseFailure():
-        logger.error('$result');
-        return null;
+    final varsFile = File(varsFilePath);
+    if (!varsFile.existsSync()) {
+      logger.error('Vars file "$rawVarsFilePath" does not exist.');
+      return null;
     }
+
+    final String contents;
+    try {
+      contents = await _readVarsFileContents(varsFile);
+    } on FileSystemException catch (exception) {
+      logger.error(
+        'Failed to read vars file "$rawVarsFilePath": $exception',
+      );
+      return null;
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(contents);
+    } on FormatException catch (exception) {
+      logger.error(
+        'Vars file "$rawVarsFilePath" is not valid JSON: $exception',
+      );
+      return null;
+    }
+    if (decoded is! Map) {
+      logger.error(
+        'Vars file "$rawVarsFilePath" must contain a JSON object.',
+      );
+      return null;
+    }
+    return Map<String, Object?>.from(decoded);
   }
 }

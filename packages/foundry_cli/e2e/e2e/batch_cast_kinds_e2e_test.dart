@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -51,10 +52,26 @@ void main() {
           expected: expectedDirectory,
           actual: Directory(p.join(workDir.path, 'out')),
         );
+
+        final stateFile = File(
+          p.join(workDir.path, '.foundry', 'last_cast.json'),
+        );
+        expect(stateFile.existsSync(), isTrue);
+        final state =
+            json.decode(stateFile.readAsStringSync()) as Map<String, Object?>;
+        expect(state['moldPath'], moldPath);
+        expect(state['outputPath'], 'out');
+        final vars = state['vars']! as Map<String, dynamic>;
+        expect(vars['project_name'], 'BatchDemo');
+        expect(vars['use_null_safety'], isTrue);
+        expect(vars['port'], 8080);
+        expect(vars['scale'], 1.5);
+        expect(vars['project_type'], 'package');
+        expect(vars['platforms'], ['android', 'web']);
       },
       tags: const ['e2e'],
-      // Spawns the CLI, runs pub get on the fixture mold, and loads variables
-      // in an isolate — well over the default 30s on cold CI runners.
+      // Spawns the CLI, materializes a synthetic session helper, and runs
+      // dart pub get — well over the default 30s on cold CI runners.
       timeout: const Timeout(Duration(minutes: 2)),
     );
   });
