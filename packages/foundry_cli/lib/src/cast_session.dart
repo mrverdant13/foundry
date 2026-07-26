@@ -336,7 +336,7 @@ final class CastSession {
 
     try {
       final evaluation = mold.variableGroup.evaluate(
-        rawValues: context.entries,
+        rawValues: context.copyValues(),
       );
       final validation = mold.variableGroup.validate(evaluation);
       if (!validation.isValid) {

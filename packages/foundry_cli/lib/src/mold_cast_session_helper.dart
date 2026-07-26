@@ -108,8 +108,8 @@ final class MoldCastSessionHelperHookImports {
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
 /// files by file URI, then runs a `CastSession` against the live
 /// `moldVariables` group in the helper isolate. When the request includes
-/// `--vars` / `--vars-file` inputs the bridge calls [CastSession.runBatch];
-/// otherwise it calls [CastSession.runInteractive] (Nocterm gather with
+/// `--vars` / `--vars-file` inputs the bridge calls `CastSession.runBatch`;
+/// otherwise it calls `CastSession.runInteractive` (Nocterm gather with
 /// inherited stdio, or `FOUNDRY_E2E_VARS`).
 String buildMoldCastSessionBridgeSource({
   required Uri variablesUri,

@@ -48,9 +48,8 @@ TerminalBackend Function() createDefaultGatherCastBackend = StdioBackend.new;
 ///
 /// Runs the TUI to completion and returns the resolved values once the user
 /// confirms the form, or `null` if the user cancels (Escape). This is the
-/// production implementation of variable gathering used by `foundry cast`;
-/// tests inject a fake in its place (see REQUIREMENTS.md §5.1: "Nocterm-only
-/// input").
+/// production implementation of variable gathering used by interactive
+/// `foundry cast` sessions; tests inject a fake in its place.
 ///
 /// [backend] overrides Nocterm's default terminal I/O backend, and
 /// [enableHotReload] can disable Nocterm's hot-reload watcher; only tests
