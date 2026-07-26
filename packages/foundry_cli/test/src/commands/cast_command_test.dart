@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -29,6 +30,7 @@ void main() {
     CastPreparer? prepareCast,
     CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
+    BatchMoldCastSessionLauncher? launchBatchSession,
     void Function(String message)? onInfo,
     void Function(String message)? onWarn,
     void Function(String message)? onError,
@@ -42,6 +44,7 @@ void main() {
           prepareCast: prepareCast,
           completeCastRun: completeCastRun,
           readVarsFileContents: readVarsFileContents,
+          launchBatchSession: launchBatchSession,
         ),
       );
   }
@@ -530,11 +533,12 @@ void main() {
     });
 
     group('batch --vars / --vars-file', () {
-      test('casts successfully with --vars and skips the TUI', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+      test('routes --vars through the batch session launcher', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
         var gatherCalls = 0;
+        var launchCalls = 0;
         final infoMessages = <String>[];
+        final captured = <String, Object?>{};
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
@@ -547,6 +551,33 @@ void main() {
             gatherCalls++;
             return {'project_name': 'should_not_be_used'};
           },
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchCalls++;
+            captured['moldPath'] = moldPath;
+            captured['outputPath'] = outputPath;
+            captured['varsFlag'] = varsFlag;
+            captured['varsFileValues'] = varsFileValues;
+            captured['force'] = force;
+            captured['noHooks'] = noHooks;
+            Directory(outputPath).createSync(recursive: true);
+            await File(
+              p.join(outputPath, 'README.md'),
+            ).writeAsString('# Ada\n');
+            return MoldCastSessionLaunchSuccess(
+              artifactCount: 1,
+              vars: const {'project_name': 'Ada'},
+              writtenFilePaths: [p.join(outputPath, 'README.md')],
+              outputDirectory: outputPath,
+              exitCode: FoundryExitCode.success.code,
+            );
+          },
         );
 
         final exitCode = await runner.run([
@@ -558,19 +589,43 @@ void main() {
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(gatherCalls, 0);
+        expect(launchCalls, 1);
+        expect(captured['varsFlag'], 'project_name=Ada');
+        expect(captured['varsFileValues'], isNull);
+        expect(captured['force'], isFalse);
+        expect(captured['noHooks'], isFalse);
+        expect(
+          captured['moldPath'],
+          p.normalize(p.join(workDir.path, 'mold')),
+        );
+        expect(
+          captured['outputPath'],
+          p.normalize(p.join(workDir.path, 'out')),
+        );
         expect(infoMessages, contains('✓ Cast completed'));
-        final artifact = File(p.join(workDir.path, 'out', 'README.md'));
-        expect(artifact.existsSync(), isTrue);
-        expect(await artifact.readAsString(), '# Ada\n');
+        expect(
+          infoMessages,
+          contains(
+            contains('1 artifacts generated at'),
+          ),
+        );
+        final state = readCastState(workDir);
+        expect(state['moldPath'], 'mold');
+        expect(state['outputPath'], 'out');
+        expect(state['vars'], {'project_name': 'Ada'});
+        expect(
+          await File(p.join(workDir.path, 'out', 'README.md')).readAsString(),
+          '# Ada\n',
+        );
       });
 
-      test('casts successfully with --vars-file and skips the TUI', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+      test('routes --vars-file through the batch session launcher', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
         File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
           json.encode({'project_name': 'Ada'}),
         );
         var gatherCalls = 0;
+        Map<String, Object?>? launchedVarsFile;
         final runner = buildRunner(
           workingDirectory: workDir,
           gatherVariables: ({
@@ -581,6 +636,24 @@ void main() {
           }) async {
             gatherCalls++;
             return null;
+          },
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchedVarsFile = varsFileValues;
+            Directory(outputPath).createSync(recursive: true);
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 1,
+              vars: {'project_name': 'Ada'},
+              writtenFilePaths: [],
+              outputDirectory: 'out',
+              exitCode: 0,
+            );
           },
         );
 
@@ -593,72 +666,80 @@ void main() {
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(gatherCalls, 0);
-        expect(
-          await File(p.join(workDir.path, 'out', 'README.md')).readAsString(),
-          '# Ada\n',
-        );
-      });
-
-      test('--vars overrides colliding keys from --vars-file', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
-        File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
-          json.encode({'project_name': 'FromFile'}),
-        );
-        final runner = buildRunner(workingDirectory: workDir);
-
-        final exitCode = await runner.run([
-          'cast',
-          'mold',
-          '--output=out',
-          '--vars-file=vars.json',
-          '--vars=project_name=FromFlag',
-        ]);
-
-        expect(exitCode, FoundryExitCode.success.code);
-        expect(
-          await File(p.join(workDir.path, 'out', 'README.md')).readAsString(),
-          '# FromFlag\n',
-        );
+        expect(launchedVarsFile, {'project_name': 'Ada'});
+        expect(readCastState(workDir)['vars'], {'project_name': 'Ada'});
       });
 
       test(
-        'fails with exit 1 when batch input fails type parsing',
+        'forwards --vars, --force, and --no-hooks to the launcher',
         () async {
-          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-          await writeNumericCastableMold(
-            directory: moldDir,
-            name: 'demo_app',
+          Directory(p.join(workDir.path, 'mold')).createSync();
+          File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
+            json.encode({'project_name': 'FromFile'}),
           );
-          final errorMessages = <String>[];
+          final captured = <String, Object?>{};
           final runner = buildRunner(
             workingDirectory: workDir,
-            onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async {
+              captured['varsFileValues'] = varsFileValues;
+              captured['varsFlag'] = varsFlag;
+              captured['force'] = force;
+              captured['noHooks'] = noHooks;
+              return const MoldCastSessionLaunchSuccess(
+                artifactCount: 0,
+                vars: {'project_name': 'FromFlag'},
+                writtenFilePaths: [],
+                outputDirectory: 'out',
+                exitCode: 0,
+              );
+            },
           );
 
           final exitCode = await runner.run([
             'cast',
             'mold',
             '--output=out',
-            '--vars=project_name=Ada,port=not-an-int',
+            '--vars-file=vars.json',
+            '--vars=project_name=FromFlag',
+            '--force',
+            '--no-hooks',
           ]);
 
-          expect(exitCode, FoundryExitCode.userError.code);
-          expect(errorMessages, contains(contains('port')));
-          expect(
-            File(p.join(workDir.path, 'out', 'README.md')).existsSync(),
-            isFalse,
-          );
+          expect(exitCode, FoundryExitCode.success.code);
+          expect(captured['varsFileValues'], {'project_name': 'FromFile'});
+          expect(captured['varsFlag'], 'project_name=FromFlag');
+          expect(captured['force'], isTrue);
+          expect(captured['noHooks'], isTrue);
         },
       );
 
-      test('fails with exit 1 for an unknown batch key', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+      test('surfaces session parse failures with their exit code', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            return const MoldCastSessionLaunchFailure(
+              kind: 'parse',
+              message: 'Unknown variable "unknown".',
+              exitCode: 1,
+            );
+          },
         );
 
         final exitCode = await runner.run([
@@ -670,15 +751,72 @@ void main() {
 
         expect(exitCode, FoundryExitCode.userError.code);
         expect(errorMessages, contains(contains('unknown')));
+        expect(
+          File(p.join(workDir.path, '.foundry', 'last_cast.json')).existsSync(),
+          isFalse,
+        );
       });
 
-      test('fails with exit 1 when --vars-file is missing', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+      test('surfaces session internal failures with exit code 2', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            return const MoldCastSessionLaunchFailure(
+              kind: 'internal',
+              message: 'Session process did not produce a result payload.',
+              exitCode: 2,
+            );
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars=project_name=Ada',
+        ]);
+
+        expect(exitCode, FoundryExitCode.internalError.code);
+        expect(
+          errorMessages,
+          contains(contains('did not produce a result payload')),
+        );
+      });
+
+      test('fails with exit 1 when --vars-file is missing', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        var launchCalls = 0;
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchCalls++;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: 'out',
+              exitCode: 0,
+            );
+          },
         );
 
         final exitCode = await runner.run([
@@ -689,19 +827,37 @@ void main() {
         ]);
 
         expect(exitCode, FoundryExitCode.userError.code);
+        expect(launchCalls, 0);
         expect(errorMessages, contains(contains('does not exist')));
       });
 
       test('fails with exit 1 when --vars-file cannot be read', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{}');
+        var launchCalls = 0;
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
           readVarsFileContents: (file) async {
             throw FileSystemException('Permission denied', file.path);
+          },
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchCalls++;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: 'out',
+              exitCode: 0,
+            );
           },
         );
 
@@ -713,17 +869,35 @@ void main() {
         ]);
 
         expect(exitCode, FoundryExitCode.userError.code);
+        expect(launchCalls, 0);
         expect(errorMessages, contains(contains('Failed to read vars file')));
       });
 
       test('fails with exit 1 when --vars-file is not valid JSON', () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         File(p.join(workDir.path, 'vars.json')).writeAsStringSync('{not-json');
+        var launchCalls = 0;
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchCalls++;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: 'out',
+              exitCode: 0,
+            );
+          },
         );
 
         final exitCode = await runner.run([
@@ -734,19 +908,37 @@ void main() {
         ]);
 
         expect(exitCode, FoundryExitCode.userError.code);
+        expect(launchCalls, 0);
         expect(errorMessages, contains(contains('not valid JSON')));
       });
 
       test(
         'fails with exit 1 when --vars-file is not a JSON object',
         () async {
-          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-          await writeCastableMold(directory: moldDir, name: 'demo_app');
+          Directory(p.join(workDir.path, 'mold')).createSync();
           File(p.join(workDir.path, 'vars.json')).writeAsStringSync('[1, 2]');
+          var launchCalls = 0;
           final errorMessages = <String>[];
           final runner = buildRunner(
             workingDirectory: workDir,
             onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async {
+              launchCalls++;
+              return const MoldCastSessionLaunchSuccess(
+                artifactCount: 0,
+                vars: {},
+                writtenFilePaths: [],
+                outputDirectory: 'out',
+                exitCode: 0,
+              );
+            },
           );
 
           final exitCode = await runner.run([
@@ -757,6 +949,7 @@ void main() {
           ]);
 
           expect(exitCode, FoundryExitCode.userError.code);
+          expect(launchCalls, 0);
           expect(
             errorMessages,
             contains(contains('must contain a JSON object')),
@@ -770,6 +963,7 @@ void main() {
           final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
           await writeCastableMold(directory: moldDir, name: 'demo_app');
           var gatherCalls = 0;
+          var launchCalls = 0;
           final runner = buildRunner(
             workingDirectory: workDir,
             gatherVariables: ({
@@ -781,12 +975,30 @@ void main() {
               gatherCalls++;
               return {'project_name': 'Ada'};
             },
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async {
+              launchCalls++;
+              return const MoldCastSessionLaunchSuccess(
+                artifactCount: 0,
+                vars: {},
+                writtenFilePaths: [],
+                outputDirectory: 'out',
+                exitCode: 0,
+              );
+            },
           );
 
           final exitCode = await runner.run(['cast', 'mold', '--output=out']);
 
           expect(exitCode, FoundryExitCode.success.code);
           expect(gatherCalls, 1);
+          expect(launchCalls, 0);
         },
       );
 
