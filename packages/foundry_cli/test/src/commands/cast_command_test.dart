@@ -720,6 +720,43 @@ void main() {
         },
       );
 
+      test('surfaces session load failures with their exit code', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            return const MoldCastSessionLaunchFailure(
+              kind: 'load',
+              message: 'Missing required file "pubspec.yaml".',
+              exitCode: 1,
+            );
+          },
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=out',
+          '--vars=project_name=Ada',
+        ]);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('pubspec.yaml')));
+        expect(
+          File(p.join(workDir.path, '.foundry', 'last_cast.json')).existsSync(),
+          isFalse,
+        );
+      });
+
       test('surfaces session parse failures with their exit code', () async {
         Directory(p.join(workDir.path, 'mold')).createSync();
         final errorMessages = <String>[];
