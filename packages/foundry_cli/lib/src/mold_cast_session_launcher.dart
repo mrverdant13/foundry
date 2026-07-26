@@ -177,8 +177,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       workingDirectory: helperRoot.path,
     );
     if (resolveResult.exitCode != 0) {
-      final output =
-          '${resolveResult.stdout}${resolveResult.stderr}'.trim();
+      final output = '${resolveResult.stdout}${resolveResult.stderr}'.trim();
       return MoldCastSessionLaunchFailure(
         kind: 'resolve',
         message: output.isEmpty
