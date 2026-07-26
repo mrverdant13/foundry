@@ -720,115 +720,128 @@ void main() {
         },
       );
 
-      test('surfaces session load failures with their exit code', () async {
-        Directory(p.join(workDir.path, 'mold')).createSync();
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          launchBatchSession: ({
-            required moldPath,
-            required outputPath,
-            varsFileValues,
-            varsFlag,
-            force = false,
-            noHooks = false,
-          }) async {
-            return const MoldCastSessionLaunchFailure(
-              kind: 'load',
-              message: 'Missing required file "pubspec.yaml".',
-              exitCode: 1,
-            );
-          },
-        );
+      test(
+        'forwards session load failure exit codes to the process',
+        () async {
+          Directory(p.join(workDir.path, 'mold')).createSync();
+          const failure = MoldCastSessionLaunchFailure(
+            kind: 'load',
+            message: 'Missing required file "pubspec.yaml".',
+            exitCode: 1,
+          );
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async =>
+                failure,
+          );
 
-        final exitCode = await runner.run([
-          'cast',
-          'mold',
-          '--output=out',
-          '--vars=project_name=Ada',
-        ]);
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars=project_name=Ada',
+          ]);
 
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(errorMessages, contains(contains('pubspec.yaml')));
-        expect(
-          File(p.join(workDir.path, '.foundry', 'last_cast.json')).existsSync(),
-          isFalse,
-        );
-      });
+          expect(exitCode, failure.exitCode);
+          expect(errorMessages, contains(contains('pubspec.yaml')));
+          expect(
+            File(
+              p.join(workDir.path, '.foundry', 'last_cast.json'),
+            ).existsSync(),
+            isFalse,
+          );
+        },
+      );
 
-      test('surfaces session parse failures with their exit code', () async {
-        Directory(p.join(workDir.path, 'mold')).createSync();
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          launchBatchSession: ({
-            required moldPath,
-            required outputPath,
-            varsFileValues,
-            varsFlag,
-            force = false,
-            noHooks = false,
-          }) async {
-            return const MoldCastSessionLaunchFailure(
-              kind: 'parse',
-              message: 'Unknown variable "unknown".',
-              exitCode: 1,
-            );
-          },
-        );
+      test(
+        'forwards session parse failure exit codes to the process',
+        () async {
+          Directory(p.join(workDir.path, 'mold')).createSync();
+          const failure = MoldCastSessionLaunchFailure(
+            kind: 'parse',
+            message: 'Unknown variable "unknown".',
+            exitCode: 1,
+          );
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async =>
+                failure,
+          );
 
-        final exitCode = await runner.run([
-          'cast',
-          'mold',
-          '--output=out',
-          '--vars=project_name=Ada,unknown=x',
-        ]);
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars=project_name=Ada,unknown=x',
+          ]);
 
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(errorMessages, contains(contains('unknown')));
-        expect(
-          File(p.join(workDir.path, '.foundry', 'last_cast.json')).existsSync(),
-          isFalse,
-        );
-      });
+          expect(exitCode, failure.exitCode);
+          expect(errorMessages, contains(contains('unknown')));
+          expect(
+            File(
+              p.join(workDir.path, '.foundry', 'last_cast.json'),
+            ).existsSync(),
+            isFalse,
+          );
+        },
+      );
 
-      test('surfaces session internal failures with exit code 2', () async {
-        Directory(p.join(workDir.path, 'mold')).createSync();
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          launchBatchSession: ({
-            required moldPath,
-            required outputPath,
-            varsFileValues,
-            varsFlag,
-            force = false,
-            noHooks = false,
-          }) async {
-            return const MoldCastSessionLaunchFailure(
-              kind: 'internal',
-              message: 'Session process did not produce a result payload.',
-              exitCode: 2,
-            );
-          },
-        );
+      test(
+        'forwards session internal failure exit codes to the process',
+        () async {
+          Directory(p.join(workDir.path, 'mold')).createSync();
+          const failure = MoldCastSessionLaunchFailure(
+            kind: 'internal',
+            message: 'Session process did not produce a result payload.',
+            exitCode: 2,
+          );
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) async =>
+                failure,
+          );
 
-        final exitCode = await runner.run([
-          'cast',
-          'mold',
-          '--output=out',
-          '--vars=project_name=Ada',
-        ]);
+          final exitCode = await runner.run([
+            'cast',
+            'mold',
+            '--output=out',
+            '--vars=project_name=Ada',
+          ]);
 
-        expect(exitCode, FoundryExitCode.internalError.code);
-        expect(
-          errorMessages,
-          contains(contains('did not produce a result payload')),
-        );
-      });
+          expect(exitCode, failure.exitCode);
+          expect(
+            errorMessages,
+            contains(contains('did not produce a result payload')),
+          );
+        },
+      );
 
       test('fails with exit 1 when --vars-file is missing', () async {
         Directory(p.join(workDir.path, 'mold')).createSync();
