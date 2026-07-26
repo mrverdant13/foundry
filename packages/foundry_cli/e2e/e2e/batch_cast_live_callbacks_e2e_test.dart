@@ -9,7 +9,8 @@ import 'helpers/fixture_paths.dart';
 import 'helpers/run_foundry.dart';
 
 void main() {
-  group('foundry cast --vars-file with live visibility/defaults/validators', () {
+  group('foundry cast --vars-file with live visibility/defaults/validators',
+      () {
     late Directory workDir;
     late String moldPath;
 

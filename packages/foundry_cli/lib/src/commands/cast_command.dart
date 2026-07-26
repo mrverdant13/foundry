@@ -141,8 +141,7 @@ class CastCommand extends Command<int> {
         _completeCast = completeCastRun ?? completeCast,
         _readVarsFileContents =
             readVarsFileContents ?? ((file) => file.readAsString()),
-        _launchBatchSession =
-            launchBatchSession ?? launchBatchMoldCastSession {
+        _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
     argParser
       ..addOption(
         outputOptionName,
