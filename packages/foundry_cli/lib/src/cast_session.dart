@@ -1,16 +1,29 @@
 import 'dart:io';
 
+import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/cast_session_vars.dart';
+import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
+
+/// Gathers cast variable values for [CastSession.runInteractive].
+///
+/// Production code uses [gatherCastVariablesInteractively]; tests inject a
+/// fake implementation instead. Returns `null` when the user cancels.
+typedef CastSessionVariableGatherer = Future<Map<String, Object?>?> Function({
+  required FoundryVariableGroup variableGroup,
+  required String moldName,
+  required String moldDescription,
+  Map<String, Object?> seedValues,
+});
 
 /// In-process lifecycle hook entry points for a [CastSession].
 ///
 /// Callers that import mold `hooks/*.dart` by file URI (or construct closures
 /// in tests) supply the phase `run` functions here. Missing entry points are
 /// fine when the corresponding hook file is absent; when a hook file exists
-/// and [CastSession.runBatch] is not skipping hooks, `runMoldHookInProcess`
-/// reports a missing `run` entry point.
+/// and [CastSession.runBatch] / [CastSession.runInteractive] is not skipping
+/// hooks, `runMoldHookInProcess` reports a missing `run` entry point.
 final class CastSessionHooks {
   /// Creates hook entry points for prepare, shape, and finish.
   const CastSessionHooks({
@@ -122,23 +135,68 @@ final class BatchCastSessionContextFailure extends BatchCastSessionFailure {
   String get message => 'Invalid cast variable input: ${exception.message}';
 }
 
-/// Runs a batch cast against a **live** [Mold.variableGroup] in the current
-/// isolate.
+/// Interactive gather was cancelled (for example Escape in the TUI).
+final class BatchCastSessionCancelled extends BatchCastSessionResult {
+  /// Creates a cancelled-session result.
+  const BatchCastSessionCancelled();
+
+  @override
+  bool get isSuccess => false;
+}
+
+/// Interactive gather failed before producing values (for example invalid
+/// `FOUNDRY_E2E_VARS`).
+final class BatchCastSessionGatherFailure extends BatchCastSessionFailure {
+  /// Creates a gather failure with a user-facing [message].
+  const BatchCastSessionGatherFailure(this.message);
+
+  @override
+  final String message;
+}
+
+/// Gathered / evaluated variables failed group validation.
+final class BatchCastSessionValidationFailure extends BatchCastSessionFailure {
+  /// Creates a validation failure.
+  const BatchCastSessionValidationFailure(this.validation);
+
+  /// Underlying variable-group validation result.
+  final FoundryVariableGroupValidation validation;
+
+  @override
+  String get message {
+    final buffer = StringBuffer('Cast variables are invalid:');
+    for (final fieldEntry in validation.fieldErrors.entries) {
+      for (final error in fieldEntry.value) {
+        buffer.write('\n  ${fieldEntry.key}: $error');
+      }
+    }
+    for (final error in validation.groupErrors) {
+      buffer.write('\n  $error');
+    }
+    return buffer.toString();
+  }
+}
+
+/// Runs a cast against a **live** [Mold.variableGroup] in the current isolate.
 ///
-/// Pipeline: prepare → batch parse/evaluate/validate → shape → render →
-/// finish. Hooks use [runMoldHookInProcess] so prepare-seeded non-JSON values
-/// remain visible to later phases on the same [FoundryContext] instance.
-/// Batch parse marks user-supplied keys dirty so explicit JSON `null` is not
-/// overwritten by `defaultValue`; the parse evaluation is reused for shape
-/// and render (no second evaluate/validate pass).
+/// Batch pipeline ([runBatch]): prepare → batch parse/evaluate/validate →
+/// shape → render → finish.
 ///
-/// This API does not change host `foundry cast` behavior; callers (session
-/// bridges, tests) invoke it directly with an in-memory or same-isolate
-/// constructed [Mold].
+/// Interactive pipeline ([runInteractive]): prepare → Nocterm gather (or
+/// `FOUNDRY_E2E_VARS`) → evaluate/validate → shape → render → finish.
 ///
-/// Do not run multiple [runBatch] calls concurrently in the same process
-/// (for example via `Future.wait`): in-process hooks temporarily set
-/// process-global [Directory.current] to each cast's output directory, so
+/// Hooks use [runMoldHookInProcess] so prepare-seeded non-JSON values remain
+/// visible to later phases on the same [FoundryContext] instance. Batch parse
+/// marks user-supplied keys dirty so explicit JSON `null` is not overwritten
+/// by `defaultValue`; the parse evaluation is reused for shape and render (no
+/// second evaluate/validate pass).
+///
+/// Callers (session bridges, tests) invoke this with an in-memory or
+/// same-isolate constructed [Mold].
+///
+/// Do not run multiple [runBatch] / [runInteractive] calls concurrently in the
+/// same process (for example via `Future.wait`): in-process hooks temporarily
+/// set process-global [Directory.current] to each cast's output directory, so
 /// overlapping sessions can race. See [runMoldHookInProcess].
 final class CastSession {
   /// Creates a cast session for [mold] writing into [outputPath].
@@ -219,6 +277,81 @@ final class CastSession {
           noHooks: noHooks,
         );
     }
+  }
+
+  /// Runs the interactive pipeline (prepare → gather → shape → render →
+  /// finish).
+  ///
+  /// [gatherVariables] defaults to [gatherCastVariablesInteractively]. When
+  /// gather returns `null`, this returns [BatchCastSessionCancelled] without
+  /// rendering. Host callers are responsible for empty-`--output` cleanup and
+  /// the "Cast cancelled." message.
+  ///
+  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  Future<BatchCastSessionResult> runInteractive({
+    bool force = false,
+    bool noHooks = false,
+    CastSessionVariableGatherer? gatherVariables,
+  }) async {
+    final outputDirectory = Directory(outputPath);
+    await outputDirectory.create(recursive: true);
+
+    final context = FoundryContext(
+      logger: logger ?? Logger(),
+      moldDirectory: mold.directory,
+      outputDirectory: outputDirectory,
+    );
+
+    if (!noHooks) {
+      try {
+        await runMoldHookInProcess(
+          phase: MoldHookPhase.prepare,
+          hookFile: mold.prepareHook,
+          context: context,
+          entryPoint: hooks.prepare,
+        );
+      } on MoldHookException catch (exception) {
+        return BatchCastSessionHookFailure(exception);
+      }
+    }
+
+    final gather = gatherVariables ?? gatherCastVariablesInteractively;
+    final Map<String, Object?>? gathered;
+    try {
+      gathered = await gather(
+        variableGroup: mold.variableGroup,
+        moldName: mold.name,
+        moldDescription: mold.description,
+        seedValues: context.copyValues(),
+      );
+    } on UsageException catch (exception) {
+      return BatchCastSessionGatherFailure(exception.message);
+    }
+
+    if (gathered == null) {
+      return const BatchCastSessionCancelled();
+    }
+
+    context.merge(gathered);
+
+    try {
+      final evaluation = mold.variableGroup.evaluate(
+        rawValues: context.entries,
+      );
+      final validation = mold.variableGroup.validate(evaluation);
+      if (!validation.isValid) {
+        return BatchCastSessionValidationFailure(validation);
+      }
+      context.merge(evaluation.resolvedValues);
+    } on FoundryContextException catch (exception) {
+      return BatchCastSessionContextFailure(exception);
+    }
+
+    return _completeBatch(
+      context: context,
+      force: force,
+      noHooks: noHooks,
+    );
   }
 
   Future<BatchCastSessionResult> _completeBatch({
