@@ -11,7 +11,7 @@ final moldVariables = FoundryVariableGroup(
       label: 'Project name',
       validators: [
         (value, context) {
-          final name = value as String?;
+          final name = value;
           if (name == null || name.trim().isEmpty) {
             return 'project_name must not be empty';
           }
