@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_helper.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
+import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_cli/src/version.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -250,6 +251,7 @@ dependencies:
             required helperRoot,
             required entrypoint,
             required requestFile,
+            environment,
           }) async {
             final request = Map<String, Object?>.from(
               jsonDecode(await requestFile.readAsString())
@@ -350,6 +352,7 @@ dependencies:
           required helperRoot,
           required entrypoint,
           required requestFile,
+          environment,
         }) async =>
             0,
       );
@@ -372,6 +375,7 @@ dependencies:
           required helperRoot,
           required entrypoint,
           required requestFile,
+          environment,
         }) async =>
             7,
       );
@@ -405,6 +409,46 @@ dependencies:
         reason: 'helper dirs must be removed after failure',
       );
     });
+
+    test(
+      'runs interactive gather via FOUNDRY_E2E_VARS without batch flags',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+          environment: {
+            foundryE2eVarsEnvironmentKey: jsonEncode({
+              'project_type': 'package',
+              'project_name': 'LiveInteractive',
+            }),
+          },
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+        final success = result as MoldCastSessionLaunchSuccess;
+        expect(success.vars['project_type'], 'package');
+        expect(success.vars['project_name'], 'LiveInteractive');
+        expect(success.vars['package_name'], 'liveinteractive');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'README.md'),
+          ).readAsString(),
+          'type=package\n'
+          'name=LiveInteractive\n'
+          'package=liveinteractive\n'
+          'shaped=yes\n',
+        );
+        expect(helperParent.listSync(), isEmpty);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
 
     test('keepHelperForDebug retains the helper for inspection', () async {
       await _writeLiveCallbackMold(moldDirectory);
@@ -657,6 +701,21 @@ dependencies:
       expect(blankResult.kind, 'internal');
       expect(blankResult.message, 'Session failed without a message.');
       expect(blankResult.exitCode, FoundryExitCode.userError.code);
+    });
+
+    test('decodes cancel payloads from interactive gather', () async {
+      final file = await writeResult({
+        'ok': false,
+        'kind': 'cancel',
+        'message': 'Cast cancelled.',
+      });
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: FoundryExitCode.userError.code,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.kind, 'cancel');
+      expect(result.message, 'Cast cancelled.');
+      expect(result.exitCode, FoundryExitCode.userError.code);
     });
   });
 }

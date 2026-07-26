@@ -106,8 +106,11 @@ final class MoldCastSessionHelperHookImports {
 /// Builds the generated `bin/cast_session.dart` bridge source.
 ///
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
-/// files by file URI, then runs a batch `CastSession` against the live
-/// `moldVariables` group in the helper isolate.
+/// files by file URI, then runs a `CastSession` against the live
+/// `moldVariables` group in the helper isolate. When the request includes
+/// `--vars` / `--vars-file` inputs the bridge calls [CastSession.runBatch];
+/// otherwise it calls [CastSession.runInteractive] (Nocterm gather with
+/// inherited stdio, or `FOUNDRY_E2E_VARS`).
 String buildMoldCastSessionBridgeSource({
   required Uri variablesUri,
   required MoldCastSessionHelperHookImports hooks,
@@ -253,16 +256,24 @@ Future<void> main(List<String> args) async {
     variableGroup: mold_variables.moldVariables,
   );
 
-  final result = await CastSession(
+  final session = CastSession(
     mold: mold,
     outputPath: outputPath,
     hooks: $hooksLiteral,
-  ).runBatch(
-    varsFileValues: varsFileValues,
-    varsFlag: varsFlag as String?,
-    force: force,
-    noHooks: noHooks,
   );
+
+  final hasBatchInputs = varsFlag != null || varsFileValues != null;
+  final result = hasBatchInputs
+      ? await session.runBatch(
+          varsFileValues: varsFileValues,
+          varsFlag: varsFlag as String?,
+          force: force,
+          noHooks: noHooks,
+        )
+      : await session.runInteractive(
+          force: force,
+          noHooks: noHooks,
+        );
 
   switch (result) {
     case BatchCastSessionSuccess(
@@ -283,10 +294,31 @@ Future<void> main(List<String> args) async {
         }),
       );
       exitCode = FoundryExitCode.success.code;
+    case BatchCastSessionCancelled():
+      await _writeFailureResult(
+        resultPath: resultPath,
+        kind: 'cancel',
+        message: 'Cast cancelled.',
+      );
+      exitCode = FoundryExitCode.userError.code;
     case BatchCastSessionParseFailure(:final message):
       await _writeFailureResult(
         resultPath: resultPath,
         kind: 'parse',
+        message: message,
+      );
+      exitCode = FoundryExitCode.userError.code;
+    case BatchCastSessionGatherFailure(:final message):
+      await _writeFailureResult(
+        resultPath: resultPath,
+        kind: 'gather',
+        message: message,
+      );
+      exitCode = FoundryExitCode.userError.code;
+    case BatchCastSessionValidationFailure(:final message):
+      await _writeFailureResult(
+        resultPath: resultPath,
+        kind: 'validation',
         message: message,
       );
       exitCode = FoundryExitCode.userError.code;
