@@ -385,6 +385,41 @@ void main() {
     );
 
     test(
+      'removes empty --output when a gather failure is reported',
+      () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            // Session creates --output before gather fails (e.g. bad
+            // FOUNDRY_E2E_VARS).
+            Directory(outputPath).createSync(recursive: true);
+            return const MoldCastSessionLaunchFailure(
+              kind: 'gather',
+              message: 'FOUNDRY_E2E_VARS must be valid JSON: FormatException',
+              exitCode: 1,
+            );
+          },
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('FOUNDRY_E2E_VARS')));
+        expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
+      },
+    );
+
+    test(
       'surfaces validation failures from the session without writing state',
       () async {
         Directory(p.join(workDir.path, 'mold')).createSync();

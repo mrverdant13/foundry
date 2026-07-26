@@ -243,9 +243,9 @@ class CastCommand extends Command<int> {
           return exitCode;
         }
         logger.error(message);
-        if (kind == 'hook') {
-          // Prepare may have created --output before failing; match prior
-          // interactive cleanup when the directory is still empty.
+        if (kind == 'hook' || kind == 'gather') {
+          // Prepare / gather may have created --output before failing; match
+          // prior interactive cleanup when the directory is still empty.
           await _removeOutputIfEmpty(outputPath);
         }
         return exitCode;
@@ -253,7 +253,7 @@ class CastCommand extends Command<int> {
   }
 
   /// Removes [outputPath] when it exists and contains no entries (best-effort
-  /// cleanup after prepare failure or cancelled gather).
+  /// cleanup after prepare/gather failure or cancelled gather).
   ///
   /// When the directory is non-empty (for example a prepare hook wrote files
   /// before abort), leaves it in place and warns so leftover output is not
