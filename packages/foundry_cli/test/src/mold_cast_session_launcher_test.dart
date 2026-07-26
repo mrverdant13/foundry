@@ -431,7 +431,9 @@ dependencies:
       expect(pubspec, contains('name: $moldCastSessionHelperPackageName'));
       expect(pubspec, contains('foundry_cli:'));
       expect(pubspec, contains('path:'));
-      expect(pubspec, contains(moldDirectory.absolute.path));
+      // Paths are YAML-embedded via jsonEncode, so Windows backslashes are
+      // escaped in the file (e.g. C:\\Users\\...) rather than raw absolute.path.
+      expect(pubspec, contains(jsonEncode(moldDirectory.absolute.path)));
       expect(
         File(p.join(helper.path, 'pubspec_overrides.yaml')).existsSync(),
         isTrue,
