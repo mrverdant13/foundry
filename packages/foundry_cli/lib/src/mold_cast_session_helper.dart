@@ -28,7 +28,8 @@ final class FoundryCliHostedDependency extends FoundryCliHelperDependency {
   /// Creates a hosted dependency constrained to [version].
   const FoundryCliHostedDependency(this.version);
 
-  /// Exact `foundry_cli` version to depend on (typically [foundryCliVersion]).
+  /// Exact `foundry_cli` version to depend on (typically the running CLI
+  /// version).
   final String version;
 }
 
@@ -65,7 +66,8 @@ $foundryCliDescriptor
 ''';
 }
 
-/// Builds optional `pubspec_overrides.yaml` that forces a single `foundry_core`.
+/// Builds optional `pubspec_overrides.yaml` that forces a single
+/// `foundry_core`.
 ///
 /// Required when the helper path-depends on monorepo `foundry_cli` (which pins
 /// hosted `foundry_core`) so the live mold and session share one core package.
@@ -104,7 +106,7 @@ final class MoldCastSessionHelperHookImports {
 /// Builds the generated `bin/cast_session.dart` bridge source.
 ///
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
-/// files by file URI, then runs [CastSession.runBatch] against the live
+/// files by file URI, then runs a batch `CastSession` against the live
 /// `moldVariables` group in the helper isolate.
 String buildMoldCastSessionBridgeSource({
   required Uri variablesUri,
