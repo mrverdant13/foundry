@@ -164,10 +164,10 @@ void main() {
           noHooks = false,
         }) async =>
             const MoldCastSessionLaunchFailure(
-              kind: 'load',
-              message: 'Mold directory does not exist: does_not_exist',
-              exitCode: 1,
-            ),
+          kind: 'load',
+          message: 'Mold directory does not exist: does_not_exist',
+          exitCode: 1,
+        ),
       );
 
       final exitCode = await runner.run(
@@ -401,12 +401,12 @@ void main() {
             noHooks = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
-                kind: 'validation',
-                message: 'Cast variables are invalid:\n'
-                    '  project_name: project_name is invalid at cast time\n'
-                    '  group validation failed at cast time',
-                exitCode: 1,
-              ),
+            kind: 'validation',
+            message: 'Cast variables are invalid:\n'
+                '  project_name: project_name is invalid at cast time\n'
+                '  group validation failed at cast time',
+            exitCode: 1,
+          ),
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
@@ -448,10 +448,10 @@ void main() {
             noHooks = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
-                kind: 'render',
-                message: 'Failed to render contents of template file README.md',
-                exitCode: 1,
-              ),
+            kind: 'render',
+            message: 'Failed to render contents of template file README.md',
+            exitCode: 1,
+          ),
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);

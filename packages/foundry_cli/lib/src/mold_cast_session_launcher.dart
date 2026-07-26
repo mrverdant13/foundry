@@ -294,9 +294,8 @@ Future<int> _runHelperChild({
     ['run', entrypoint.path, requestFile.path],
     workingDirectory: helperRoot.path,
     mode: ProcessStartMode.inheritStdio,
-    environment: environment == null
-        ? null
-        : {...Platform.environment, ...environment},
+    environment:
+        environment == null ? null : {...Platform.environment, ...environment},
   );
   return process.exitCode;
 }

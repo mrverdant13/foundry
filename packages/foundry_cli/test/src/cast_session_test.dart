@@ -513,7 +513,8 @@ void main() {
         final mold = buildMold(
           variableGroup: FoundryVariableGroup(
             variables: {
-              'project_type': FoundryStringVariable(label: 'Project type'),
+              'project_type':
+                  const FoundryStringVariable(label: 'Project type'),
               'package_name': FoundryStringVariable(
                 label: 'Package name',
                 visibleWhen: (context) =>
