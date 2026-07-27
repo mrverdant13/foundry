@@ -26,7 +26,15 @@ Future<void> main() async {
     ..writeln('Inspection passed.')
     ..writeln();
 
-  final mold = report.mold!;
+  final mold = Mold(
+    directory: report.mold!.directory,
+    pubspec: report.mold!.pubspec,
+    variableGroup: const FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(label: 'Project name'),
+      },
+    ),
+  );
   final outputDirectory = Directory(outputPath);
   if (outputDirectory.existsSync()) {
     await outputDirectory.delete(recursive: true);

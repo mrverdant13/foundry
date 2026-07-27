@@ -17,8 +17,9 @@ Future<void> _writePatternFile(
   await file.writeAsString(contents);
 }
 
-/// Rewrites a derived mold's pubspec to a path dependency so [loadMold] works
-/// offline against the local `foundry_core` package.
+/// Rewrites a derived mold's pubspec to a path dependency so offline
+/// `inspectMold` / `dart pub get` work against the local `foundry_core`
+/// package.
 Future<void> _useLocalFoundryCore(Directory moldDirectory) async {
   final pubspec = File(p.join(moldDirectory.path, 'pubspec.yaml'));
   final nameMatch = RegExp(r'^name:\s+(\S+)\s*$', multiLine: true)
@@ -156,12 +157,9 @@ void main() {
       expect(pubspec, contains('foundry_core: ^'));
 
       await _useLocalFoundryCore(moldDir);
-      final mold = await loadMold(moldDir.path);
-      expect(mold.name, 'greeter_pattern');
-      expect(mold.variableGroup.variables.keys, contains('project_name'));
-
       final report = await inspectMold(moldDir.path);
       expect(report.isValid, isTrue);
+      expect(report.mold!.name, 'greeter_pattern');
     });
 
     test('applies marker lineDeletions when writing template/', () async {

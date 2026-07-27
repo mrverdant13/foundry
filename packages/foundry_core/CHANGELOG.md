@@ -1,5 +1,6 @@
 ## 0.0.1-dev.1
 
+ - **REFACTOR**: remove isolate serialize mold variable loading.
  - **FEAT**: add mold package model and definition loader ([#14](https://github.com/mrverdant13/foundry/issues/14)). ([f2cff9de](https://github.com/mrverdant13/foundry/commit/f2cff9def8d3ff6197af4652edb0e0ff4d896114))
  - **FEAT**: add mold inspection and validation ([#15](https://github.com/mrverdant13/foundry/issues/15)). ([1112a805](https://github.com/mrverdant13/foundry/commit/1112a80513fb59659d3a0590eaed6da20f313673))
  - **FEAT**: add SnapshotFoundryContext and context exception ([#16](https://github.com/mrverdant13/foundry/issues/16)). ([eeb794c9](https://github.com/mrverdant13/foundry/commit/eeb794c93be10c8e924513f6709f91ea8389f492))

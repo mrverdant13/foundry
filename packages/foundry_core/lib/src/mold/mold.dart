@@ -22,7 +22,7 @@ final class Mold {
   /// Parsed root `pubspec.yaml` metadata.
   final MoldPubspec pubspec;
 
-  /// Variable schema loaded from `variables.dart`.
+  /// Variable schema supplied by the caller (typically a live in-memory group).
   final FoundryVariableGroup variableGroup;
 
   /// Shorthand for [MoldPubspec.name].
