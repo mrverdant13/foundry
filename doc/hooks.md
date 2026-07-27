@@ -17,6 +17,26 @@ paths relative to the mold root:
 Missing prepare/shape/finish hook files are **no-ops** during `foundry cast` /
 `foundry recast`. `foundry finish` fails if `hooks/finish.dart` is absent.
 
+## Mold cast session
+
+`foundry cast`, `foundry recast`, and `foundry finish` each launch a **mold cast
+session**: a short-lived helper package that depends on `foundry_cli` and the target
+mold, then runs the pipeline in one Dart process.
+
+That process imports the mold's root `variables.dart` and any present `hooks/*.dart`
+by file URI. Variable callbacks (`visibleWhen`, `defaultValue`, validators, and so
+on) therefore run as live Dart. Hooks run **in-process** against one shared
+`FoundryContext` — mutations are visible to later phases in the same cast with
+**no JSON round-trip** between prepare, gather, shape, and finish.
+
+Within a single cast, prepare may seed non-encodable Dart values (for example custom
+objects). Gather, shape, and finish in that same session see those values.
+Persistence across commands is different — see
+[Cast state and recast / finish seeds](#cast-state-and-recast--finish-seeds).
+
+`foundry mold inspect` uses the same helper composition in a describe-only mode to
+report live variable metadata; it does not run hooks or write cast state.
+
 ## Mold package dependency
 
 Each mold is a **Dart package**. The mold's root `pubspec.yaml` must declare a
@@ -28,9 +48,8 @@ dependencies:
   foundry_core: ^0.0.1-dev.1
 ```
 
-During cast / recast / finish, Foundry runs hooks **in-process** inside a mold cast
-session that imports the mold's root `variables.dart` and `hooks/*.dart` so callbacks
-and context mutations share one live heap (no JSON round-trip between phases).
+Molds depend on **`foundry_core` only** — they do not need a `foundry_cli`
+dependency. The CLI session helper supplies the cast runtime.
 
 Hook files live under `hooks/` but resolve imports through the **mold root package**
 (the directory containing `pubspec.yaml`). There is no separate `hooks/pubspec.yaml`.
@@ -79,6 +98,9 @@ context.set('greeting', 'Hello');
 context.merge({'a': 1, 'b': 2});
 context.remove('temporary');
 ```
+
+Values do not need to be JSON-encodable for later phases of the **same** cast.
+Only the encodable projection is written to `.foundry/last_cast.json`.
 
 ### Hook environment
 
@@ -149,10 +171,12 @@ Future<void> run(FoundryContext context) async {
 
 ## Cast pipeline order
 
-During `foundry cast` / `foundry recast`, hooks run in this order:
+During `foundry cast` / `foundry recast`, the mold cast session runs hooks in this
+order:
 
 1. **prepare** — optional context seeding
-2. Variable resolution (interactive TUI in the CLI)
+2. Variable resolution (interactive TUI or batch `--vars` / `--vars-file`, inside
+   the session process)
 3. **shape** — optional context shaping
 4. Template rendering (`template/` → `--output`)
 5. **finish** — optional post-render tasks
@@ -169,6 +193,10 @@ resolved variables (JSON primitives, lists, and string-keyed maps). Non-encodabl
 values that prepare (or other hooks) may set on `FoundryContext` during a single cast
 are **not** restored on `foundry recast` or `foundry finish` — those commands seed
 context from the stored projection only.
+
+Authors can rely on rich prepare seeds for gather/shape/finish **within one cast**,
+and should treat `.foundry/last_cast.json` as a JSON-safe snapshot for later
+`recast` / `finish` runs.
 
 ## Related documentation
 
