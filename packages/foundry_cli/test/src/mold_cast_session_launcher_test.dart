@@ -6,6 +6,7 @@ import 'package:foundry_cli/src/mold_cast_session_helper.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_cli/src/version.dart';
+import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -690,7 +691,7 @@ Future<void> run(FoundryContext context) async {
         final failure = result as MoldCastSessionLaunchFailure;
         expect(failure.kind, 'hook');
         expect(failure.message, contains('No finish hook defined'));
-        expect(failure.message, contains('hooks/finish.dart'));
+        expect(failure.message, contains(MoldHooks.finishPath));
         expect(helperParent.listSync(), isEmpty);
       },
       timeout: const Timeout(Duration(minutes: 2)),

@@ -301,10 +301,11 @@ void main() {
           noHooks = false,
           finishOnly = false,
         }) async {
-          return const MoldCastSessionLaunchFailure(
+          return MoldCastSessionLaunchFailure(
             kind: 'hook',
             message:
-                'No finish hook defined for mold "demo_app" at hooks/finish.dart.',
+                'No finish hook defined for mold "demo_app" at '
+                '${MoldHooks.finishPath}.',
             exitCode: 1,
           );
         },
