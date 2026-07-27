@@ -208,6 +208,81 @@ final moldVariables = FoundryVariableGroup(variables: {});
       expect(infoMessages, contains(contains('demo_app')));
     });
 
+    test('logs nested object fields and values item schemas', () async {
+      await writeInspectableMold(directory: workDir, name: 'demo_app');
+      final infoMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onInfo: infoMessages.add,
+        launchDescribeSession: ({required moldPath}) async {
+          return const MoldCastSessionDescribeSuccess(
+            variables: [
+              MoldVariableDescription(
+                key: 'author',
+                kind: 'object',
+                label: 'Author',
+                fields: [
+                  MoldVariableDescription(
+                    key: 'name',
+                    kind: 'string',
+                    label: 'Author name',
+                    help: 'NESTED_HELP',
+                  ),
+                ],
+              ),
+              MoldVariableDescription(
+                key: 'items',
+                kind: 'values',
+                label: 'Items',
+                item: MoldVariableDescription(
+                  key: 'item',
+                  kind: 'string',
+                  label: 'Item',
+                  placeholder: 'ITEM_PLACEHOLDER',
+                ),
+              ),
+            ],
+            exitCode: 0,
+          );
+        },
+      );
+
+      final exitCode = await runner.run(['inspect']);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      expect(infoMessages, contains(contains('fields:')));
+      expect(infoMessages, contains(contains('NESTED_HELP')));
+      expect(infoMessages, contains(contains('item:')));
+      expect(infoMessages, contains(contains('ITEM_PLACEHOLDER')));
+    });
+
+    test('fails when the describe session returns a cast success payload',
+        () async {
+      await writeInspectableMold(directory: workDir, name: 'demo_app');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+        launchDescribeSession: ({required moldPath}) async {
+          return const MoldCastSessionLaunchSuccess(
+            artifactCount: 0,
+            vars: {},
+            writtenFilePaths: [],
+            outputDirectory: '',
+            exitCode: 0,
+          );
+        },
+      );
+
+      final exitCode = await runner.run(['inspect']);
+
+      expect(exitCode, FoundryExitCode.internalError.code);
+      expect(
+        errorMessages,
+        contains(contains('unexpected cast session result')),
+      );
+    });
+
     test('does not write cast state while reporting variables', () async {
       await writeInspectableMold(directory: workDir, name: 'demo_app');
       final runner = buildRunner(

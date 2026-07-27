@@ -934,6 +934,42 @@ dependencies:
       expect(success.exitCode, FoundryExitCode.success.code);
     });
 
+    test('rejects describe success payloads missing variables', () async {
+      final file = await writeResult({
+        'ok': true,
+        'describe': true,
+      });
+
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.kind, 'internal');
+      expect(result.message, contains('missing variables'));
+      expect(result.exitCode, FoundryExitCode.internalError.code);
+    });
+
+    test('rejects describe success payloads with invalid variables', () async {
+      final file = await writeResult({
+        'ok': true,
+        'describe': true,
+        'variables': [
+          {
+            'key': 'project_name',
+            'kind': 'string',
+          },
+        ],
+      });
+
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      ) as MoldCastSessionLaunchFailure;
+      expect(result.kind, 'internal');
+      expect(result.message, contains('Describe success payload was invalid'));
+      expect(result.exitCode, FoundryExitCode.internalError.code);
+    });
+
     test('keeps a non-zero success exit code from the child', () async {
       final file = await writeResult({
         'ok': true,

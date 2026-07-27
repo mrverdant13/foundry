@@ -135,6 +135,112 @@ void main() {
       expect(decoded.options.single.label, 'LABEL_app');
       expect(decoded.options.single.value, 'app');
     });
+
+    test('round-trips nested fields and item schemas through JSON', () {
+      final originals = describeMoldVariableGroup(
+        const FoundryVariableGroup(
+          variables: {
+            'author': FoundryObjectVariable(
+              label: 'Author',
+              group: FoundryVariableGroup(
+                variables: {
+                  'name': FoundryStringVariable(
+                    label: 'Author name',
+                    help: 'NESTED_HELP',
+                  ),
+                },
+              ),
+            ),
+            'items': FoundryValuesVariable<String>(
+              label: 'Items',
+              item: FoundryStringVariable(
+                label: 'Item',
+                placeholder: 'ITEM_PLACEHOLDER',
+              ),
+            ),
+          },
+        ),
+      );
+
+      final author = MoldVariableDescription.fromJson(
+        originals.singleWhere((entry) => entry.key == 'author').toJson(),
+      );
+      expect(author.fields, hasLength(1));
+      expect(author.fields.single.help, 'NESTED_HELP');
+
+      final items = MoldVariableDescription.fromJson(
+        originals.singleWhere((entry) => entry.key == 'items').toJson(),
+      );
+      expect(items.item, isNotNull);
+      expect(items.item!.placeholder, 'ITEM_PLACEHOLDER');
+    });
+
+    test('stringifies non-JSON-safe choice option values', () {
+      final descriptions = describeMoldVariableGroup(
+        FoundryVariableGroup(
+          variables: {
+            'flavor': FoundrySingleChoiceVariable<_DescribeToken>(
+              label: 'Flavor',
+              options: const [
+                _DescribeToken('vanilla'),
+                _DescribeToken('chocolate'),
+              ],
+              displayLabel: (value) => value.label,
+            ),
+          },
+        ),
+      );
+
+      final flavor = descriptions.single;
+      expect(flavor.options, hasLength(2));
+      expect(flavor.options.map((option) => option.value), [
+        'vanilla',
+        'chocolate',
+      ]);
+      expect(flavor.options.map((option) => option.label), [
+        'vanilla',
+        'chocolate',
+      ]);
+    });
+
+    test('fromJson ignores non-map nested entries and throws on bad shape', () {
+      final decoded = MoldVariableDescription.fromJson({
+        'key': 'author',
+        'kind': 'object',
+        'label': 'Author',
+        'fields': [
+          'skip-me',
+          {
+            'key': 'name',
+            'kind': 'string',
+            'label': 'Name',
+          },
+        ],
+        'options': [
+          1,
+          {
+            'value': 'app',
+            'label': 'App',
+          },
+        ],
+      });
+      expect(decoded.fields, hasLength(1));
+      expect(decoded.fields.single.key, 'name');
+      expect(decoded.options, hasLength(1));
+      expect(decoded.options.single.label, 'App');
+
+      expect(
+        () => MoldVariableDescription.fromJson({
+          'key': 'broken',
+          'kind': 'string',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => MoldVariableOptionDescription.fromJson({'value': 'app'}),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 
   group('CastSession.describeVariables', () {
@@ -173,4 +279,12 @@ void main() {
       expect(descriptions.single.help, 'LIVE_HELP');
     });
   });
+}
+
+class _DescribeToken {
+  const _DescribeToken(this.label);
+  final String label;
+
+  @override
+  String toString() => label;
 }
