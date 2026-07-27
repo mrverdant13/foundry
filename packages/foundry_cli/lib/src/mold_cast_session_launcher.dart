@@ -58,8 +58,8 @@ final class MoldCastSessionLaunchFailure extends MoldCastSessionLaunchResult {
     required this.exitCode,
   });
 
-  /// Failure category (`resolve`, `load`, `parse`, `hook`, `render`,
-  /// `context`, or `internal`).
+  /// Failure category (`resolve`, `load`, `parse`, `gather`, `validation`,
+  /// `hook`, `render`, `context`, `cancel`, or `internal`).
   final String kind;
 
   /// Human-readable failure description.
@@ -85,18 +85,21 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
   required Directory helperRoot,
   required File entrypoint,
   required File requestFile,
+  Map<String, String>? environment,
 });
 
-/// Launches a batch cast inside a synthetic helper package process.
+/// Launches a mold cast session inside a synthetic helper package process.
 ///
 /// Creates a temporary package that depends on `foundry_cli` and the target
 /// mold (path), runs `dart pub get`, then `dart run`s a generated bridge that
 /// imports the mold's root `variables.dart` (and hooks) by file URI so
-/// callbacks stay live. Helper directories are deleted on success and failure
-/// unless [keepHelperForDebug] is `true`.
+/// callbacks stay live. When [varsFlag] and/or [varsFileValues] are supplied
+/// the child runs a batch session; otherwise it runs interactive gather
+/// (Nocterm, or `FOUNDRY_E2E_VARS` when set). Helper directories are deleted on
+/// success and failure unless [keepHelperForDebug] is `true`.
 ///
-/// Stdio from the child process is inherited so session logs surface on the
-/// host terminal.
+/// Stdio from the child process is inherited so the interactive TUI and
+/// session logs surface on the host terminal.
 ///
 /// [pubGetRunner] and [childRunner] are seam points for unit tests.
 Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
@@ -110,6 +113,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   Directory? tempParent,
   FoundryCliHelperDependency? foundryCliDependency,
   String? foundryCoreOverridePath,
+  Map<String, String>? environment,
   MoldCastSessionPubGetRunner? pubGetRunner,
   MoldCastSessionChildRunner? childRunner,
 }) async {
@@ -220,6 +224,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       helperRoot: helperRoot,
       entrypoint: entrypoint,
       requestFile: requestFile,
+      environment: environment,
     );
 
     if (!resultFile.existsSync()) {
@@ -282,12 +287,15 @@ Future<int> _runHelperChild({
   required Directory helperRoot,
   required File entrypoint,
   required File requestFile,
+  Map<String, String>? environment,
 }) async {
   final process = await Process.start(
     Platform.resolvedExecutable,
     ['run', entrypoint.path, requestFile.path],
     workingDirectory: helperRoot.path,
     mode: ProcessStartMode.inheritStdio,
+    environment:
+        environment == null ? null : {...Platform.environment, ...environment},
   );
   return process.exitCode;
 }

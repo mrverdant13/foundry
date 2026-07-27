@@ -97,6 +97,9 @@ void main() {
       expect(source, contains('variableGroup: mold_variables.moldVariables'));
       expect(source, contains('CastSession('));
       expect(source, contains('.runBatch('));
+      expect(source, contains('.runInteractive('));
+      expect(source, contains('hasBatchInputs'));
+      expect(source, contains("kind: 'cancel'"));
       expect(source, contains('const CastSessionHooks()'));
       expect(source, isNot(contains('prepare_hook')));
       expect(source, isNot(contains('shape_hook')));

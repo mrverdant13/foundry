@@ -4,23 +4,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
-import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
-
-/// Gathers cast variable values, returning `null` when the user cancels.
-///
-/// Production code uses [gatherCastVariablesInteractively] (the Nocterm
-/// TUI); tests inject a fake implementation instead.
-///
-/// [seedValues] carries prepare-hook (or other) context so defaults and
-/// visibility can see those keys during interactive gather.
-typedef CastVariableGatherer = Future<Map<String, Object?>?> Function({
-  required FoundryVariableGroup variableGroup,
-  required String moldName,
-  required String moldDescription,
-  Map<String, Object?> seedValues,
-});
 
 /// Reads persisted cast state from the process working directory.
 typedef CastStateReader = Future<CastState> Function({Directory? cwd});
@@ -64,32 +49,10 @@ Future<CastState?> readCastStateOrReportError({
 /// Runs the full cast pipeline for a loaded mold (`prepare` through `finish`).
 ///
 /// Production code uses `castMold`; recast and tests inject fakes.
-/// [CastCommand] uses [CastPreparer] + [CastCompleter] instead so prepare can
-/// run before variable gather.
 typedef CastRunner = Future<CastOutcome> Function({
   required Mold mold,
   required String outputPath,
   required Map<String, Object?> values,
-  bool force,
-  bool noHooks,
-});
-
-/// Runs prepare and returns the cast context (creates `--output`).
-///
-/// Production code uses `prepareCastContext`.
-typedef CastPreparer = Future<FoundryContext> Function({
-  required Mold mold,
-  required String outputPath,
-  Map<String, Object?> values,
-  bool noHooks,
-});
-
-/// Continues cast after prepare + gather (evaluate → shape → render → finish).
-///
-/// Production code uses `completeCast`.
-typedef CastCompleter = Future<CastOutcome> Function({
-  required Mold mold,
-  required FoundryContext context,
   bool force,
   bool noHooks,
 });
@@ -99,7 +62,8 @@ typedef CastCompleter = Future<CastOutcome> Function({
 /// Production code uses [File.readAsString]; tests inject failures.
 typedef VarsFileContentsReader = Future<String> Function(File file);
 
-/// Launches a batch mold cast session for `--vars` / `--vars-file`.
+/// Launches a mold cast session (batch or interactive) via the synthetic
+/// helper package.
 ///
 /// Production code uses [launchBatchMoldCastSession]; tests inject fakes.
 typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
@@ -116,29 +80,20 @@ typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
 /// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
 /// `[--vars=<k=v,…>] [--vars-file=<path>]`
 ///
-/// With `--vars` and/or `--vars-file`, launches a mold cast session so live
-/// `variables.dart` callbacks run in a helper process, then persists
-/// `.foundry/last_cast.json` from the session's encodable vars projection.
-///
-/// Without batch flags, loads the mold on the host, runs prepare, gathers
-/// variables through the Nocterm TUI, then shapes, renders, and finishes.
-/// On success, persists `.foundry/last_cast.json` for `foundry recast` and
-/// `foundry finish`.
+/// Launches a mold cast session so live `variables.dart` callbacks run in a
+/// helper process, then persists `.foundry/last_cast.json` from the session's
+/// encodable vars projection. With `--vars` and/or `--vars-file`, the session
+/// runs batch parse; otherwise it gathers through the Nocterm TUI inside that
+/// process (or `FOUNDRY_E2E_VARS` for automated tests).
 /// {@endtemplate}
 class CastCommand extends Command<int> {
   /// {@macro foundry_cli.cast_command}
   CastCommand({
     required this.logger,
     Directory? workingDirectory,
-    CastVariableGatherer? gatherVariables,
-    CastPreparer? prepareCast,
-    CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
     BatchMoldCastSessionLauncher? launchBatchSession,
   })  : workingDirectory = workingDirectory ?? Directory.current,
-        _gatherVariables = gatherVariables ?? gatherCastVariablesInteractively,
-        _prepareCast = prepareCast ?? prepareCastContext,
-        _completeCast = completeCastRun ?? completeCast,
         _readVarsFileContents =
             readVarsFileContents ?? ((file) => file.readAsString()),
         _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
@@ -194,9 +149,6 @@ class CastCommand extends Command<int> {
   /// against when relative. Also where `.foundry/last_cast.json` is written.
   final Directory workingDirectory;
 
-  final CastVariableGatherer _gatherVariables;
-  final CastPreparer _prepareCast;
-  final CastCompleter _completeCast;
   final VarsFileContentsReader _readVarsFileContents;
   final BatchMoldCastSessionLauncher _launchBatchSession;
 
@@ -247,40 +199,6 @@ class CastCommand extends Command<int> {
 
     final hasVars = argResults!.wasParsed(varsOptionName);
     final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
-    if (hasVars || hasVarsFile) {
-      return _runBatchCastSession(
-        rawMoldPath: rawMoldPath,
-        rawOutputPath: rawOutputPath,
-        moldPath: moldPath,
-        outputPath: outputPath,
-        force: force,
-        noHooks: noHooks,
-        hasVars: hasVars,
-        hasVarsFile: hasVarsFile,
-      );
-    }
-
-    return _runInteractiveCast(
-      rawMoldPath: rawMoldPath,
-      rawOutputPath: rawOutputPath,
-      moldPath: moldPath,
-      outputPath: outputPath,
-      force: force,
-      noHooks: noHooks,
-    );
-  }
-
-  /// Batch cast via the synthetic mold cast session (live `variables.dart`).
-  Future<int> _runBatchCastSession({
-    required String rawMoldPath,
-    required String rawOutputPath,
-    required String moldPath,
-    required String outputPath,
-    required bool force,
-    required bool noHooks,
-    required bool hasVars,
-    required bool hasVarsFile,
-  }) async {
     final varsFileValues = await _readVarsFileValues(hasVarsFile: hasVarsFile);
     if (hasVarsFile && varsFileValues == null) {
       return FoundryExitCode.userError.code;
@@ -314,106 +232,28 @@ class CastCommand extends Command<int> {
           ..info('✓ Cast completed')
           ..info('✓ $artifactCount artifacts generated at $outputPath');
         return exitCode;
-      case MoldCastSessionLaunchFailure(:final message, :final exitCode):
+      case MoldCastSessionLaunchFailure(
+          :final kind,
+          :final message,
+          :final exitCode,
+        ):
+        if (kind == 'cancel') {
+          await _removeOutputIfEmpty(outputPath);
+          logger.info('Cast cancelled.');
+          return exitCode;
+        }
         logger.error(message);
+        if (kind == 'hook' || kind == 'gather') {
+          // Prepare / gather may have created --output before failing; match
+          // prior interactive cleanup when the directory is still empty.
+          await _removeOutputIfEmpty(outputPath);
+        }
         return exitCode;
     }
   }
 
-  /// Interactive cast on the host (unchanged gather / prepare / complete path).
-  Future<int> _runInteractiveCast({
-    required String rawMoldPath,
-    required String rawOutputPath,
-    required String moldPath,
-    required String outputPath,
-    required bool force,
-    required bool noHooks,
-  }) async {
-    final Mold mold;
-    try {
-      mold = await loadMold(moldPath);
-    } on MoldLoadException catch (exception) {
-      for (final issue in exception.issues) {
-        logger.error('${issue.path}: ${issue.message}');
-      }
-      return FoundryExitCode.userError.code;
-    }
-
-    final FoundryContext context;
-    try {
-      context = await _prepareCast(
-        mold: mold,
-        outputPath: outputPath,
-        noHooks: noHooks,
-      );
-    } on MoldHookException catch (exception) {
-      logger.error(exception.toString());
-      await _removeOutputIfEmpty(outputPath);
-      return FoundryExitCode.userError.code;
-    }
-
-    final gathered = await _gatherVariables(
-      variableGroup: mold.variableGroup,
-      moldName: mold.name,
-      moldDescription: mold.description,
-      seedValues: context.copyValues(),
-    );
-    if (gathered == null) {
-      await _removeOutputIfEmpty(outputPath);
-      logger.info('Cast cancelled.');
-      return FoundryExitCode.userError.code;
-    }
-
-    context.merge(gathered);
-
-    final CastOutcome outcome;
-    try {
-      outcome = await _completeCast(
-        mold: mold,
-        context: context,
-        force: force,
-        noHooks: noHooks,
-      );
-    } on CastVariablesInvalidException catch (exception) {
-      logger.error('Cast variables are invalid:');
-      for (final fieldEntry in exception.validation.fieldErrors.entries) {
-        for (final error in fieldEntry.value) {
-          logger.error('  ${fieldEntry.key}: $error');
-        }
-      }
-      for (final error in exception.validation.groupErrors) {
-        logger.error('  $error');
-      }
-      return FoundryExitCode.userError.code;
-    } on FoundryContextException catch (exception) {
-      logger.error('Invalid cast variable input: ${exception.message}');
-      return FoundryExitCode.userError.code;
-    } on MoldHookException catch (exception) {
-      logger.error(exception.toString());
-      return FoundryExitCode.userError.code;
-    } on TemplateRenderException catch (exception) {
-      logger.error(exception.message);
-      return FoundryExitCode.userError.code;
-    }
-
-    await writeCastState(
-      CastState(
-        moldPath: rawMoldPath,
-        outputPath: rawOutputPath,
-        vars: outcome.values,
-        timestamp: DateTime.now(),
-      ),
-      cwd: workingDirectory,
-    );
-
-    logger
-      ..info('✓ Cast completed')
-      ..info('✓ ${outcome.artifactCount} artifacts generated at $outputPath');
-    return FoundryExitCode.success.code;
-  }
-
   /// Removes [outputPath] when it exists and contains no entries (best-effort
-  /// cleanup after prepare failure or cancelled gather).
+  /// cleanup after prepare/gather failure or cancelled gather).
   ///
   /// When the directory is non-empty (for example a prepare hook wrote files
   /// before abort), leaves it in place and warns so leftover output is not

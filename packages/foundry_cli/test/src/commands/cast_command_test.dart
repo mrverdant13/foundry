@@ -9,8 +9,6 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-import 'cast_command_test_support.dart';
-
 void main() {
   late Directory workDir;
 
@@ -26,9 +24,6 @@ void main() {
 
   CommandRunner<int> buildRunner({
     required Directory workingDirectory,
-    CastVariableGatherer? gatherVariables,
-    CastPreparer? prepareCast,
-    CastCompleter? completeCastRun,
     VarsFileContentsReader? readVarsFileContents,
     BatchMoldCastSessionLauncher? launchBatchSession,
     void Function(String message)? onInfo,
@@ -40,9 +35,6 @@ void main() {
         CastCommand(
           logger: Logger(onInfo: onInfo, onWarn: onWarn, onError: onError),
           workingDirectory: workingDirectory,
-          gatherVariables: gatherVariables,
-          prepareCast: prepareCast,
-          completeCastRun: completeCastRun,
           readVarsFileContents: readVarsFileContents,
           launchBatchSession: launchBatchSession,
         ),
@@ -54,6 +46,47 @@ void main() {
     return json.decode(file.readAsStringSync()) as Map<String, Object?>;
   }
 
+  BatchMoldCastSessionLauncher successfulLauncher({
+    int artifactCount = 1,
+    Map<String, Object?> vars = const {'project_name': 'Ada'},
+    void Function({
+      required String moldPath,
+      required String outputPath,
+      Map<String, Object?>? varsFileValues,
+      String? varsFlag,
+      bool force,
+      bool noHooks,
+    })? onLaunch,
+  }) {
+    return ({
+      required moldPath,
+      required outputPath,
+      varsFileValues,
+      varsFlag,
+      force = false,
+      noHooks = false,
+    }) async {
+      onLaunch?.call(
+        moldPath: moldPath,
+        outputPath: outputPath,
+        varsFileValues: varsFileValues,
+        varsFlag: varsFlag,
+        force: force,
+        noHooks: noHooks,
+      );
+      Directory(outputPath).createSync(recursive: true);
+      final artifact = File(p.join(outputPath, 'README.md'));
+      await artifact.writeAsString('# ${vars['project_name'] ?? 'Ada'}\n');
+      return MoldCastSessionLaunchSuccess(
+        artifactCount: artifactCount,
+        vars: vars,
+        writtenFilePaths: [artifact.path],
+        outputDirectory: outputPath,
+        exitCode: FoundryExitCode.success.code,
+      );
+    };
+  }
+
   group('CastCommand', () {
     test('defaults workingDirectory to Directory.current', () {
       final command = CastCommand(logger: Logger());
@@ -61,21 +94,14 @@ void main() {
     });
 
     test(
-      'casts a fixture mold, writes artifacts, and persists cast state',
+      'casts via the session launcher and persists cast state',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final infoMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              {'project_name': 'Ada'},
+          launchBatchSession: successfulLauncher(),
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
@@ -95,8 +121,6 @@ void main() {
     );
 
     test('fails with a usage error when --output is missing', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(directory: moldDir, name: 'demo_app');
       final runner = buildRunner(workingDirectory: workDir);
 
       await expectLater(
@@ -131,6 +155,19 @@ void main() {
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+        }) async =>
+            const MoldCastSessionLaunchFailure(
+          kind: 'load',
+          message: 'Mold directory does not exist: does_not_exist',
+          exitCode: 1,
+        ),
       );
 
       final exitCode = await runner.run(
@@ -145,21 +182,39 @@ void main() {
       'fails with a user error when --output exists and is non-empty '
       'without --force',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
         File(
           p.join(outputDir.path, 'existing.txt'),
         ).writeAsStringSync('hi');
         final errorMessages = <String>[];
+        var launchCalls = 0;
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            launchCalls++;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: 'out',
+              exitCode: 0,
+            );
+          },
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
 
         expect(exitCode, FoundryExitCode.userError.code);
+        expect(launchCalls, 0);
         expect(errorMessages, contains(contains('--force')));
       },
     );
@@ -167,21 +222,14 @@ void main() {
     test(
       'allows casting into a non-empty --output directory with --force',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
         File(
           p.join(outputDir.path, 'existing.txt'),
         ).writeAsStringSync('hi');
         final runner = buildRunner(
           workingDirectory: workDir,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              {'project_name': 'Ada'},
+          launchBatchSession: successfulLauncher(),
         );
 
         final exitCode = await runner.run(
@@ -197,54 +245,35 @@ void main() {
     );
 
     test(
-      'fails with a user error naming the variable when a gathered value '
-      "doesn't match its declared type",
+      'exits with a user error when interactive gather is cancelled',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              {'project_name': 42},
-        );
-
-        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(errorMessages, contains(contains('project_name')));
-      },
-    );
-
-    test(
-      'exits with a user error when the user cancels variable gathering',
-      () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final infoMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              null,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            // Session prepare creates --output before gather cancel.
+            Directory(outputPath).createSync(recursive: true);
+            return const MoldCastSessionLaunchFailure(
+              kind: 'cancel',
+              message: 'Cast cancelled.',
+              exitCode: 1,
+            );
+          },
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
 
         expect(exitCode, FoundryExitCode.userError.code);
         expect(infoMessages, contains(contains('cancelled')));
-        // Prepare creates --output before gather; cancel removes it when empty.
         expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
       },
     );
@@ -252,24 +281,31 @@ void main() {
     test(
       'warns when cancel leaves a non-empty --output directory in place',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMoldWithPrepareArtifact(
-          directory: moldDir,
-          name: 'demo_app',
-        );
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final infoMessages = <String>[];
         final warnMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
           onWarn: warnMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              null,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            Directory(outputPath).createSync(recursive: true);
+            await File(
+              p.join(outputPath, 'prepare_artifact.txt'),
+            ).writeAsString('prepared');
+            return const MoldCastSessionLaunchFailure(
+              kind: 'cancel',
+              message: 'Cast cancelled.',
+              exitCode: 1,
+            );
+          },
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
@@ -288,53 +324,23 @@ void main() {
       },
     );
 
-    test('runs prepare before gather and passes seedValues', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
-      Map<String, Object?>? seenSeed;
+    test('forwards --no-hooks to the session launcher', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      var seenNoHooks = false;
       final runner = buildRunner(
         workingDirectory: workDir,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async {
-          seenSeed = Map<String, Object?>.of(seedValues);
-          return {'project_name': 'Ada'};
-        },
-      );
-
-      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-      expect(exitCode, FoundryExitCode.success.code);
-      expect(seenSeed, isNotNull);
-      expect(seenSeed!['from_prepare'], 'yes');
-    });
-
-    test('does not seed gather from prepare when --no-hooks is set', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
-      Map<String, Object?>? seenSeed;
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async {
-          seenSeed = Map<String, Object?>.of(seedValues);
-          return {'project_name': 'Ada'};
-        },
+        launchBatchSession: successfulLauncher(
+          onLaunch: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) {
+            seenNoHooks = noHooks;
+          },
+        ),
       );
 
       final exitCode = await runner.run(
@@ -342,93 +348,100 @@ void main() {
       );
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(seenSeed, isNotNull);
-      expect(seenSeed!.containsKey('from_prepare'), isFalse);
-    });
-
-    test('skips hooks when --no-hooks is passed', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async =>
-            {'project_name': 'Ada'},
-      );
-
-      final exitCode = await runner.run(
-        ['cast', 'mold', '--output=out', '--no-hooks'],
-      );
-
-      expect(exitCode, FoundryExitCode.success.code);
-      final state = readCastState(workDir);
-      expect((state['vars']! as Map).containsKey('from_prepare'), isFalse);
-    });
-
-    test('runs hooks by default', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async =>
-            {'project_name': 'Ada'},
-      );
-
-      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-      expect(exitCode, FoundryExitCode.success.code);
-      final state = readCastState(workDir);
-      expect((state['vars']! as Map)['from_prepare'], 'yes');
+      expect(seenNoHooks, isTrue);
     });
 
     test(
-      'fails with a user error when cast-time variable validation fails',
+      'removes empty --output when a prepare hook failure is reported',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              {'project_name': 'Ada'},
-          completeCastRun: ({
-            required mold,
-            required context,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
             force = false,
             noHooks = false,
           }) async {
-            throw const CastVariablesInvalidException(
-              FoundryVariableGroupValidation(
-                fieldErrors: {
-                  'project_name': ['project_name is invalid at cast time'],
-                },
-                groupErrors: ['group validation failed at cast time'],
-              ),
+            Directory(outputPath).createSync(recursive: true);
+            return const MoldCastSessionLaunchFailure(
+              kind: 'hook',
+              message: 'MoldHookException(prepare, hooks/prepare.dart): boom',
+              exitCode: 1,
             );
           },
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('MoldHookException(prepare')));
+        expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'removes empty --output when a gather failure is reported',
+      () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async {
+            // Session creates --output before gather fails (e.g. bad
+            // FOUNDRY_E2E_VARS).
+            Directory(outputPath).createSync(recursive: true);
+            return const MoldCastSessionLaunchFailure(
+              kind: 'gather',
+              message: 'FOUNDRY_E2E_VARS must be valid JSON: FormatException',
+              exitCode: 1,
+            );
+          },
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(errorMessages, contains(contains('FOUNDRY_E2E_VARS')));
+        expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'surfaces validation failures from the session without writing state',
+      () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final errorMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+          }) async =>
+              const MoldCastSessionLaunchFailure(
+            kind: 'validation',
+            message: 'Cast variables are invalid:\n'
+                '  project_name: project_name is invalid at cast time\n'
+                '  group validation failed at cast time',
+            exitCode: 1,
+          ),
         );
 
         final exitCode = await runner.run(['cast', 'mold', '--output=out']);
@@ -445,112 +458,22 @@ void main() {
           ),
         );
         expect(
-          errorMessages,
-          contains(contains('group validation failed at cast time')),
+          File(
+            p.join(workDir.path, '.foundry', 'last_cast.json'),
+          ).existsSync(),
+          isFalse,
         );
       },
     );
 
-    test('fails with a user error when a mold hook throws', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeHookFailingMold(directory: moldDir, name: 'demo_app');
-      final errorMessages = <String>[];
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        onError: errorMessages.add,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async =>
-            {'project_name': 'Ada'},
-      );
-
-      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-      expect(exitCode, FoundryExitCode.userError.code);
-      expect(
-        errorMessages,
-        contains(contains('MoldHookException(prepare,')),
-      );
-      // Prepare creates --output before the hook runs; failure removes it
-      // when empty.
-      expect(Directory(p.join(workDir.path, 'out')).existsSync(), isFalse);
-    });
-
     test(
-      'fails with a user error when a finish hook throws during complete',
+      'surfaces render failures from the session without writing state',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeFinishHookFailingMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async =>
-              {'project_name': 'Ada'},
-        );
-
-        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(
-          errorMessages,
-          contains(contains('MoldHookException(finish,')),
-        );
-      },
-    );
-
-    test('fails with a user error when template rendering fails', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeBrokenTemplateMold(directory: moldDir, name: 'demo_app');
-      final errorMessages = <String>[];
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        onError: errorMessages.add,
-        gatherVariables: ({
-          required variableGroup,
-          required moldName,
-          required moldDescription,
-          seedValues = const {},
-        }) async =>
-            {'project_name': 'Ada'},
-      );
-
-      final exitCode = await runner.run(['cast', 'mold', '--output=out']);
-
-      expect(exitCode, FoundryExitCode.userError.code);
-      expect(
-        errorMessages,
-        contains(contains('Failed to render contents of template file')),
-      );
-    });
-
-    group('batch --vars / --vars-file', () {
-      test('routes --vars through the batch session launcher', () async {
-        Directory(p.join(workDir.path, 'mold')).createSync();
-        var gatherCalls = 0;
-        var launchCalls = 0;
-        final infoMessages = <String>[];
-        final captured = <String, Object?>{};
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onInfo: infoMessages.add,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async {
-            gatherCalls++;
-            return {'project_name': 'should_not_be_used'};
-          },
           launchBatchSession: ({
             required moldPath,
             required outputPath,
@@ -558,26 +481,51 @@ void main() {
             varsFlag,
             force = false,
             noHooks = false,
-          }) async {
-            launchCalls++;
-            captured['moldPath'] = moldPath;
-            captured['outputPath'] = outputPath;
-            captured['varsFlag'] = varsFlag;
-            captured['varsFileValues'] = varsFileValues;
-            captured['force'] = force;
-            captured['noHooks'] = noHooks;
-            Directory(outputPath).createSync(recursive: true);
-            await File(
-              p.join(outputPath, 'README.md'),
-            ).writeAsString('# Ada\n');
-            return MoldCastSessionLaunchSuccess(
-              artifactCount: 1,
-              vars: const {'project_name': 'Ada'},
-              writtenFilePaths: [p.join(outputPath, 'README.md')],
-              outputDirectory: outputPath,
-              exitCode: FoundryExitCode.success.code,
-            );
-          },
+          }) async =>
+              const MoldCastSessionLaunchFailure(
+            kind: 'render',
+            message: 'Failed to render contents of template file README.md',
+            exitCode: 1,
+          ),
+        );
+
+        final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+        expect(exitCode, FoundryExitCode.userError.code);
+        expect(
+          errorMessages,
+          contains(contains('Failed to render contents of template file')),
+        );
+      },
+    );
+
+    group('batch --vars / --vars-file', () {
+      test('routes --vars through the batch session launcher', () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        var launchCalls = 0;
+        final infoMessages = <String>[];
+        final captured = <String, Object?>{};
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onInfo: infoMessages.add,
+          launchBatchSession: successfulLauncher(
+            onLaunch: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) {
+              launchCalls++;
+              captured['moldPath'] = moldPath;
+              captured['outputPath'] = outputPath;
+              captured['varsFlag'] = varsFlag;
+              captured['varsFileValues'] = varsFileValues;
+              captured['force'] = force;
+              captured['noHooks'] = noHooks;
+            },
+          ),
         );
 
         final exitCode = await runner.run([
@@ -588,7 +536,6 @@ void main() {
         ]);
 
         expect(exitCode, FoundryExitCode.success.code);
-        expect(gatherCalls, 0);
         expect(launchCalls, 1);
         expect(captured['varsFlag'], 'project_name=Ada');
         expect(captured['varsFileValues'], isNull);
@@ -624,37 +571,21 @@ void main() {
         File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
           json.encode({'project_name': 'Ada'}),
         );
-        var gatherCalls = 0;
         Map<String, Object?>? launchedVarsFile;
         final runner = buildRunner(
           workingDirectory: workDir,
-          gatherVariables: ({
-            required variableGroup,
-            required moldName,
-            required moldDescription,
-            seedValues = const {},
-          }) async {
-            gatherCalls++;
-            return null;
-          },
-          launchBatchSession: ({
-            required moldPath,
-            required outputPath,
-            varsFileValues,
-            varsFlag,
-            force = false,
-            noHooks = false,
-          }) async {
-            launchedVarsFile = varsFileValues;
-            Directory(outputPath).createSync(recursive: true);
-            return const MoldCastSessionLaunchSuccess(
-              artifactCount: 1,
-              vars: {'project_name': 'Ada'},
-              writtenFilePaths: [],
-              outputDirectory: 'out',
-              exitCode: 0,
-            );
-          },
+          launchBatchSession: successfulLauncher(
+            onLaunch: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+            }) {
+              launchedVarsFile = varsFileValues;
+            },
+          ),
         );
 
         final exitCode = await runner.run([
@@ -665,7 +596,6 @@ void main() {
         ]);
 
         expect(exitCode, FoundryExitCode.success.code);
-        expect(gatherCalls, 0);
         expect(launchedVarsFile, {'project_name': 'Ada'});
         expect(readCastState(workDir)['vars'], {'project_name': 'Ada'});
       });
@@ -680,26 +610,22 @@ void main() {
           final captured = <String, Object?>{};
           final runner = buildRunner(
             workingDirectory: workDir,
-            launchBatchSession: ({
-              required moldPath,
-              required outputPath,
-              varsFileValues,
-              varsFlag,
-              force = false,
-              noHooks = false,
-            }) async {
-              captured['varsFileValues'] = varsFileValues;
-              captured['varsFlag'] = varsFlag;
-              captured['force'] = force;
-              captured['noHooks'] = noHooks;
-              return const MoldCastSessionLaunchSuccess(
-                artifactCount: 0,
-                vars: {'project_name': 'FromFlag'},
-                writtenFilePaths: [],
-                outputDirectory: 'out',
-                exitCode: 0,
-              );
-            },
+            launchBatchSession: successfulLauncher(
+              vars: const {'project_name': 'FromFlag'},
+              onLaunch: ({
+                required moldPath,
+                required outputPath,
+                varsFileValues,
+                varsFlag,
+                force = false,
+                noHooks = false,
+              }) {
+                captured['varsFileValues'] = varsFileValues;
+                captured['varsFlag'] = varsFlag;
+                captured['force'] = force;
+                captured['noHooks'] = noHooks;
+              },
+            ),
           );
 
           final exitCode = await runner.run([
@@ -1008,47 +934,37 @@ void main() {
       );
 
       test(
-        'uses the interactive gatherer when batch flags are omitted',
+        'routes interactive cast through the session launcher when batch '
+        'flags are omitted',
         () async {
-          final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-          await writeCastableMold(directory: moldDir, name: 'demo_app');
-          var gatherCalls = 0;
+          Directory(p.join(workDir.path, 'mold')).createSync();
           var launchCalls = 0;
+          String? launchedVarsFlag;
+          Map<String, Object?>? launchedVarsFile;
           final runner = buildRunner(
             workingDirectory: workDir,
-            gatherVariables: ({
-              required variableGroup,
-              required moldName,
-              required moldDescription,
-              seedValues = const {},
-            }) async {
-              gatherCalls++;
-              return {'project_name': 'Ada'};
-            },
-            launchBatchSession: ({
-              required moldPath,
-              required outputPath,
-              varsFileValues,
-              varsFlag,
-              force = false,
-              noHooks = false,
-            }) async {
-              launchCalls++;
-              return const MoldCastSessionLaunchSuccess(
-                artifactCount: 0,
-                vars: {},
-                writtenFilePaths: [],
-                outputDirectory: 'out',
-                exitCode: 0,
-              );
-            },
+            launchBatchSession: successfulLauncher(
+              onLaunch: ({
+                required moldPath,
+                required outputPath,
+                varsFileValues,
+                varsFlag,
+                force = false,
+                noHooks = false,
+              }) {
+                launchCalls++;
+                launchedVarsFlag = varsFlag;
+                launchedVarsFile = varsFileValues;
+              },
+            ),
           );
 
           final exitCode = await runner.run(['cast', 'mold', '--output=out']);
 
           expect(exitCode, FoundryExitCode.success.code);
-          expect(gatherCalls, 1);
-          expect(launchCalls, 0);
+          expect(launchCalls, 1);
+          expect(launchedVarsFlag, isNull);
+          expect(launchedVarsFile, isNull);
         },
       );
 

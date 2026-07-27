@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/cast_session.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
@@ -498,5 +499,412 @@ void main() {
         '# Ada\n',
       );
     });
+  });
+
+  group('CastSession.runInteractive', () {
+    test(
+      'honors live visibleWhen / defaultValue via gather values',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'type={{ project_type }}\n'
+              'package={{ package_name }}\n',
+        );
+
+        final mold = buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_type':
+                  const FoundryStringVariable(label: 'Project type'),
+              'package_name': FoundryStringVariable(
+                label: 'Package name',
+                visibleWhen: (context) =>
+                    context.optionalString('project_type') == 'package',
+                defaultValue: (context) {
+                  final type = context.optionalString('project_type');
+                  return type == 'package' ? 'demo_package' : 'unused';
+                },
+              ),
+            },
+          ),
+        );
+
+        final success = await CastSession(
+          mold: mold,
+          outputPath: outputDirectory.path,
+        ).runInteractive(
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+            seedValues = const {},
+          }) async =>
+              {'project_type': 'package'},
+        );
+
+        expect(success, isA<BatchCastSessionSuccess>());
+        final result = success as BatchCastSessionSuccess;
+        expect(result.vars['project_type'], 'package');
+        expect(result.vars['package_name'], 'demo_package');
+        expect(
+          await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+          'type=package\npackage=demo_package\n',
+        );
+      },
+    );
+
+    test('returns cancelled when gather returns null', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      await touchHook(MoldHooks.preparePath);
+      var prepareCalled = false;
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            prepareCalled = true;
+          },
+        ),
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async =>
+            null,
+      );
+
+      expect(result, isA<BatchCastSessionCancelled>());
+      expect(result.isSuccess, isFalse);
+      expect(prepareCalled, isTrue);
+      expect(
+        File(p.join(outputDirectory.path, 'out.txt')).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('returns hook failure when prepare throws', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      await touchHook(MoldHooks.preparePath);
+      var gatherCalled = false;
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            throw const FoundryHookException('prepare boom');
+          },
+        ),
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          gatherCalled = true;
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      expect(gatherCalled, isFalse);
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.prepare);
+      expect(failure.message, contains('prepare boom'));
+    });
+
+    test('returns gather failure when gather throws UsageException', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          throw UsageException(
+            'FOUNDRY_E2E_VARS must be valid JSON: FormatException',
+            '',
+          );
+        },
+      );
+
+      expect(result, isA<BatchCastSessionGatherFailure>());
+      expect(result.isSuccess, isFalse);
+      final failure = result as BatchCastSessionGatherFailure;
+      expect(failure.message, contains('FOUNDRY_E2E_VARS'));
+    });
+
+    test('passes prepare seedValues into gather', () async {
+      await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+      await touchHook(MoldHooks.preparePath);
+      Map<String, Object?>? seenSeed;
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (context) {
+            context.set('from_prepare', 'yes');
+          },
+        ),
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          seenSeed = Map<String, Object?>.of(seedValues);
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(seenSeed, isNotNull);
+      expect(seenSeed!['from_prepare'], 'yes');
+    });
+
+    test('skips prepare seeding when noHooks is true', () async {
+      await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+      await touchHook(MoldHooks.preparePath);
+      Map<String, Object?>? seenSeed;
+      var prepareCalled = false;
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            prepareCalled = true;
+          },
+        ),
+      ).runInteractive(
+        noHooks: true,
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          seenSeed = Map<String, Object?>.of(seedValues);
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(prepareCalled, isFalse);
+      expect(seenSeed, isNotNull);
+      expect(seenSeed!.containsKey('from_prepare'), isFalse);
+    });
+
+    test('returns context failure for wrong-typed gathered values', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async =>
+            {'project_name': 42},
+      );
+
+      expect(result, isA<BatchCastSessionContextFailure>());
+      final failure = result as BatchCastSessionContextFailure;
+      expect(failure.message, contains('project_name'));
+    });
+
+    test('returns validation failure when validators reject values', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      final mold = buildMold(
+        variableGroup: FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(
+              label: 'Project name',
+              validators: [
+                (value, _) {
+                  if (value == 'bad') {
+                    return 'Name is reserved';
+                  }
+                  return null;
+                },
+              ],
+            ),
+          },
+          groupValidators: [
+            (context) => context.optionalString('project_name') == 'bad'
+                ? 'group validation failed at cast time'
+                : null,
+          ],
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async =>
+            {'project_name': 'bad'},
+      );
+
+      expect(result, isA<BatchCastSessionValidationFailure>());
+      final failure = result as BatchCastSessionValidationFailure;
+      expect(failure.message, contains('Cast variables are invalid:'));
+      expect(failure.message, contains('Name is reserved'));
+      expect(failure.message, contains('group validation failed at cast time'));
+    });
+
+    test(
+      'runs prepare, shape, and finish in-process on one context instance',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'name={{ project_name }}\nshaped={{ from_shape }}\n',
+        );
+        await touchHook(MoldHooks.preparePath);
+        await touchHook(MoldHooks.shapePath);
+        await touchHook(MoldHooks.finishPath);
+
+        FoundryContext? prepareContext;
+        FoundryContext? shapeContext;
+        FoundryContext? finishContext;
+        const seed = _PrepareSeed('prepare-seed');
+
+        final mold = buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(
+                label: 'Project name',
+                defaultValue: (context) {
+                  final prepareSeed = context.optional<_PrepareSeed>(
+                    '_prepare_seed',
+                  );
+                  expect(prepareSeed, same(seed));
+                  return 'from-seeded-default';
+                },
+              ),
+            },
+          ),
+        );
+
+        final result = await CastSession(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          hooks: CastSessionHooks(
+            prepare: (context) {
+              prepareContext = context
+                ..set('_prepare_seed', seed)
+                ..set('from_prepare', 'yes');
+            },
+            shape: (context) {
+              shapeContext = context;
+              expect(
+                context.optional<_PrepareSeed>('_prepare_seed'),
+                same(seed),
+              );
+              context.set('from_shape', 'shaped');
+            },
+            finish: (context) async {
+              finishContext = context;
+              expect(
+                context.optional<_PrepareSeed>('_prepare_seed'),
+                same(seed),
+              );
+              await File(
+                p.join(context.outputDirectory.path, 'finish_marker.txt'),
+              ).writeAsString('done');
+            },
+          ),
+        ).runInteractive(
+          gatherVariables: ({
+            required variableGroup,
+            required moldName,
+            required moldDescription,
+            seedValues = const {},
+          }) async =>
+              {},
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        final success = result as BatchCastSessionSuccess;
+        expect(prepareContext, isNotNull);
+        expect(shapeContext, same(prepareContext));
+        expect(finishContext, same(prepareContext));
+        expect(success.vars['project_name'], 'from-seeded-default');
+        expect(success.vars['from_prepare'], 'yes');
+        expect(success.vars['from_shape'], 'shaped');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'finish_marker.txt'),
+          ).readAsString(),
+          'done',
+        );
+      },
+    );
   });
 }
