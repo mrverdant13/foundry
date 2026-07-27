@@ -16,19 +16,33 @@ Future<void> ensureMoldDependencies(Directory moldDirectory) async {
   );
 
   if (result.exitCode != 0) {
-    final output = '${result.stdout}${result.stderr}'.trim();
     throw MoldLoadException([
       MoldIssue(
         severity: MoldIssueSeverity.error,
         path: pubspecFile.path,
-        message: output.isEmpty
-            ? 'dart pub get failed for the mold package.'
-            : 'dart pub get failed: $output',
+        message: describePubGetFailure(
+          stdout: '${result.stdout}',
+          stderr: '${result.stderr}',
+        ),
       ),
     ]);
   }
 
   verifyMoldPackageConfig(moldDirectory);
+}
+
+/// Builds the error message used when `dart pub get` exits non-zero.
+///
+/// Exposed for unit tests covering empty and non-empty process output.
+@visibleForTesting
+String describePubGetFailure({
+  required String stdout,
+  required String stderr,
+}) {
+  final output = '$stdout$stderr'.trim();
+  return output.isEmpty
+      ? 'dart pub get failed for the mold package.'
+      : 'dart pub get failed: $output';
 }
 
 /// Verifies that [moldDirectory] contains a generated package config file.

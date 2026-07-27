@@ -28,7 +28,6 @@ export 'src/mold/mold_hooks.dart';
 export 'src/mold/mold_import_exception.dart';
 export 'src/mold/mold_inspector.dart';
 export 'src/mold/mold_issue.dart';
-export 'src/mold/mold_loader.dart' show loadMold;
 export 'src/mold/mold_local_import.dart' show importMoldFromLocal;
 export 'src/mold/mold_pubspec.dart';
 export 'src/mold/mold_pubspec_parser.dart' show parseMoldPubspec;
