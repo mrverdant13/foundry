@@ -79,7 +79,8 @@ void main() {
         );
         await finishMarker.delete();
         final readmeBeforeFinish =
-            await File(p.join(outputDirectory.path, 'README.md')).readAsString();
+            await File(p.join(outputDirectory.path, 'README.md'))
+                .readAsString();
 
         final finishResult = await runFoundry(
           ['finish'],
