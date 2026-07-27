@@ -1,5 +1,6 @@
 ## 0.0.1-dev.1
 
+ - **REFACTOR**: warn on empty mold variables from live describe sessions.
  - **FEAT**: add command runner and version flag ([#25](https://github.com/mrverdant13/foundry/issues/25)). ([ba270ea3](https://github.com/mrverdant13/foundry/commit/ba270ea30b0f580aca9dfe755555f73679488901))
  - **FEAT**: add mold init command ([#26](https://github.com/mrverdant13/foundry/issues/26)). ([0c70f0d6](https://github.com/mrverdant13/foundry/commit/0c70f0d6c17299e87a1c0abfa783453e9ccbd28d))
  - **FEAT**: add mold inspect command ([#27](https://github.com/mrverdant13/foundry/issues/27)). ([293d094f](https://github.com/mrverdant13/foundry/commit/293d094fa8cccd64f28e3af95d19e792c5ee2bf3))

@@ -8,7 +8,7 @@ import 'fixture_paths.dart';
 /// dependency on the local monorepo package.
 ///
 /// Derived molds depend on a hosted `foundry_core` constraint. Rewriting to a
-/// path dependency lets `mold inspect` / `loadMold` resolve offline in E2E.
+/// path dependency lets `mold inspect` resolve offline in E2E.
 Future<void> useLocalFoundryCore(Directory moldDirectory) async {
   final pubspec = File(p.join(moldDirectory.path, 'pubspec.yaml'));
   final contents = await pubspec.readAsString();

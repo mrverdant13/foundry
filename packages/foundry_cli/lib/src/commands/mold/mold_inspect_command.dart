@@ -82,7 +82,7 @@ class MoldInspectCommand extends Command<int> {
     final describeResult = await launchDescribeSession(moldPath: moldPath);
     switch (describeResult) {
       case MoldCastSessionDescribeSuccess(:final variables):
-        _logVariables(variables);
+        _logVariables(moldPath: moldPath, variables: variables);
       case MoldCastSessionLaunchFailure(:final message, :final exitCode):
         logger.error(message);
         return exitCode;
@@ -95,8 +95,15 @@ class MoldInspectCommand extends Command<int> {
     return FoundryExitCode.success.code;
   }
 
-  void _logVariables(List<MoldVariableDescription> variables) {
+  void _logVariables({
+    required String moldPath,
+    required List<MoldVariableDescription> variables,
+  }) {
     if (variables.isEmpty) {
+      logger.info(
+        '[WARN] ${p.join(moldPath, 'variables.dart')}: '
+        'moldVariables does not define any variables.',
+      );
       return;
     }
 
