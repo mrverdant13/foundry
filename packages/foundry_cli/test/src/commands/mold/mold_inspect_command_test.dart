@@ -230,7 +230,7 @@ final moldVariables = FoundryVariableGroup(variables: {});
       );
     });
 
-    test('surfaces describe-session failures as user errors', () async {
+    test('surfaces describe-session failures with their exit codes', () async {
       await writeInspectableMold(directory: workDir, name: 'demo_app');
       final errorMessages = <String>[];
       final runner = buildRunner(
@@ -249,6 +249,28 @@ final moldVariables = FoundryVariableGroup(variables: {});
 
       expect(exitCode, FoundryExitCode.userError.code);
       expect(errorMessages, contains(contains('dart pub get failed')));
+    });
+
+    test('preserves internal exit codes from describe-session failures',
+        () async {
+      await writeInspectableMold(directory: workDir, name: 'demo_app');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+        launchDescribeSession: ({required moldPath}) async {
+          return MoldCastSessionLaunchFailure(
+            kind: 'internal',
+            message: 'Session result payload was not valid JSON.',
+            exitCode: FoundryExitCode.internalError.code,
+          );
+        },
+      );
+
+      final exitCode = await runner.run(['inspect']);
+
+      expect(exitCode, FoundryExitCode.internalError.code);
+      expect(errorMessages, contains(contains('not valid JSON')));
     });
 
     test('rejects more than one positional argument', () async {

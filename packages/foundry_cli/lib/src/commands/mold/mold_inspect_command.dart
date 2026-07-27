@@ -80,9 +80,9 @@ class MoldInspectCommand extends Command<int> {
     switch (describeResult) {
       case MoldCastSessionDescribeSuccess(:final variables):
         _logVariables(variables);
-      case MoldCastSessionLaunchFailure(:final message):
+      case MoldCastSessionLaunchFailure(:final message, :final exitCode):
         logger.error(message);
-        return FoundryExitCode.userError.code;
+        return exitCode;
       case MoldCastSessionLaunchSuccess():
         logger.error('Internal error: unexpected cast session result.');
         return FoundryExitCode.internalError.code;
