@@ -7,6 +7,32 @@ import 'package:test/test.dart';
 import 'helpers/compare_directory_trees.dart';
 import 'helpers/fixture_paths.dart';
 
+Future<Mold> _loadCastPipelineMold(String moldPath) async {
+  final directory = Directory(moldPath);
+  final pubGet = await Process.run(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: directory.path,
+  );
+  expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}${pubGet.stderr}');
+
+  final pubspecFile = File(p.join(directory.path, 'pubspec.yaml'));
+  final pubspec = parseMoldPubspec(
+    yamlContent: await pubspecFile.readAsString(),
+    sourcePath: pubspecFile.path,
+  );
+
+  return Mold(
+    directory: directory.absolute,
+    pubspec: pubspec,
+    variableGroup: const FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(label: 'Project name'),
+      },
+    ),
+  );
+}
+
 void main() {
   group('cast pipeline', () {
     late Directory outputDirectory;
@@ -29,7 +55,7 @@ void main() {
     test(
       'casts a fixture mold through hooks and renders the expected tree',
       () async {
-        final mold = await loadMold(moldPath);
+        final mold = await _loadCastPipelineMold(moldPath);
 
         final outcome = await castMold(
           mold: mold,
@@ -55,7 +81,7 @@ void main() {
     test(
       'runs all three hook phases in lifecycle order',
       () async {
-        final mold = await loadMold(moldPath);
+        final mold = await _loadCastPipelineMold(moldPath);
 
         final outcome = await castMold(
           mold: mold,

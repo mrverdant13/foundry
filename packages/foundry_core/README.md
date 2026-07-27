@@ -44,7 +44,7 @@ Requires Dart SDK `>=3.5.0 <4.0.0`.
 
 ## Usage
 
-Load a mold, inspect it, and cast with pre-gathered variable values:
+Inspect a mold structurally, then cast with an in-memory live variable group:
 
 ```dart
 import 'dart:io';
@@ -64,7 +64,15 @@ Future<void> main() async {
     return;
   }
 
-  final mold = report.mold!;
+  final mold = Mold(
+    directory: report.mold!.directory,
+    pubspec: report.mold!.pubspec,
+    variableGroup: FoundryVariableGroup(
+      variables: {
+        'project_name': FoundryStringVariable(label: 'Project name'),
+      },
+    ),
+  );
   final outcome = await castMold(
     mold: mold,
     outputPath: outputPath,
@@ -88,7 +96,7 @@ Import `package:foundry_core/foundry_core.dart`.
 
 | Area | Key symbols |
 | ---- | ----------- |
-| Mold | `loadMold`, `parseMoldPubspec`, `inspectMold`, `Mold`, `FoundryVariableGroup` |
+| Mold | `parseMoldPubspec`, `inspectMold`, `Mold`, `FoundryVariableGroup` |
 | Derive | `deriveMoldFromPattern`, `MoldDeriveException` |
 | Sync | `syncMoldFromPattern`, `MoldSyncException` |
 | Pattern | `inspectPattern`, `PatternInspectionReport`, `PatternMarker` |

@@ -122,7 +122,7 @@ Future<CastOutcome> completeCast({
 
 /// Casts [mold] into an artifact at [outputPath].
 ///
-/// Runs the full cast pipeline in order (see REQUIREMENTS.md §6.1):
+/// Runs the full cast pipeline in order:
 ///
 /// 1. Run the **prepare** hook against a [FoundryContext] seeded with
 ///    [values] ([prepareCastContext]).
@@ -133,14 +133,14 @@ Future<CastOutcome> completeCast({
 /// 5. Run the **finish** hook.
 ///
 /// This is [prepareCastContext] followed by [completeCast]. Gathering values
-/// interactively between those phases is the CLI's responsibility (see
-/// REQUIREMENTS.md §5.1 / §5.4).
+/// interactively between those phases is the CLI's responsibility.
 ///
-/// [mold] must already be loaded (via `loadMold`) with dependencies
-/// resolved, so hook subprocesses can be spawned against its package
-/// config. A single [FoundryContext] flows through every phase, so hook
-/// mutations are visible to later phases and to [CastOutcome.values].
-/// [values] seeds that context before the prepare hook runs.
+/// [mold] must already be constructed with dependencies resolved (for
+/// subprocess hooks) and a live in-memory [FoundryVariableGroup], so
+/// callbacks remain available through evaluate/validate. A single
+/// [FoundryContext] flows through every phase, so hook mutations are
+/// visible to later phases and to [CastOutcome.values]. [values] seeds
+/// that context before the prepare hook runs.
 ///
 /// When [force] is `false` (the default), rendering fails if a destination
 /// file already exists. When [noHooks] is `true`, all three hook phases are
