@@ -9,7 +9,7 @@ import 'helpers/fixture_paths.dart';
 import 'helpers/run_foundry.dart';
 
 void main() {
-  group('foundry cast and recast', () {
+  group('foundry cast, recast, and finish', () {
     late Directory workDir;
     late String moldPath;
     late Directory expectedDirectory;
@@ -27,7 +27,7 @@ void main() {
     });
 
     test(
-      'casts a fixture mold and recasts from persisted state',
+      'casts a fixture mold, recasts from persisted state, then finishes',
       () async {
         const vars = {'project_name': 'my project'};
 
@@ -73,11 +73,31 @@ void main() {
           expected: expectedDirectory,
           actual: outputDirectory,
         );
+
+        final finishMarker = File(
+          p.join(outputDirectory.path, 'cast_complete.txt'),
+        );
+        await finishMarker.delete();
+        final readmeBeforeFinish =
+            await File(p.join(outputDirectory.path, 'README.md')).readAsString();
+
+        final finishResult = await runFoundry(
+          ['finish'],
+          workingDirectory: workDir.path,
+        );
+
+        expect(finishResult.exitCode, 0, reason: finishResult.stderr);
+        expect(finishResult.stdout, contains('Finish completed'));
+        expect(await finishMarker.readAsString(), 'finished\n');
+        expect(
+          await File(p.join(outputDirectory.path, 'README.md')).readAsString(),
+          readmeBeforeFinish,
+        );
       },
       tags: const ['e2e'],
-      // Cast + recast each spawn the CLI, run pub get, and load variables in
-      // an isolate — well over the default 30s on cold CI runners.
-      timeout: const Timeout(Duration(minutes: 2)),
+      // Cast, recast, and finish each spawn the CLI and a mold session helper
+      // (pub get + bridge) — well over the default 30s on cold CI runners.
+      timeout: const Timeout(Duration(minutes: 3)),
     );
   });
 }
