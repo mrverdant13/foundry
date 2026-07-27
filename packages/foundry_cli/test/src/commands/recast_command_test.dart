@@ -5,11 +5,10 @@ import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/commands/recast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-
-import 'cast_command_test_support.dart';
 
 void main() {
   late Directory workDir;
@@ -27,7 +26,7 @@ void main() {
   CommandRunner<int> buildRunner({
     required Directory workingDirectory,
     CastStateReader? readState,
-    CastRunner? runCast,
+    BatchMoldCastSessionLauncher? launchBatchSession,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
   }) {
@@ -37,7 +36,7 @@ void main() {
           logger: Logger(onInfo: onInfo, onError: onError),
           workingDirectory: workingDirectory,
           readState: readState,
-          runCast: runCast,
+          launchBatchSession: launchBatchSession,
         ),
       );
   }
@@ -59,12 +58,62 @@ void main() {
     );
   }
 
+  BatchMoldCastSessionLauncher successfulLauncher({
+    int artifactCount = 1,
+    Map<String, Object?> vars = const {'project_name': 'Ada'},
+    void Function({
+      required String moldPath,
+      required String outputPath,
+      Map<String, Object?>? varsFileValues,
+      String? varsFlag,
+      bool force,
+      bool noHooks,
+      bool finishOnly,
+    })? onLaunch,
+  }) {
+    return ({
+      required moldPath,
+      required outputPath,
+      varsFileValues,
+      varsFlag,
+      force = false,
+      noHooks = false,
+      finishOnly = false,
+    }) async {
+      onLaunch?.call(
+        moldPath: moldPath,
+        outputPath: outputPath,
+        varsFileValues: varsFileValues,
+        varsFlag: varsFlag,
+        force: force,
+        noHooks: noHooks,
+        finishOnly: finishOnly,
+      );
+      Directory(outputPath).createSync(recursive: true);
+      final artifact = File(p.join(outputPath, 'README.md'));
+      await artifact.writeAsString('# ${vars['project_name'] ?? 'Ada'}\n');
+      return MoldCastSessionLaunchSuccess(
+        artifactCount: artifactCount,
+        vars: vars,
+        writtenFilePaths: [artifact.path],
+        outputDirectory: outputPath,
+        exitCode: FoundryExitCode.success.code,
+      );
+    };
+  }
+
   group('RecastCommand', () {
+    test('defaults workingDirectory to Directory.current', () {
+      final command = RecastCommand(logger: Logger());
+      expect(command.workingDirectory.path, Directory.current.path);
+    });
+
     test('fails with a clear error when no prior cast state exists', () async {
       final errorMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: successfulLauncher(),
       );
 
       final exitCode = await runner.run(['recast']);
@@ -84,6 +133,7 @@ void main() {
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: successfulLauncher(),
         );
 
         final exitCode = await runner.run(['recast']);
@@ -105,6 +155,7 @@ void main() {
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: successfulLauncher(),
         );
 
         final exitCode = await runner.run(['recast']);
@@ -115,7 +166,10 @@ void main() {
     );
 
     test('fails with a usage error when given positional arguments', () async {
-      final runner = buildRunner(workingDirectory: workDir);
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulLauncher(),
+      );
 
       await expectLater(
         runner.run(['recast', 'extra']),
@@ -124,25 +178,76 @@ void main() {
     });
 
     test(
-      'repeats the last cast with the same paths and stored variable values',
+      'launches a batch session seeded from last_cast vars and updates state',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
-        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-        final artifact = File(p.join(outputDir.path, 'README.md'));
-        await artifact.writeAsString('# corrupted\n');
+        await writeCastState(
+          workDir,
+          moldPath: 'mold',
+          outputPath: 'out',
+          vars: const {'project_name': 'Ada', 'optional_note': null},
+        );
+        await File(p.join(outputDir.path, 'README.md'))
+            .writeAsString('# corrupted\n');
+
+        String? seenMoldPath;
+        Map<String, Object?>? seenVars;
+        var seenForce = false;
+        var seenNoHooks = true;
+        var seenFinishOnly = true;
         final infoMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
+          launchBatchSession: successfulLauncher(
+            vars: const {
+              'project_name': 'Ada',
+              'from_prepare': 'yes',
+            },
+            onLaunch: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+              finishOnly = false,
+            }) {
+              seenMoldPath = moldPath;
+              seenVars = varsFileValues;
+              seenForce = force;
+              seenNoHooks = noHooks;
+              seenFinishOnly = finishOnly;
+            },
+          ),
         );
 
         final exitCode = await runner.run(['recast', '--force']);
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(infoMessages, contains('✓ Recast completed'));
-        expect(await artifact.readAsString(), '# Ada\n');
+        expect(infoMessages, contains(contains('1 artifacts generated')));
+        expect(seenMoldPath, p.join(workDir.path, 'mold'));
+        expect(seenVars, {
+          'project_name': 'Ada',
+          'optional_note': null,
+        });
+        expect(seenForce, isTrue);
+        expect(seenNoHooks, isFalse);
+        expect(seenFinishOnly, isFalse);
+
+        final state = json.decode(
+          File(p.join(workDir.path, '.foundry', 'last_cast.json'))
+              .readAsStringSync(),
+        ) as Map<String, Object?>;
+        expect(state['moldPath'], 'mold');
+        expect(state['outputPath'], 'out');
+        expect((state['vars']! as Map)['from_prepare'], 'yes');
+        expect(
+          await File(p.join(outputDir.path, 'README.md')).readAsString(),
+          '# Ada\n',
+        );
       },
     );
 
@@ -150,174 +255,129 @@ void main() {
       'fails with a user error when output exists and is non-empty without '
       '--force',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
         File(p.join(outputDir.path, 'existing.txt')).writeAsStringSync('hi');
         await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+        var launched = false;
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+            finishOnly = false,
+          }) async {
+            launched = true;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: '',
+              exitCode: 0,
+            );
+          },
         );
 
         final exitCode = await runner.run(['recast']);
 
         expect(exitCode, FoundryExitCode.userError.code);
         expect(errorMessages, contains(contains('--force')));
+        expect(launched, isFalse);
       },
     );
 
-    test('skips hooks when --no-hooks is passed', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
+    test('forwards --no-hooks to the session launcher', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
       Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-      final runner = buildRunner(workingDirectory: workDir);
+      var seenNoHooks = false;
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulLauncher(
+          onLaunch: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+            finishOnly = false,
+          }) {
+            seenNoHooks = noHooks;
+          },
+        ),
+      );
 
       final exitCode = await runner.run(['recast', '--force', '--no-hooks']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      final stateFile = File(
-        p.join(workDir.path, '.foundry', 'last_cast.json'),
-      );
-      final state = json.decode(stateFile.readAsStringSync()) as Map;
-      expect((state['vars'] as Map).containsKey('from_prepare'), isFalse);
+      expect(seenNoHooks, isTrue);
     });
 
-    test('updates cast state after a successful recast', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMold(
-        directory: moldDir,
-        name: 'demo_app',
-        withHooks: true,
-      );
+    test('surfaces session launch failures as user errors', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
       Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-      final runner = buildRunner(workingDirectory: workDir);
-
-      final exitCode = await runner.run(['recast', '--force']);
-
-      expect(exitCode, FoundryExitCode.success.code);
-      final stateFile = File(
-        p.join(workDir.path, '.foundry', 'last_cast.json'),
-      );
-      final state = json.decode(stateFile.readAsStringSync()) as Map;
-      expect((state['vars'] as Map)['from_prepare'], 'yes');
-    });
-
-    test('fails with a user error when the mold cannot be loaded', () async {
-      await writeCastState(
-        workDir,
-        moldPath: 'does_not_exist',
-        outputPath: 'out',
-      );
       final errorMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          return const MoldCastSessionLaunchFailure(
+            kind: 'validation',
+            message: 'Cast variables are invalid:\n  project_name: bad',
+            exitCode: 1,
+          );
+        },
       );
 
       final exitCode = await runner.run(['recast', '--force']);
 
       expect(exitCode, FoundryExitCode.userError.code);
-      expect(errorMessages, isNotEmpty);
+      expect(
+        errorMessages,
+        contains(contains('Cast variables are invalid:')),
+      );
+      expect(errorMessages, contains(contains('project_name: bad')));
     });
 
-    test(
-      'fails with a user error when cast-time variable validation fails',
-      () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
-        Directory(p.join(workDir.path, 'out')).createSync();
-        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          runCast: ({
-            required mold,
-            required outputPath,
-            required values,
-            force = false,
-            noHooks = false,
-          }) async {
-            throw const CastVariablesInvalidException(
-              FoundryVariableGroupValidation(
-                fieldErrors: {
-                  'project_name': ['project_name is invalid at recast time'],
-                },
-                groupErrors: ['group validation failed at recast time'],
-              ),
-            );
-          },
-        );
-
-        final exitCode = await runner.run(['recast', '--force']);
-
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(
-          errorMessages,
-          contains(contains('Cast variables are invalid:')),
-        );
-        expect(
-          errorMessages,
-          contains(
-            contains('project_name: project_name is invalid at recast time'),
-          ),
-        );
-        expect(
-          errorMessages,
-          contains(contains('group validation failed at recast time')),
-        );
-      },
-    );
-
-    test(
-      'fails with a user error when cast variable input is invalid',
-      () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
-        Directory(p.join(workDir.path, 'out')).createSync();
-        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-          runCast: ({
-            required mold,
-            required outputPath,
-            required values,
-            force = false,
-            noHooks = false,
-          }) async {
-            throw const FoundryContextException('invalid recast variable');
-          },
-        );
-
-        final exitCode = await runner.run(['recast', '--force']);
-
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(
-          errorMessages,
-          contains(contains('Invalid cast variable input: invalid recast')),
-        );
-      },
-    );
-
-    test('fails with a user error when a mold hook throws', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeHookFailingMold(directory: moldDir, name: 'demo_app');
+    test('surfaces hook failures from the session launcher', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
       Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
       final errorMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          return const MoldCastSessionLaunchFailure(
+            kind: 'hook',
+            message: 'MoldHookException(prepare, /tmp/hooks/prepare.dart): boom',
+            exitCode: 1,
+          );
+        },
       );
 
       final exitCode = await runner.run(['recast', '--force']);
@@ -326,26 +386,6 @@ void main() {
       expect(
         errorMessages,
         contains(contains('MoldHookException(prepare,')),
-      );
-    });
-
-    test('fails with a user error when template rendering fails', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeBrokenTemplateMold(directory: moldDir, name: 'demo_app');
-      Directory(p.join(workDir.path, 'out')).createSync();
-      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-      final errorMessages = <String>[];
-      final runner = buildRunner(
-        workingDirectory: workDir,
-        onError: errorMessages.add,
-      );
-
-      final exitCode = await runner.run(['recast', '--force']);
-
-      expect(exitCode, FoundryExitCode.userError.code);
-      expect(
-        errorMessages,
-        contains(contains('Failed to render contents of template file')),
       );
     });
   });

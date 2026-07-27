@@ -110,11 +110,10 @@ final class MoldCastSessionHelperHookImports {
 /// `moldVariables` group in the helper isolate.
 ///
 /// Request routing:
-/// - `finishOnly: true` → [CastSession.runFinishOnly] (seeded from
-///   `varsFileValues`)
-/// - `--vars` / `--vars-file` inputs → [CastSession.runBatch]
-/// - otherwise → [CastSession.runInteractive] (Nocterm gather with inherited
-///   stdio, or `FOUNDRY_E2E_VARS`)
+/// - `finishOnly: true` → finish-only session (seeded from `varsFileValues`)
+/// - `--vars` / `--vars-file` inputs → batch session
+/// - otherwise → interactive gather (Nocterm with inherited stdio, or
+///   `FOUNDRY_E2E_VARS`)
 String buildMoldCastSessionBridgeSource({
   required Uri variablesUri,
   required MoldCastSessionHelperHookImports hooks,
