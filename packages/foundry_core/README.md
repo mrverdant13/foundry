@@ -10,14 +10,20 @@ template rendering, and cast orchestration.
 Foundry molds are Dart packages with a `variables.dart` manifest, a `template/`
 tree, and optional lifecycle hooks. This library provides:
 
-- **Mold loading** — parse root `pubspec.yaml`, resolve dependencies, and load
-  `moldVariables` from `variables.dart`
-- **Inspection** — validate mold layout (`template/`, conventional hook paths)
+- **Mold model** — parse root `pubspec.yaml` and build a [`Mold`](https://pub.dev/documentation/foundry_core/latest/foundry_core/Mold-class.html)
+  with an in-memory live [`FoundryVariableGroup`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryVariableGroup-class.html)
+  (callbacks such as `visibleWhen` / `defaultValue` stay intact)
+- **Inspection** — validate mold layout (`template/`, conventional hook paths);
+  structural only — does not import `variables.dart`
 - **Variable resolution** — evaluate `visibleWhen`, `defaultValue`, and
   validators against a read-only [`SnapshotFoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/SnapshotFoundryContext-class.html)
 - **Template rendering** — render Liquid templates to an output directory
-- **Hook execution** — spawn prepare/shape/finish hooks with a mutable
-  [`FoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryContext-class.html)
+- **Hook execution** — run prepare/shape/finish hooks against a mutable
+  [`FoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryContext-class.html).
+  Prefer [`runMoldHookInProcess`](https://pub.dev/documentation/foundry_core/latest/foundry_core/runMoldHookInProcess.html)
+  when the hook's `run` is already imported in the current isolate (live
+  context, no JSON round-trip). [`runMoldHook`](https://pub.dev/documentation/foundry_core/latest/foundry_core/runMoldHook.html)
+  still spawns a `dart run` subprocess for host-side callers.
 - **Cast orchestration** — end-to-end `castMold` pipeline and
   `.foundry/last_cast.json` persistence
 - **Import** — copy molds from a local path or shallow git clone
@@ -90,6 +96,32 @@ Future<void> main() async {
 See the [`example/`](example/) directory for a runnable program against a
 bundled fixture mold.
 
+## Lifecycle hooks
+
+Mold hooks are top-level Dart files under `hooks/`
+(`prepare.dart`, `shape.dart`, `finish.dart`). Each file that exists must
+export:
+
+```dart
+Future<void> run(FoundryContext context) async {
+  // Mutate context with set / merge / remove as needed.
+}
+```
+
+Missing hook files are no-ops. Relative file I/O inside a hook uses the cast
+output directory as the process working directory.
+
+When a host already imports the hook (for example via a file URI and
+`moldHookFileUriImport`), call `runMoldHookInProcess` with that `run` as
+`entryPoint`. Mutations stay on the same `FoundryContext` instance — including
+non-JSON `Object` values seeded by prepare — with no JSON round-trip between
+phases. Prefer that path whenever prepare, gather/shape, and finish must share
+a live heap. Use `runMoldHook` only when the host cannot import the hook and
+must spawn `dart run` (values are JSON-encoded across the process boundary).
+
+Do not invoke overlapping `runMoldHookInProcess` calls concurrently in the same
+process: `Directory.current` is process-wide for the duration of each hook.
+
 ## Public API
 
 Import `package:foundry_core/foundry_core.dart`.
@@ -103,7 +135,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
 | Cast | `castMold`, `prepareCastContext`, `completeCast`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
 | Render | `renderTemplate` |
-| Hooks | `runMoldHook`, `runMoldHookInProcess`, `FoundryHookException` |
+| Hooks | `runMoldHook`, `runMoldHookInProcess`, `MoldHookEntryPoint`, `moldHookFileUriImport`, `FoundryHookException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
 
 ## Resources
