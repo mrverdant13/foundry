@@ -985,6 +985,51 @@ void main() {
       expect(failure.message, contains('project_name: nope'));
     });
 
+    test(
+      'preserves explicit null from seeded values over defaultValue',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'name={{ project_name }}\n'
+              'note={{ optional_note }}\n',
+        );
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: FoundryVariableGroup(
+              variables: {
+                'project_name': const FoundryStringVariable(
+                  label: 'Project name',
+                ),
+                'optional_note': FoundryStringVariable(
+                  label: 'Optional note',
+                  defaultValue: (_) => 'DEFAULT_NOTE',
+                ),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+        ).runSeeded(
+          values: const {
+            'project_name': 'Ada',
+            'optional_note': null,
+          },
+          force: true,
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        final success = result as BatchCastSessionSuccess;
+        expect(success.vars['project_name'], 'Ada');
+        expect(success.vars.containsKey('optional_note'), isTrue);
+        expect(success.vars['optional_note'], isNull);
+        expect(
+          await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+          'name=Ada\n'
+          'note=\n',
+        );
+      },
+    );
+
     test('returns hook failure when prepare throws', () async {
       await writeTemplateFile('out.txt', 'ok\n');
       await touchHook(MoldHooks.preparePath);

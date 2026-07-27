@@ -397,6 +397,10 @@ final class CastSession {
   /// in `.foundry/last_cast.json`) are kept on the context and are not reported
   /// as unknown variables. Used by `foundry recast`.
   ///
+  /// Keys present in [values] are treated as dirty so an explicit JSON `null`
+  /// from cast state is not overwritten by `defaultValue` (same dirty-key
+  /// semantics as batch parse).
+  ///
   /// When [noHooks] is `true`, prepare / shape / finish are skipped.
   Future<BatchCastSessionResult> runSeeded({
     required Map<String, Object?> values,
@@ -429,6 +433,7 @@ final class CastSession {
     try {
       final evaluation = mold.variableGroup.evaluate(
         rawValues: context.copyValues(),
+        dirtyKeys: values.keys.toSet(),
       );
       final validation = mold.variableGroup.validate(evaluation);
       if (!validation.isValid) {
