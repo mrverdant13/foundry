@@ -240,6 +240,9 @@ class CastCommand extends Command<int> {
           await _removeOutputIfEmpty(outputPath);
         }
         return exitCode;
+      case MoldCastSessionDescribeSuccess():
+        logger.error('Internal error: unexpected describe session result.');
+        return FoundryExitCode.internalError.code;
     }
   }
 

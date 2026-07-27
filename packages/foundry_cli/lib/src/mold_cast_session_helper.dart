@@ -110,6 +110,7 @@ final class MoldCastSessionHelperHookImports {
 /// `moldVariables` group in the helper isolate.
 ///
 /// Request routing:
+/// - `describeOnly: true` → describe live variable metadata (no hooks/render)
 /// - `finishOnly: true` → finish-only session (seeded from `varsFileValues`)
 /// - `seededValues` present → seeded session (recast; keeps non-variable keys)
 /// - `--vars` / `--vars-file` inputs → batch session
@@ -195,12 +196,8 @@ Future<void> main(List<String> args) async {
     exitCode = FoundryExitCode.internalError.code;
     return;
   }
-  if (outputPath is! String || outputPath.isEmpty) {
-    stderr.writeln('Session request missing outputPath.');
-    exitCode = FoundryExitCode.internalError.code;
-    return;
-  }
 
+  final describeOnly = request['describeOnly'] == true;
   final force = request['force'] == true;
   final noHooks = request['noHooks'] == true;
   final finishOnly = request['finishOnly'] == true;
@@ -243,6 +240,22 @@ Future<void> main(List<String> args) async {
     };
   }
 
+  if (describeOnly &&
+      (finishOnly ||
+          varsFlag != null ||
+          varsFileValues != null ||
+          seededValues != null)) {
+    stderr.writeln(
+      'Session request describeOnly cannot be combined with cast inputs.',
+    );
+    exitCode = FoundryExitCode.internalError.code;
+    return;
+  }
+  if (!describeOnly && (outputPath is! String || outputPath.isEmpty)) {
+    stderr.writeln('Session request missing outputPath.');
+    exitCode = FoundryExitCode.internalError.code;
+    return;
+  }
   if (finishOnly && varsFileValues == null) {
     stderr.writeln(
       'Session request finishOnly requires varsFileValues.',
@@ -292,9 +305,24 @@ Future<void> main(List<String> args) async {
     variableGroup: mold_variables.moldVariables,
   );
 
+  if (describeOnly) {
+    final variables = describeMoldVariableGroup(mold.variableGroup);
+    await File(resultPath).writeAsString(
+      jsonEncode({
+        'ok': true,
+        'describe': true,
+        'variables': [
+          for (final variable in variables) variable.toJson(),
+        ],
+      }),
+    );
+    exitCode = FoundryExitCode.success.code;
+    return;
+  }
+
   final session = CastSession(
     mold: mold,
-    outputPath: outputPath,
+    outputPath: outputPath as String,
     hooks: $hooksLiteral,
   );
 

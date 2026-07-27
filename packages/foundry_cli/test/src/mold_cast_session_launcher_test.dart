@@ -698,6 +698,78 @@ Future<void> run(FoundryContext context) async {
     );
   });
 
+  group('launchDescribeMoldCastSession', () {
+    test(
+      'reports live help, placeholder, and choice labels without writing output',
+      () async {
+        await _writeDescribeMetadataMold(moldDirectory);
+        final marker = File(p.join(outputDirectory.path, 'should_not_exist'));
+
+        final result = await launchDescribeMoldCastSession(
+          moldPath: moldDirectory.path,
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionDescribeSuccess>());
+        final success = result as MoldCastSessionDescribeSuccess;
+        expect(success.isSuccess, isTrue);
+
+        final projectName = success.variables.singleWhere(
+          (entry) => entry.key == 'project_name',
+        );
+        expect(projectName.description, 'UNIQUE_DESC_PROJECT_NAME');
+        expect(projectName.help, 'UNIQUE_HELP_PROJECT_NAME');
+        expect(projectName.placeholder, 'UNIQUE_PLACEHOLDER');
+
+        final projectType = success.variables.singleWhere(
+          (entry) => entry.key == 'project_type',
+        );
+        expect(
+          projectType.options.map((option) => option.label),
+          ['LABEL_app', 'LABEL_package'],
+        );
+
+        expect(marker.existsSync(), isFalse);
+        expect(outputDirectory.listSync(), isEmpty);
+        expect(
+          helperParent.listSync(),
+          isEmpty,
+          reason: 'helper dirs must be removed after describe',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
+    test('fails clearly when variables.dart is missing', () async {
+      await File(p.join(moldDirectory.path, 'pubspec.yaml')).writeAsString('''
+name: missing_vars_mold
+description: Missing variables
+version: 0.0.1
+publish_to: none
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+dependencies:
+  foundry_core:
+    path: ${foundryCorePackageRoot().path}
+''');
+
+      final result = await launchDescribeMoldCastSession(
+        moldPath: moldDirectory.path,
+        tempParent: helperParent,
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'load');
+      expect(failure.message, contains('variables.dart'));
+      expect(helperParent.listSync(), isEmpty);
+    });
+  });
+
   group('resolveFoundryCliHelperDependency', () {
     test('uses a path dep in this workspace', () async {
       final dependency = await resolveFoundryCliHelperDependency();
@@ -833,6 +905,31 @@ Future<void> run(FoundryContext context) async {
       expect(success.vars, {'name': 'demo'});
       expect(success.writtenFilePaths, ['a.txt', 'b.txt']);
       expect(success.outputDirectory, '/tmp/out');
+      expect(success.exitCode, FoundryExitCode.success.code);
+    });
+
+    test('decodes a describe success payload', () async {
+      final file = await writeResult({
+        'ok': true,
+        'describe': true,
+        'variables': [
+          {
+            'key': 'project_name',
+            'kind': 'string',
+            'label': 'Project name',
+            'help': 'UNIQUE_HELP_PROJECT_NAME',
+          },
+        ],
+      });
+
+      final result = decodeMoldCastSessionLaunchResult(
+        resultFile: file,
+        fallbackExitCode: 0,
+      );
+      expect(result, isA<MoldCastSessionDescribeSuccess>());
+      final success = result as MoldCastSessionDescribeSuccess;
+      expect(success.variables, hasLength(1));
+      expect(success.variables.single.help, 'UNIQUE_HELP_PROJECT_NAME');
       expect(success.exitCode, FoundryExitCode.success.code);
     });
 
@@ -976,4 +1073,43 @@ Future<void> run(FoundryContext context) async {
   context.set('shaped', 'yes');
 }
 ''');
+}
+
+Future<void> _writeDescribeMetadataMold(Directory directory) async {
+  final corePath = foundryCorePackageRoot().absolute.path;
+  await File(p.join(directory.path, 'pubspec.yaml')).writeAsString('''
+name: describe_metadata_mold
+description: Mold with copyable metadata for describe-session tests
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  foundry_core:
+    path: $corePath
+''');
+
+  await File(p.join(directory.path, 'variables.dart')).writeAsString('''
+import 'package:foundry_core/foundry_core.dart';
+
+final moldVariables = FoundryVariableGroup(
+  variables: {
+    'project_name': FoundryStringVariable(
+      label: 'Project name',
+      description: 'UNIQUE_DESC_PROJECT_NAME',
+      help: 'UNIQUE_HELP_PROJECT_NAME',
+      placeholder: 'UNIQUE_PLACEHOLDER',
+    ),
+    'project_type': FoundrySingleChoiceVariable<String>(
+      label: 'Project type',
+      options: {'app', 'package'},
+      displayLabel: (value) => 'LABEL_\$value',
+    ),
+  },
+);
+''');
+
+  await Directory(p.join(directory.path, 'template')).create();
 }
