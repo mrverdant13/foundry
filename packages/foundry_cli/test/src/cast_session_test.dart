@@ -907,4 +907,123 @@ void main() {
       },
     );
   });
+
+  group('CastSession.runFinishOnly', () {
+    test('runs finish in-process without re-rendering templates', () async {
+      await writeTemplateFile('README.md', '# {{ project_name }}\n');
+      await touchHook(MoldHooks.finishPath);
+      final stale = File(p.join(outputDirectory.path, 'README.md'));
+      await stale.writeAsString('# stale template output\n');
+
+      final beforeCwd = Directory.current.path;
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (context) async {
+            context.set('finish_saw', context.requiredString('project_name'));
+            // Relative path → proves cwd was the output directory.
+            await File('finish_marker.txt').writeAsString('done');
+          },
+        ),
+      ).runFinishOnly(vars: {'project_name': 'Ada'});
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      final success = result as BatchCastSessionSuccess;
+      expect(success.artifactCount, 0);
+      expect(success.writtenFiles, isEmpty);
+      expect(success.vars['project_name'], 'Ada');
+      expect(success.vars['finish_saw'], 'Ada');
+      expect(Directory.current.path, beforeCwd);
+      expect(await stale.readAsString(), '# stale template output\n');
+      expect(
+        await File(
+          p.join(outputDirectory.path, 'finish_marker.txt'),
+        ).readAsString(),
+        'done',
+      );
+    });
+
+    test('returns missing-finish failure when hook file is absent', () async {
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) async {},
+        ),
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionMissingFinishHookFailure>());
+      final failure = result as BatchCastSessionMissingFinishHookFailure;
+      expect(failure.moldName, 'cast_session_demo');
+      expect(failure.message, contains(MoldHooks.finishPath));
+    });
+
+    test('returns output-missing failure when output directory is gone',
+        () async {
+      final missingPath = p.join(outputDirectory.path, 'does_not_exist');
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: missingPath,
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionOutputMissingFailure>());
+      final failure = result as BatchCastSessionOutputMissingFailure;
+      expect(failure.outputPath, missingPath);
+      expect(failure.message, contains('does not exist'));
+    });
+
+    test('skips finish when noHooks is true', () async {
+      await touchHook(MoldHooks.finishPath);
+      var finishCalled = false;
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) async {
+            finishCalled = true;
+          },
+        ),
+      ).runFinishOnly(vars: {'project_name': 'Ada'}, noHooks: true);
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(finishCalled, isFalse);
+      expect(
+        File(p.join(outputDirectory.path, 'finish_marker.txt')).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('returns hook failure when finish throws', () async {
+      await touchHook(MoldHooks.finishPath);
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) {
+            throw const FoundryHookException('finish boom');
+          },
+        ),
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.finish);
+      expect(failure.message, contains('finish boom'));
+    });
+  });
 }
