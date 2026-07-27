@@ -37,6 +37,7 @@ void main() {
       expect(report.isValid, isTrue);
       expect(report.mold, isNotNull);
       expect(report.mold!.name, 'demo_app');
+      expect(report.mold!.variableGroup.variables, isEmpty);
       expect(
         report.issues.where((i) => i.severity == MoldIssueSeverity.error),
         isEmpty,
@@ -85,7 +86,22 @@ const moldVariables = FoundryVariableGroup(
       );
     });
 
-    test('reports an empty variable group as a warning', () async {
+    test('reports missing variables.dart as an error', () async {
+      final report =
+          await inspectMold(p.join(fixtures.path, 'missing_variables'));
+
+      expect(report.isValid, isFalse);
+      expect(
+        report.issues,
+        contains(
+          isA<MoldIssue>()
+              .having((i) => i.severity, 'severity', MoldIssueSeverity.error)
+              .having((i) => i.message, 'message', contains('variables.dart')),
+        ),
+      );
+    });
+
+    test('does not deserialize variables for emptiness checks', () async {
       final tempDir =
           await Directory.systemTemp.createTemp('foundry_empty_vars_');
       addTearDown(() => tempDir.deleteSync(recursive: true));
@@ -106,16 +122,10 @@ const moldVariables = FoundryVariableGroup(variables: {});
 
       expect(report.isValid, isTrue);
       expect(
-        report.issues,
-        contains(
-          isA<MoldIssue>()
-              .having(
-                (i) => i.severity,
-                'severity',
-                MoldIssueSeverity.warning,
-              )
-              .having((i) => i.message, 'message', contains('variables')),
+        report.issues.where(
+          (issue) => issue.message.contains('does not define any variables'),
         ),
+        isEmpty,
       );
     });
 
