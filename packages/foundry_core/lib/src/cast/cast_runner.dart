@@ -136,11 +136,11 @@ Future<CastOutcome> completeCast({
 /// interactively between those phases is the CLI's responsibility.
 ///
 /// [mold] must already be constructed with dependencies resolved (for
-/// subprocess hooks) and a live in-memory [FoundryVariableGroup], so
-/// callbacks remain available through evaluate/validate. A single
-/// [FoundryContext] flows through every phase, so hook mutations are
-/// visible to later phases and to [CastOutcome.values]. [values] seeds
-/// that context before the prepare hook runs.
+/// subprocess hooks) and a live in-memory variable group, so callbacks
+/// remain available through evaluate/validate. A single [FoundryContext]
+/// flows through every phase, so hook mutations are visible to later
+/// phases and to [CastOutcome.values]. [values] seeds that context before
+/// the prepare hook runs.
 ///
 /// When [force] is `false` (the default), rendering fails if a destination
 /// file already exists. When [noHooks] is `true`, all three hook phases are
