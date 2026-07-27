@@ -996,7 +996,7 @@ void main() {
       final beforeCwd = Directory.current.path;
       final result = await CastSession(
         mold: buildMold(
-          variableGroup: FoundryVariableGroup(
+          variableGroup: const FoundryVariableGroup(
             variables: {
               'project_name': FoundryStringVariable(label: 'Project name'),
             },
@@ -1031,7 +1031,7 @@ void main() {
     test('returns missing-finish failure when hook file is absent', () async {
       final result = await CastSession(
         mold: buildMold(
-          variableGroup: FoundryVariableGroup(variables: {}),
+          variableGroup: const FoundryVariableGroup(variables: {}),
         ),
         outputPath: outputDirectory.path,
         hooks: CastSessionHooks(
@@ -1050,7 +1050,7 @@ void main() {
       final missingPath = p.join(outputDirectory.path, 'does_not_exist');
       final result = await CastSession(
         mold: buildMold(
-          variableGroup: FoundryVariableGroup(variables: {}),
+          variableGroup: const FoundryVariableGroup(variables: {}),
         ),
         outputPath: missingPath,
       ).runFinishOnly(vars: const {});
@@ -1066,7 +1066,7 @@ void main() {
       var finishCalled = false;
       final result = await CastSession(
         mold: buildMold(
-          variableGroup: FoundryVariableGroup(variables: {}),
+          variableGroup: const FoundryVariableGroup(variables: {}),
         ),
         outputPath: outputDirectory.path,
         hooks: CastSessionHooks(
@@ -1088,7 +1088,7 @@ void main() {
       await touchHook(MoldHooks.finishPath);
       final result = await CastSession(
         mold: buildMold(
-          variableGroup: FoundryVariableGroup(variables: {}),
+          variableGroup: const FoundryVariableGroup(variables: {}),
         ),
         outputPath: outputDirectory.path,
         hooks: CastSessionHooks(

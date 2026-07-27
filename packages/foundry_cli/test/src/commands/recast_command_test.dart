@@ -390,7 +390,8 @@ void main() {
         }) async {
           return const MoldCastSessionLaunchFailure(
             kind: 'hook',
-            message: 'MoldHookException(prepare, /tmp/hooks/prepare.dart): boom',
+            message:
+                'MoldHookException(prepare, /tmp/hooks/prepare.dart): boom',
             exitCode: 1,
           );
         },

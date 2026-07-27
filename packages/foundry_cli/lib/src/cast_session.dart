@@ -201,8 +201,7 @@ final class BatchCastSessionOutputMissingFailure
   final String outputPath;
 
   @override
-  String get message =>
-      'Output directory "$outputPath" does not exist. '
+  String get message => 'Output directory "$outputPath" does not exist. '
       'Run `foundry cast` or `foundry recast` first.';
 }
 
