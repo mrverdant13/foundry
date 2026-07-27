@@ -495,6 +495,109 @@ dependencies:
         contains('as mold_variables;'),
       );
     });
+
+    test('rejects finishOnly without varsFileValues before resolving',
+        () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        finishOnly: true,
+        tempParent: helperParent,
+        pubGetRunner: (_) async {
+          fail('pub get should not run when finishOnly lacks vars');
+        },
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'internal');
+      expect(failure.message, contains('varsFileValues'));
+      expect(helperParent.listSync(), isEmpty);
+    });
+
+    test(
+      'launches a finish-only session without re-rendering templates',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+        await File(
+          p.join(moldDirectory.path, 'hooks', 'finish.dart'),
+        ).writeAsString(r'''
+import 'dart:io';
+
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  await File('finish_marker.txt').writeAsString(
+    'name=${context.optionalString("project_name")}',
+  );
+}
+''');
+        final stale = File(p.join(outputDirectory.path, 'README.md'));
+        await stale.writeAsString('# stale template output\n');
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          finishOnly: true,
+          varsFileValues: const {
+            'project_type': 'package',
+            'project_name': 'FinishMe',
+          },
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+        final success = result as MoldCastSessionLaunchSuccess;
+        expect(success.artifactCount, 0);
+        expect(success.writtenFilePaths, isEmpty);
+        expect(success.vars['project_name'], 'FinishMe');
+        expect(await stale.readAsString(), '# stale template output\n');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'finish_marker.txt'),
+          ).readAsString(),
+          'name=FinishMe',
+        );
+        expect(helperParent.listSync(), isEmpty);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
+    test(
+      'reports missing finish hook from a finish-only session',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          finishOnly: true,
+          varsFileValues: const {
+            'project_type': 'app',
+            'project_name': 'NoFinish',
+          },
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchFailure>());
+        final failure = result as MoldCastSessionLaunchFailure;
+        expect(failure.kind, 'hook');
+        expect(failure.message, contains('No finish hook defined'));
+        expect(failure.message, contains('hooks/finish.dart'));
+        expect(helperParent.listSync(), isEmpty);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 
   group('resolveFoundryCliHelperDependency', () {

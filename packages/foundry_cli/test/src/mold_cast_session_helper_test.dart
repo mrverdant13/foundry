@@ -98,7 +98,9 @@ void main() {
       expect(source, contains('CastSession('));
       expect(source, contains('.runBatch('));
       expect(source, contains('.runInteractive('));
+      expect(source, contains('.runFinishOnly('));
       expect(source, contains('hasBatchInputs'));
+      expect(source, contains('finishOnly'));
       expect(source, contains("kind: 'cancel'"));
       expect(source, contains('const CastSessionHooks()'));
       expect(source, isNot(contains('prepare_hook')));
