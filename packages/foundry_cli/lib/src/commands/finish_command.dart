@@ -103,6 +103,9 @@ class FinishCommand extends Command<int> {
       case MoldCastSessionLaunchFailure(:final message, :final exitCode):
         logger.error(message);
         return exitCode;
+      case MoldCastSessionDescribeSuccess():
+        logger.error('Internal error: unexpected describe session result.');
+        return FoundryExitCode.internalError.code;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:foundry_cli/src/cast_session_describe.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_helper.dart';
 import 'package:foundry_cli/src/version.dart';
@@ -41,6 +42,24 @@ final class MoldCastSessionLaunchSuccess extends MoldCastSessionLaunchResult {
 
   /// Absolute path of the cast `--output` directory.
   final String outputDirectory;
+
+  @override
+  final int exitCode;
+
+  @override
+  bool get isSuccess => true;
+}
+
+/// Successful describe-only session launched via the synthetic helper package.
+final class MoldCastSessionDescribeSuccess extends MoldCastSessionLaunchResult {
+  /// Creates a successful describe result.
+  const MoldCastSessionDescribeSuccess({
+    required this.variables,
+    required this.exitCode,
+  });
+
+  /// Live variable metadata reported by the session.
+  final List<MoldVariableDescription> variables;
 
   @override
   final int exitCode;
@@ -108,6 +127,9 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
 /// session logs surface on the host terminal.
 ///
 /// [pubGetRunner] and [childRunner] are seam points for unit tests.
+///
+/// For variable metadata without cast/render, use
+/// [launchDescribeMoldCastSession] instead.
 Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   required String moldPath,
   required String outputPath,
@@ -124,6 +146,105 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   Map<String, String>? environment,
   MoldCastSessionPubGetRunner? pubGetRunner,
   MoldCastSessionChildRunner? childRunner,
+}) async {
+  if (finishOnly && varsFileValues == null) {
+    return MoldCastSessionLaunchFailure(
+      kind: 'internal',
+      message: 'finishOnly session launch requires varsFileValues.',
+      exitCode: FoundryExitCode.internalError.code,
+    );
+  }
+  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
+    return MoldCastSessionLaunchFailure(
+      kind: 'internal',
+      message:
+          'seededValues cannot be combined with varsFlag or varsFileValues.',
+      exitCode: FoundryExitCode.internalError.code,
+    );
+  }
+
+  return _launchMoldCastSession(
+    moldPath: moldPath,
+    keepHelperForDebug: keepHelperForDebug,
+    tempParent: tempParent,
+    foundryCliDependency: foundryCliDependency,
+    foundryCoreOverridePath: foundryCoreOverridePath,
+    environment: environment,
+    pubGetRunner: pubGetRunner,
+    childRunner: childRunner,
+    buildRequest: ({
+      required resolvedMoldPath,
+      required resultPath,
+    }) {
+      return {
+        'moldPath': resolvedMoldPath,
+        'outputPath': Directory(outputPath).absolute.path,
+        'resultPath': resultPath,
+        'force': force,
+        'noHooks': noHooks,
+        if (finishOnly) 'finishOnly': true,
+        if (varsFlag != null) 'varsFlag': varsFlag,
+        if (varsFileValues != null) 'varsFileValues': varsFileValues,
+        if (seededValues != null) 'seededValues': seededValues,
+      };
+    },
+  );
+}
+
+/// Launches a describe-only mold session via the synthetic helper package.
+///
+/// Uses the same helper composition as [launchBatchMoldCastSession] so live
+/// `variables.dart` callbacks (for example choice `displayLabel`) match cast,
+/// but does not create an output directory, run hooks, render templates, or
+/// write cast state.
+///
+/// Helper directories are deleted on success and failure unless
+/// [keepHelperForDebug] is `true`.
+Future<MoldCastSessionLaunchResult> launchDescribeMoldCastSession({
+  required String moldPath,
+  bool keepHelperForDebug = false,
+  Directory? tempParent,
+  FoundryCliHelperDependency? foundryCliDependency,
+  String? foundryCoreOverridePath,
+  Map<String, String>? environment,
+  MoldCastSessionPubGetRunner? pubGetRunner,
+  MoldCastSessionChildRunner? childRunner,
+}) {
+  return _launchMoldCastSession(
+    moldPath: moldPath,
+    keepHelperForDebug: keepHelperForDebug,
+    tempParent: tempParent,
+    foundryCliDependency: foundryCliDependency,
+    foundryCoreOverridePath: foundryCoreOverridePath,
+    environment: environment,
+    pubGetRunner: pubGetRunner,
+    childRunner: childRunner,
+    buildRequest: ({
+      required resolvedMoldPath,
+      required resultPath,
+    }) {
+      return {
+        'moldPath': resolvedMoldPath,
+        'resultPath': resultPath,
+        'describeOnly': true,
+      };
+    },
+  );
+}
+
+Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
+  required String moldPath,
+  required bool keepHelperForDebug,
+  required Directory? tempParent,
+  required FoundryCliHelperDependency? foundryCliDependency,
+  required String? foundryCoreOverridePath,
+  required Map<String, String>? environment,
+  required MoldCastSessionPubGetRunner? pubGetRunner,
+  required MoldCastSessionChildRunner? childRunner,
+  required Map<String, Object?> Function({
+    required String resolvedMoldPath,
+    required String resultPath,
+  }) buildRequest,
 }) async {
   final moldDirectory = Directory(moldPath);
   if (!moldDirectory.existsSync()) {
@@ -154,22 +275,6 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       kind: 'load',
       message: 'Missing required file "variables.dart".',
       exitCode: FoundryExitCode.userError.code,
-    );
-  }
-
-  if (finishOnly && varsFileValues == null) {
-    return MoldCastSessionLaunchFailure(
-      kind: 'internal',
-      message: 'finishOnly session launch requires varsFileValues.',
-      exitCode: FoundryExitCode.internalError.code,
-    );
-  }
-  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
-    return MoldCastSessionLaunchFailure(
-      kind: 'internal',
-      message:
-          'seededValues cannot be combined with varsFlag or varsFileValues.',
-      exitCode: FoundryExitCode.internalError.code,
     );
   }
 
@@ -230,17 +335,12 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
     final requestFile = File(p.join(helperRoot.path, 'request.json'));
     final resultFile = File(p.join(helperRoot.path, 'result.json'));
     await requestFile.writeAsString(
-      jsonEncode({
-        'moldPath': resolvedMoldDirectory.path,
-        'outputPath': Directory(outputPath).absolute.path,
-        'resultPath': resultFile.path,
-        'force': force,
-        'noHooks': noHooks,
-        if (finishOnly) 'finishOnly': true,
-        if (varsFlag != null) 'varsFlag': varsFlag,
-        if (varsFileValues != null) 'varsFileValues': varsFileValues,
-        if (seededValues != null) 'seededValues': seededValues,
-      }),
+      jsonEncode(
+        buildRequest(
+          resolvedMoldPath: resolvedMoldDirectory.path,
+          resultPath: resultFile.path,
+        ),
+      ),
     );
 
     final entrypoint = File(
@@ -405,6 +505,39 @@ MoldCastSessionLaunchResult decodeMoldCastSessionLaunchResult({
   };
 
   if (map['ok'] == true) {
+    if (map['describe'] == true) {
+      final variables = map['variables'];
+      if (variables is! List) {
+        return MoldCastSessionLaunchFailure(
+          kind: 'internal',
+          message: 'Describe success payload was missing variables.',
+          exitCode: FoundryExitCode.internalError.code,
+        );
+      }
+      try {
+        return MoldCastSessionDescribeSuccess(
+          variables: [
+            for (final entry in variables)
+              if (entry is Map)
+                MoldVariableDescription.fromJson({
+                  for (final mapEntry in entry.entries)
+                    if (mapEntry.key is String)
+                      mapEntry.key as String: mapEntry.value,
+                }),
+          ],
+          exitCode: fallbackExitCode == 0
+              ? FoundryExitCode.success.code
+              : fallbackExitCode,
+        );
+      } on FormatException catch (error) {
+        return MoldCastSessionLaunchFailure(
+          kind: 'internal',
+          message: 'Describe success payload was invalid: $error',
+          exitCode: FoundryExitCode.internalError.code,
+        );
+      }
+    }
+
     final artifactCount = map['artifactCount'];
     final vars = map['vars'];
     final writtenFiles = map['writtenFiles'];

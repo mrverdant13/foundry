@@ -1023,6 +1023,41 @@ void main() {
         expect(help, contains('--vars'));
         expect(help, contains('--vars-file'));
       });
+
+      test(
+        'fails when the session returns an unexpected describe result',
+        () async {
+          Directory(p.join(workDir.path, 'mold')).createSync();
+          final errorMessages = <String>[];
+          final runner = buildRunner(
+            workingDirectory: workDir,
+            onError: errorMessages.add,
+            launchBatchSession: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              seededValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+              finishOnly = false,
+            }) async {
+              return const MoldCastSessionDescribeSuccess(
+                variables: [],
+                exitCode: 0,
+              );
+            },
+          );
+
+          final exitCode = await runner.run(['cast', 'mold', '--output=out']);
+
+          expect(exitCode, FoundryExitCode.internalError.code);
+          expect(
+            errorMessages,
+            contains(contains('unexpected describe session result')),
+          );
+        },
+      );
     });
   });
 }

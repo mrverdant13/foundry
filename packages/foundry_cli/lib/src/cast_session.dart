@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart' show UsageException;
+import 'package:foundry_cli/src/cast_session_describe.dart';
 import 'package:foundry_cli/src/cast_session_vars.dart';
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_core/foundry_core.dart';
@@ -219,6 +220,9 @@ final class BatchCastSessionOutputMissingFailure
 /// Finish-only pipeline ([runFinishOnly]): seed context from projected vars →
 /// in-process finish hook (no prepare/shape/render).
 ///
+/// Describe ([describeVariables]): report live variable metadata without
+/// hooks, gather, or render.
+///
 /// Hooks use [runMoldHookInProcess] so prepare-seeded non-JSON values remain
 /// visible to later phases on the same [FoundryContext] instance. Batch parse
 /// marks user-supplied keys dirty so explicit JSON `null` is not overwritten
@@ -253,6 +257,14 @@ final class CastSession {
 
   /// Logger installed on the session [FoundryContext]; defaults to [Logger].
   final Logger? logger;
+
+  /// Describes the mold's live [FoundryVariableGroup] metadata.
+  ///
+  /// Does not create [outputPath], run hooks, gather values, or render
+  /// templates.
+  List<MoldVariableDescription> describeVariables() {
+    return describeMoldVariableGroup(mold.variableGroup);
+  }
 
   /// Runs the batch pipeline with optional `--vars` / `--vars-file` inputs.
   ///

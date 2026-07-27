@@ -100,9 +100,12 @@ void main() {
       expect(source, contains('.runInteractive('));
       expect(source, contains('.runSeeded('));
       expect(source, contains('.runFinishOnly('));
+      expect(source, contains('describeMoldVariableGroup'));
       expect(source, contains('hasBatchInputs'));
       expect(source, contains('seededValues'));
       expect(source, contains('finishOnly'));
+      expect(source, contains('describeOnly'));
+      expect(source, contains("'describe': true"));
       expect(source, contains("kind: 'cancel'"));
       expect(source, contains('const CastSessionHooks()'));
       expect(source, isNot(contains('prepare_hook')));
