@@ -122,6 +122,24 @@ void main() {
       expect(errorMessages, isNotEmpty);
     });
 
+    test('reports warnings for present optional hooks', () async {
+      await writeInspectableMold(directory: workDir, name: 'demo_app');
+      final hooksDir = Directory(p.join(workDir.path, 'hooks'))..createSync();
+      await File(p.join(hooksDir.path, 'shape.dart')).writeAsString('//');
+      final infoMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onInfo: infoMessages.add,
+      );
+
+      final exitCode = await runner.run(['inspect']);
+
+      expect(exitCode, FoundryExitCode.success.code);
+      expect(infoMessages, contains(contains('[WARN]')));
+      expect(infoMessages, contains(contains('shape')));
+      expect(infoMessages, contains(contains('demo_app')));
+    });
+
     test('reports warnings for an empty variable group', () async {
       await writeInspectableMold(directory: workDir, name: 'demo_app');
       await File(p.join(workDir.path, 'variables.dart')).writeAsString('''
