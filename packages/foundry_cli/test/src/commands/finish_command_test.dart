@@ -303,8 +303,7 @@ void main() {
         }) async {
           return MoldCastSessionLaunchFailure(
             kind: 'hook',
-            message:
-                'No finish hook defined for mold "demo_app" at '
+            message: 'No finish hook defined for mold "demo_app" at '
                 '${MoldHooks.finishPath}.',
             exitCode: 1,
           );
