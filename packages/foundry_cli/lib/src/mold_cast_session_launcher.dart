@@ -97,6 +97,7 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
 ///
 /// Mode selection (via the request payload):
 /// - [finishOnly] `true` → finish-only session seeded from [varsFileValues]
+/// - [seededValues] → seeded session (recast; keeps non-variable keys)
 /// - [varsFlag] and/or [varsFileValues] → batch session
 /// - otherwise → interactive gather (Nocterm, or `FOUNDRY_E2E_VARS` when set)
 ///
@@ -111,6 +112,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   required String moldPath,
   required String outputPath,
   Map<String, Object?>? varsFileValues,
+  Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force = false,
   bool noHooks = false,
@@ -159,6 +161,14 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
     return MoldCastSessionLaunchFailure(
       kind: 'internal',
       message: 'finishOnly session launch requires varsFileValues.',
+      exitCode: FoundryExitCode.internalError.code,
+    );
+  }
+  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
+    return MoldCastSessionLaunchFailure(
+      kind: 'internal',
+      message:
+          'seededValues cannot be combined with varsFlag or varsFileValues.',
       exitCode: FoundryExitCode.internalError.code,
     );
   }
@@ -229,6 +239,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
         if (finishOnly) 'finishOnly': true,
         if (varsFlag != null) 'varsFlag': varsFlag,
         if (varsFileValues != null) 'varsFileValues': varsFileValues,
+        if (seededValues != null) 'seededValues': seededValues,
       }),
     );
 

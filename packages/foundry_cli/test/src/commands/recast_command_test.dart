@@ -65,6 +65,7 @@ void main() {
       required String moldPath,
       required String outputPath,
       Map<String, Object?>? varsFileValues,
+      Map<String, Object?>? seededValues,
       String? varsFlag,
       bool force,
       bool noHooks,
@@ -75,6 +76,7 @@ void main() {
       required moldPath,
       required outputPath,
       varsFileValues,
+      seededValues,
       varsFlag,
       force = false,
       noHooks = false,
@@ -84,6 +86,7 @@ void main() {
         moldPath: moldPath,
         outputPath: outputPath,
         varsFileValues: varsFileValues,
+        seededValues: seededValues,
         varsFlag: varsFlag,
         force: force,
         noHooks: noHooks,
@@ -178,7 +181,7 @@ void main() {
     });
 
     test(
-      'launches a batch session seeded from last_cast vars and updates state',
+      'launches a seeded session from last_cast vars and updates state',
       () async {
         Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
@@ -186,13 +189,18 @@ void main() {
           workDir,
           moldPath: 'mold',
           outputPath: 'out',
-          vars: const {'project_name': 'Ada', 'optional_note': null},
+          vars: const {
+            'project_name': 'Ada',
+            'optional_note': null,
+            'seed': 'from-prepare',
+          },
         );
         await File(p.join(outputDir.path, 'README.md'))
             .writeAsString('# corrupted\n');
 
         String? seenMoldPath;
-        Map<String, Object?>? seenVars;
+        Map<String, Object?>? seenSeededValues;
+        Map<String, Object?>? seenVarsFileValues;
         var seenForce = false;
         var seenNoHooks = true;
         var seenFinishOnly = true;
@@ -209,13 +217,15 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
               finishOnly = false,
             }) {
               seenMoldPath = moldPath;
-              seenVars = varsFileValues;
+              seenSeededValues = seededValues;
+              seenVarsFileValues = varsFileValues;
               seenForce = force;
               seenNoHooks = noHooks;
               seenFinishOnly = finishOnly;
@@ -229,10 +239,12 @@ void main() {
         expect(infoMessages, contains('✓ Recast completed'));
         expect(infoMessages, contains(contains('1 artifacts generated')));
         expect(seenMoldPath, p.join(workDir.path, 'mold'));
-        expect(seenVars, {
+        expect(seenSeededValues, {
           'project_name': 'Ada',
           'optional_note': null,
+          'seed': 'from-prepare',
         });
+        expect(seenVarsFileValues, isNull);
         expect(seenForce, isTrue);
         expect(seenNoHooks, isFalse);
         expect(seenFinishOnly, isFalse);
@@ -268,6 +280,7 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
@@ -304,6 +317,7 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
@@ -332,6 +346,7 @@ void main() {
           required moldPath,
           required outputPath,
           varsFileValues,
+          seededValues,
           varsFlag,
           force = false,
           noHooks = false,
@@ -367,6 +382,7 @@ void main() {
           required moldPath,
           required outputPath,
           varsFileValues,
+          seededValues,
           varsFlag,
           force = false,
           noHooks = false,

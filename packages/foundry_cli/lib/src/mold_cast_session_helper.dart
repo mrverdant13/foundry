@@ -111,6 +111,7 @@ final class MoldCastSessionHelperHookImports {
 ///
 /// Request routing:
 /// - `finishOnly: true` → finish-only session (seeded from `varsFileValues`)
+/// - `seededValues` present → seeded session (recast; keeps non-variable keys)
 /// - `--vars` / `--vars-file` inputs → batch session
 /// - otherwise → interactive gather (Nocterm with inherited stdio, or
 ///   `FOUNDRY_E2E_VARS`)
@@ -226,9 +227,32 @@ Future<void> main(List<String> args) async {
     };
   }
 
+  Map<String, Object?>? seededValues;
+  final rawSeededValues = request['seededValues'];
+  if (rawSeededValues != null) {
+    if (rawSeededValues is! Map) {
+      stderr.writeln(
+        'Session request seededValues must be a JSON object when present.',
+      );
+      exitCode = FoundryExitCode.internalError.code;
+      return;
+    }
+    seededValues = <String, Object?>{
+      for (final entry in rawSeededValues.entries)
+        if (entry.key is String) entry.key as String: entry.value,
+    };
+  }
+
   if (finishOnly && varsFileValues == null) {
     stderr.writeln(
       'Session request finishOnly requires varsFileValues.',
+    );
+    exitCode = FoundryExitCode.internalError.code;
+    return;
+  }
+  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
+    stderr.writeln(
+      'Session request seededValues cannot be combined with batch vars inputs.',
     );
     exitCode = FoundryExitCode.internalError.code;
     return;
@@ -278,6 +302,12 @@ Future<void> main(List<String> args) async {
   if (finishOnly) {
     result = await session.runFinishOnly(
       vars: varsFileValues!,
+      noHooks: noHooks,
+    );
+  } else if (seededValues != null) {
+    result = await session.runSeeded(
+      values: seededValues,
+      force: force,
       noHooks: noHooks,
     );
   } else {

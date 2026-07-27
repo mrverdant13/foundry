@@ -214,6 +214,9 @@ final class BatchCastSessionOutputMissingFailure
 /// Interactive pipeline ([runInteractive]): prepare → Nocterm gather (or
 /// `FOUNDRY_E2E_VARS`) → evaluate/validate → shape → render → finish.
 ///
+/// Seeded pipeline ([runSeeded]): seed context from projected vars → prepare →
+/// evaluate/validate → shape → render → finish (used by recast).
+///
 /// Finish-only pipeline ([runFinishOnly]): seed context from projected vars →
 /// in-process finish hook (no prepare/shape/render).
 ///
@@ -226,11 +229,11 @@ final class BatchCastSessionOutputMissingFailure
 /// Callers (session bridges, tests) invoke this with an in-memory or
 /// same-isolate constructed [Mold].
 ///
-/// Do not run multiple [runBatch] / [runInteractive] / [runFinishOnly] calls
-/// concurrently in the same process (for example via `Future.wait`):
-/// in-process hooks temporarily set process-global [Directory.current] to each
-/// cast's output directory, so overlapping sessions can race. See
-/// [runMoldHookInProcess].
+/// Do not run multiple [runBatch] / [runInteractive] / [runSeeded] /
+/// [runFinishOnly] calls concurrently in the same process (for example via
+/// `Future.wait`): in-process hooks temporarily set process-global
+/// [Directory.current] to each cast's output directory, so overlapping
+/// sessions can race. See [runMoldHookInProcess].
 final class CastSession {
   /// Creates a cast session for [mold] writing into [outputPath].
   const CastSession({
@@ -366,6 +369,63 @@ final class CastSession {
     }
 
     context.merge(gathered);
+
+    try {
+      final evaluation = mold.variableGroup.evaluate(
+        rawValues: context.copyValues(),
+      );
+      final validation = mold.variableGroup.validate(evaluation);
+      if (!validation.isValid) {
+        return BatchCastSessionValidationFailure(validation);
+      }
+      context.merge(evaluation.resolvedValues);
+    } on FoundryContextException catch (exception) {
+      return BatchCastSessionContextFailure(exception);
+    }
+
+    return _completeBatch(
+      context: context,
+      force: force,
+      noHooks: noHooks,
+    );
+  }
+
+  /// Runs prepare → evaluate/validate → shape → render → finish with [values]
+  /// seeding the context before prepare.
+  ///
+  /// Unlike [runBatch], [values] are not parsed as `--vars` / `--vars-file`
+  /// inputs: non-variable keys (for example encodable prepare seeds persisted
+  /// in `.foundry/last_cast.json`) are kept on the context and are not reported
+  /// as unknown variables. Used by `foundry recast`.
+  ///
+  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  Future<BatchCastSessionResult> runSeeded({
+    required Map<String, Object?> values,
+    bool force = false,
+    bool noHooks = false,
+  }) async {
+    final outputDirectory = Directory(outputPath);
+    await outputDirectory.create(recursive: true);
+
+    final context = FoundryContext(
+      values: Map<String, Object?>.of(values),
+      logger: logger ?? Logger(),
+      moldDirectory: mold.directory,
+      outputDirectory: outputDirectory,
+    );
+
+    if (!noHooks) {
+      try {
+        await runMoldHookInProcess(
+          phase: MoldHookPhase.prepare,
+          hookFile: mold.prepareHook,
+          context: context,
+          entryPoint: hooks.prepare,
+        );
+      } on MoldHookException catch (exception) {
+        return BatchCastSessionHookFailure(exception);
+      }
+    }
 
     try {
       final evaluation = mold.variableGroup.evaluate(

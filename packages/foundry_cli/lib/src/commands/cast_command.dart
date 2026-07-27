@@ -60,6 +60,7 @@ typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
   required String moldPath,
   required String outputPath,
   Map<String, Object?>? varsFileValues,
+  Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force,
   bool noHooks,

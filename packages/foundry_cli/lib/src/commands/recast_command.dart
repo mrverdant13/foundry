@@ -98,7 +98,7 @@ class RecastCommand extends Command<int> {
     final result = await _launchBatchSession(
       moldPath: moldPath,
       outputPath: outputPath,
-      varsFileValues: state.vars,
+      seededValues: state.vars,
       force: force,
       noHooks: noHooks,
     );

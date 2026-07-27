@@ -98,8 +98,10 @@ void main() {
       expect(source, contains('CastSession('));
       expect(source, contains('.runBatch('));
       expect(source, contains('.runInteractive('));
+      expect(source, contains('.runSeeded('));
       expect(source, contains('.runFinishOnly('));
       expect(source, contains('hasBatchInputs'));
+      expect(source, contains('seededValues'));
       expect(source, contains('finishOnly'));
       expect(source, contains("kind: 'cancel'"));
       expect(source, contains('const CastSessionHooks()'));

@@ -908,6 +908,84 @@ void main() {
     );
   });
 
+  group('CastSession.runSeeded', () {
+    test(
+      'keeps non-variable prepare seeds and re-renders from seeded vars',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'name={{ project_name }}\n'
+              'seed={{ seed }}\n'
+              'shaped={{ shaped }}\n',
+        );
+        await touchHook(MoldHooks.preparePath);
+        await touchHook(MoldHooks.shapePath);
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: const FoundryVariableGroup(
+              variables: {
+                'project_name': FoundryStringVariable(label: 'Project name'),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+          hooks: CastSessionHooks(
+            prepare: (context) async {
+              context.set('seed', 'from-prepare');
+            },
+            shape: (context) async {
+              context.set('shaped', 'yes');
+            },
+          ),
+        ).runSeeded(
+          values: const {
+            'project_name': 'Ada',
+            'seed': 'stale-seed',
+            'shaped': 'stale-shaped',
+          },
+          force: true,
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        final success = result as BatchCastSessionSuccess;
+        expect(success.vars['project_name'], 'Ada');
+        expect(success.vars['seed'], 'from-prepare');
+        expect(success.vars['shaped'], 'yes');
+        expect(
+          await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+          'name=Ada\n'
+          'seed=from-prepare\n'
+          'shaped=yes\n',
+        );
+      },
+    );
+
+    test('returns validation failure for invalid seeded variable values',
+        () async {
+      await writeTemplateFile('out.txt', '{{ project_name }}');
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(
+                label: 'Project name',
+                validators: [
+                  (value, _) => value == 'bad' ? 'nope' : null,
+                ],
+              ),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+      ).runSeeded(values: const {'project_name': 'bad'});
+
+      expect(result, isA<BatchCastSessionValidationFailure>());
+      final failure = result as BatchCastSessionValidationFailure;
+      expect(failure.message, contains('project_name: nope'));
+    });
+  });
+
   group('CastSession.runFinishOnly', () {
     test('runs finish in-process without re-rendering templates', () async {
       await writeTemplateFile('README.md', '# {{ project_name }}\n');
