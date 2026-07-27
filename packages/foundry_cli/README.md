@@ -12,17 +12,18 @@ The `foundry` executable wraps the
 for the full mold lifecycle:
 
 - **`foundry mold init`** — scaffold a new mold package in the current directory
-- **`foundry mold inspect`** — validate mold layout, variables, and hooks
+- **`foundry mold inspect`** — validate mold layout and report live variable
+  metadata from a describe session
 - **`foundry mold derive`** — generate a starter mold from a pattern directory
   (resolves pattern annotations and `.foundry/pattern.yaml` `replacements` /
   `lineDeletions`)
 - **`foundry mold sync`** — refresh an existing mold `template/` from a pattern
   (same annotation rules as derive)
 - **`foundry mold import`** — copy a mold from git or a local path
-- **`foundry cast`** — gather variables, run hooks, and render templates to
-  `--output`
-- **`foundry recast`** — replay the last successful cast from
-  `.foundry/last_cast.json`
+- **`foundry cast`** — run a mold cast session (live `variables.dart`, in-process
+  hooks, template render) to `--output`
+- **`foundry recast`** — replay the last successful cast from the encodable
+  projection in `.foundry/last_cast.json`
 - **`foundry finish`** — run only the finish hook against the last cast output
 
 Molds are Dart packages with a root `pubspec.yaml`, `variables.dart`, a
@@ -82,9 +83,16 @@ foundry mold inspect
 foundry cast . --output=../hello_out
 ```
 
-Foundry gathers variables through an interactive TUI by default, renders
-`template/` into `--output`, and writes `.foundry/last_cast.json` in the process
-working directory on success.
+Cast runs inside a **mold cast session**: a short-lived helper that imports the
+mold's live `variables.dart` and runs prepare → gather → shape → render → finish
+in one process with in-process hooks (no JSON round-trip between phases). See the
+[hook authoring guide](https://github.com/mrverdant13/foundry/blob/main/doc/hooks.md).
+
+By default Foundry gathers variables through an interactive TUI inside that
+session, renders `template/` into `--output`, and on success writes
+`.foundry/last_cast.json` in the process working directory. That file stores an
+**encodable projection** of resolved values only (JSON primitives, lists, and
+string-keyed maps) — non-encodable prepare seeds from the cast are not persisted.
 
 Pass `--vars` and/or `--vars-file` to supply values in batch and skip the TUI:
 
@@ -109,6 +117,11 @@ skip all hook phases.
 foundry recast
 foundry finish
 ```
+
+`recast` and `finish` also launch a mold cast session. `recast` re-runs the full
+pipeline from the encodable `vars` in `.foundry/last_cast.json` (JSON-safe values
+only). `finish` runs only the finish hook against the stored output without
+re-rendering templates.
 
 See the [`example/`](example/) directory for a bundled mold you can inspect and
 cast with `dart run`.
@@ -231,6 +244,9 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
   [--vars=<k=v,…>] [--vars-file=<path>]
 ```
 
+Runs a mold cast session (live `variables.dart` + in-process hooks). On success,
+writes `.foundry/last_cast.json` with an encodable `vars` projection only.
+
 | Argument / option | Description |
 | ----------------- | ----------- |
 | `<mold-path>` | **Required.** Path to the mold directory |
@@ -246,7 +262,13 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 foundry recast [--force] [--no-hooks]
 ```
 
-Replays the last successful cast from `.foundry/last_cast.json`.
+Replays the last successful cast via a mold cast session seeded from
+`.foundry/last_cast.json`. Stored `vars` are an encodable projection only.
+
+| Option | Description |
+| ------ | ----------- |
+| `--force` | Allow casting into a non-empty output directory |
+| `--no-hooks` | Skip prepare, shape, and finish hooks |
 
 #### `foundry finish`
 
@@ -254,8 +276,13 @@ Replays the last successful cast from `.foundry/last_cast.json`.
 foundry finish [--no-hooks]
 ```
 
-Runs only the finish hook against the last cast output without re-rendering
-templates.
+Runs a finish-only mold cast session for the last cast (requires
+`hooks/finish.dart`). Seeds context from the encodable `vars` projection in
+`.foundry/last_cast.json` without re-rendering templates.
+
+| Option | Description |
+| ------ | ----------- |
+| `--no-hooks` | Skip the finish hook |
 
 ## Resources
 
