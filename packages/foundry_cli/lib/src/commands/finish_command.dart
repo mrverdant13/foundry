@@ -3,21 +3,17 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
-
-/// Runs only the mold's finish hook against [outputPath].
-typedef FinishHookRunner = Future<void> Function({
-  required Mold mold,
-  required String outputPath,
-  required Map<String, Object?> values,
-});
 
 /// {@template foundry_cli.finish_command}
 /// `foundry finish [--no-hooks]`
 ///
 /// Runs the finish hook from the last cast's mold against the stored output
-/// directory without re-rendering templates.
+/// directory without re-rendering templates. Launches a finish-only mold cast
+/// session so the hook runs in-process against the live mold package; vars are
+/// seeded from the encodable projection in `.foundry/last_cast.json`.
 /// {@endtemplate}
 class FinishCommand extends Command<int> {
   /// {@macro foundry_cli.finish_command}
@@ -25,10 +21,10 @@ class FinishCommand extends Command<int> {
     required this.logger,
     Directory? workingDirectory,
     CastStateReader? readState,
-    FinishHookRunner? runFinishHook,
+    BatchMoldCastSessionLauncher? launchBatchSession,
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _readState = readState ?? readCastState,
-        _runFinishHook = runFinishHook ?? _defaultFinishHookRunner {
+        _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
     argParser.addFlag(
       CastCommand.noHooksOptionName,
       negatable: false,
@@ -44,7 +40,7 @@ class FinishCommand extends Command<int> {
   final Directory workingDirectory;
 
   final CastStateReader _readState;
-  final FinishHookRunner _runFinishHook;
+  final BatchMoldCastSessionLauncher _launchBatchSession;
 
   @override
   String get name => 'finish';
@@ -85,25 +81,6 @@ class FinishCommand extends Command<int> {
       p.join(workingDirectory.path, state.outputPath),
     );
 
-    final Mold mold;
-    try {
-      mold = await loadMold(moldPath);
-    } on MoldLoadException catch (exception) {
-      for (final issue in exception.issues) {
-        logger.error('${issue.path}: ${issue.message}');
-      }
-      return FoundryExitCode.userError.code;
-    }
-
-    final finishHook = mold.finishHook;
-    if (finishHook == null || !finishHook.existsSync()) {
-      logger.error(
-        'No finish hook defined for mold "${mold.name}" at '
-        '${MoldHooks.finishPath}.',
-      );
-      return FoundryExitCode.userError.code;
-    }
-
     if (!Directory(outputPath).existsSync()) {
       logger.error(
         'Output directory "${state.outputPath}" does not exist. '
@@ -112,37 +89,20 @@ class FinishCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
-    try {
-      await _runFinishHook(
-        mold: mold,
-        outputPath: outputPath,
-        values: state.vars,
-      );
-    } on MoldHookException catch (exception) {
-      logger.error(exception.toString());
-      return FoundryExitCode.userError.code;
+    final result = await _launchBatchSession(
+      moldPath: moldPath,
+      outputPath: outputPath,
+      varsFileValues: state.vars,
+      finishOnly: true,
+    );
+
+    switch (result) {
+      case MoldCastSessionLaunchSuccess(:final exitCode):
+        logger.info('✓ Finish completed');
+        return exitCode;
+      case MoldCastSessionLaunchFailure(:final message, :final exitCode):
+        logger.error(message);
+        return exitCode;
     }
-
-    logger.info('✓ Finish completed');
-    return FoundryExitCode.success.code;
   }
-}
-
-Future<void> _defaultFinishHookRunner({
-  required Mold mold,
-  required String outputPath,
-  required Map<String, Object?> values,
-}) async {
-  final context = FoundryContext(
-    values: values,
-    logger: Logger(),
-    moldDirectory: mold.directory,
-    outputDirectory: Directory(outputPath),
-  );
-
-  await runMoldHook(
-    phase: MoldHookPhase.finish,
-    hookFile: mold.finishHook,
-    context: context,
-  );
 }

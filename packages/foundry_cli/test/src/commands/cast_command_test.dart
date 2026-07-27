@@ -53,26 +53,32 @@ void main() {
       required String moldPath,
       required String outputPath,
       Map<String, Object?>? varsFileValues,
+      Map<String, Object?>? seededValues,
       String? varsFlag,
       bool force,
       bool noHooks,
+      bool finishOnly,
     })? onLaunch,
   }) {
     return ({
       required moldPath,
       required outputPath,
       varsFileValues,
+      seededValues,
       varsFlag,
       force = false,
       noHooks = false,
+      finishOnly = false,
     }) async {
       onLaunch?.call(
         moldPath: moldPath,
         outputPath: outputPath,
         varsFileValues: varsFileValues,
+        seededValues: seededValues,
         varsFlag: varsFlag,
         force: force,
         noHooks: noHooks,
+        finishOnly: finishOnly,
       );
       Directory(outputPath).createSync(recursive: true);
       final artifact = File(p.join(outputPath, 'README.md'));
@@ -159,9 +165,11 @@ void main() {
           required moldPath,
           required outputPath,
           varsFileValues,
+          seededValues,
           varsFlag,
           force = false,
           noHooks = false,
+          finishOnly = false,
         }) async =>
             const MoldCastSessionLaunchFailure(
           kind: 'load',
@@ -196,9 +204,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             launchCalls++;
             return const MoldCastSessionLaunchSuccess(
@@ -256,9 +266,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             // Session prepare creates --output before gather cancel.
             Directory(outputPath).createSync(recursive: true);
@@ -292,9 +304,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             Directory(outputPath).createSync(recursive: true);
             await File(
@@ -334,9 +348,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) {
             seenNoHooks = noHooks;
           },
@@ -363,9 +379,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             Directory(outputPath).createSync(recursive: true);
             return const MoldCastSessionLaunchFailure(
@@ -396,9 +414,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             // Session creates --output before gather fails (e.g. bad
             // FOUNDRY_E2E_VARS).
@@ -431,9 +451,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
             kind: 'validation',
@@ -478,9 +500,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
             kind: 'render',
@@ -513,9 +537,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) {
               launchCalls++;
               captured['moldPath'] = moldPath;
@@ -579,9 +605,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) {
               launchedVarsFile = varsFileValues;
             },
@@ -616,9 +644,11 @@ void main() {
                 required moldPath,
                 required outputPath,
                 varsFileValues,
+                seededValues,
                 varsFlag,
                 force = false,
                 noHooks = false,
+                finishOnly = false,
               }) {
                 captured['varsFileValues'] = varsFileValues;
                 captured['varsFlag'] = varsFlag;
@@ -663,9 +693,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) async =>
                 failure,
           );
@@ -705,9 +737,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) async =>
                 failure,
           );
@@ -747,9 +781,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) async =>
                 failure,
           );
@@ -780,9 +816,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             launchCalls++;
             return const MoldCastSessionLaunchSuccess(
@@ -822,9 +860,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             launchCalls++;
             return const MoldCastSessionLaunchSuccess(
@@ -861,9 +901,11 @@ void main() {
             required moldPath,
             required outputPath,
             varsFileValues,
+            seededValues,
             varsFlag,
             force = false,
             noHooks = false,
+            finishOnly = false,
           }) async {
             launchCalls++;
             return const MoldCastSessionLaunchSuccess(
@@ -902,9 +944,11 @@ void main() {
               required moldPath,
               required outputPath,
               varsFileValues,
+              seededValues,
               varsFlag,
               force = false,
               noHooks = false,
+              finishOnly = false,
             }) async {
               launchCalls++;
               return const MoldCastSessionLaunchSuccess(
@@ -948,9 +992,11 @@ void main() {
                 required moldPath,
                 required outputPath,
                 varsFileValues,
+                seededValues,
                 varsFlag,
                 force = false,
                 noHooks = false,
+                finishOnly = false,
               }) {
                 launchCalls++;
                 launchedVarsFlag = varsFlag;

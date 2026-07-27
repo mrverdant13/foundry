@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -10,7 +11,9 @@ import 'package:path/path.dart' as p;
 /// `foundry recast [--force] [--no-hooks]`
 ///
 /// Replays the last successful `foundry cast` using paths and variable
-/// values from `.foundry/last_cast.json` in the process cwd.
+/// values from `.foundry/last_cast.json` in the process cwd. Launches a mold
+/// cast session so lifecycle hooks run against the live `variables.dart`
+/// group; stored vars are the encodable projection from the prior cast.
 /// {@endtemplate}
 class RecastCommand extends Command<int> {
   /// {@macro foundry_cli.recast_command}
@@ -18,10 +21,10 @@ class RecastCommand extends Command<int> {
     required this.logger,
     Directory? workingDirectory,
     CastStateReader? readState,
-    CastRunner? runCast,
+    BatchMoldCastSessionLauncher? launchBatchSession,
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _readState = readState ?? readCastState,
-        _runCast = runCast ?? castMold {
+        _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
     argParser
       ..addFlag(
         CastCommand.forceOptionName,
@@ -43,7 +46,7 @@ class RecastCommand extends Command<int> {
   final Directory workingDirectory;
 
   final CastStateReader _readState;
-  final CastRunner _runCast;
+  final BatchMoldCastSessionLauncher _launchBatchSession;
 
   @override
   String get name => 'recast';
@@ -92,60 +95,36 @@ class RecastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
-    final Mold mold;
-    try {
-      mold = await loadMold(moldPath);
-    } on MoldLoadException catch (exception) {
-      for (final issue in exception.issues) {
-        logger.error('${issue.path}: ${issue.message}');
-      }
-      return FoundryExitCode.userError.code;
-    }
-
-    final CastOutcome outcome;
-    try {
-      outcome = await _runCast(
-        mold: mold,
-        outputPath: outputPath,
-        values: state.vars,
-        force: force,
-        noHooks: noHooks,
-      );
-    } on CastVariablesInvalidException catch (exception) {
-      logger.error('Cast variables are invalid:');
-      for (final fieldEntry in exception.validation.fieldErrors.entries) {
-        for (final error in fieldEntry.value) {
-          logger.error('  ${fieldEntry.key}: $error');
-        }
-      }
-      for (final error in exception.validation.groupErrors) {
-        logger.error('  $error');
-      }
-      return FoundryExitCode.userError.code;
-    } on FoundryContextException catch (exception) {
-      logger.error('Invalid cast variable input: ${exception.message}');
-      return FoundryExitCode.userError.code;
-    } on MoldHookException catch (exception) {
-      logger.error(exception.toString());
-      return FoundryExitCode.userError.code;
-    } on TemplateRenderException catch (exception) {
-      logger.error(exception.message);
-      return FoundryExitCode.userError.code;
-    }
-
-    await writeCastState(
-      CastState(
-        moldPath: state.moldPath,
-        outputPath: state.outputPath,
-        vars: outcome.values,
-        timestamp: DateTime.now(),
-      ),
-      cwd: workingDirectory,
+    final result = await _launchBatchSession(
+      moldPath: moldPath,
+      outputPath: outputPath,
+      seededValues: state.vars,
+      force: force,
+      noHooks: noHooks,
     );
 
-    logger
-      ..info('✓ Recast completed')
-      ..info('✓ ${outcome.artifactCount} artifacts generated at $outputPath');
-    return FoundryExitCode.success.code;
+    switch (result) {
+      case MoldCastSessionLaunchSuccess(
+          :final artifactCount,
+          :final vars,
+          :final exitCode,
+        ):
+        await writeCastState(
+          CastState(
+            moldPath: state.moldPath,
+            outputPath: state.outputPath,
+            vars: vars,
+            timestamp: DateTime.now(),
+          ),
+          cwd: workingDirectory,
+        );
+        logger
+          ..info('✓ Recast completed')
+          ..info('✓ $artifactCount artifacts generated at $outputPath');
+        return exitCode;
+      case MoldCastSessionLaunchFailure(:final message, :final exitCode):
+        logger.error(message);
+        return exitCode;
+    }
   }
 }

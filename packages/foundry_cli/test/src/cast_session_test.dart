@@ -907,4 +907,295 @@ void main() {
       },
     );
   });
+
+  group('CastSession.runSeeded', () {
+    test(
+      'keeps non-variable prepare seeds and re-renders from seeded vars',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'name={{ project_name }}\n'
+              'seed={{ seed }}\n'
+              'shaped={{ shaped }}\n',
+        );
+        await touchHook(MoldHooks.preparePath);
+        await touchHook(MoldHooks.shapePath);
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: const FoundryVariableGroup(
+              variables: {
+                'project_name': FoundryStringVariable(label: 'Project name'),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+          hooks: CastSessionHooks(
+            prepare: (context) async {
+              context.set('seed', 'from-prepare');
+            },
+            shape: (context) async {
+              context.set('shaped', 'yes');
+            },
+          ),
+        ).runSeeded(
+          values: const {
+            'project_name': 'Ada',
+            'seed': 'stale-seed',
+            'shaped': 'stale-shaped',
+          },
+          force: true,
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        final success = result as BatchCastSessionSuccess;
+        expect(success.vars['project_name'], 'Ada');
+        expect(success.vars['seed'], 'from-prepare');
+        expect(success.vars['shaped'], 'yes');
+        expect(
+          await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+          'name=Ada\n'
+          'seed=from-prepare\n'
+          'shaped=yes\n',
+        );
+      },
+    );
+
+    test('returns validation failure for invalid seeded variable values',
+        () async {
+      await writeTemplateFile('out.txt', '{{ project_name }}');
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(
+                label: 'Project name',
+                validators: [
+                  (value, _) => value == 'bad' ? 'nope' : null,
+                ],
+              ),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+      ).runSeeded(values: const {'project_name': 'bad'});
+
+      expect(result, isA<BatchCastSessionValidationFailure>());
+      final failure = result as BatchCastSessionValidationFailure;
+      expect(failure.message, contains('project_name: nope'));
+    });
+
+    test(
+      'preserves explicit null from seeded values over defaultValue',
+      () async {
+        await writeTemplateFile(
+          'out.txt',
+          'name={{ project_name }}\n'
+              'note={{ optional_note }}\n',
+        );
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: FoundryVariableGroup(
+              variables: {
+                'project_name': const FoundryStringVariable(
+                  label: 'Project name',
+                ),
+                'optional_note': FoundryStringVariable(
+                  label: 'Optional note',
+                  defaultValue: (_) => 'DEFAULT_NOTE',
+                ),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+        ).runSeeded(
+          values: const {
+            'project_name': 'Ada',
+            'optional_note': null,
+          },
+          force: true,
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        final success = result as BatchCastSessionSuccess;
+        expect(success.vars['project_name'], 'Ada');
+        expect(success.vars.containsKey('optional_note'), isTrue);
+        expect(success.vars['optional_note'], isNull);
+        expect(
+          await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
+          'name=Ada\n'
+          'note=\n',
+        );
+      },
+    );
+
+    test('returns hook failure when prepare throws', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      await touchHook(MoldHooks.preparePath);
+
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            throw const FoundryHookException('prepare boom');
+          },
+        ),
+      ).runSeeded(values: const {'project_name': 'Ada'});
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.prepare);
+      expect(failure.message, contains('prepare boom'));
+    });
+
+    test(
+      'returns context failure when seeded values include a wrong-typed '
+      'variable',
+      () async {
+        await writeTemplateFile('out.txt', 'ok\n');
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: const FoundryVariableGroup(
+              variables: {
+                'project_name': FoundryStringVariable(label: 'Project name'),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+        ).runSeeded(values: const {'project_name': 42});
+
+        expect(result, isA<BatchCastSessionContextFailure>());
+        final failure = result as BatchCastSessionContextFailure;
+        expect(failure.message, contains('project_name'));
+      },
+    );
+  });
+
+  group('CastSession.runFinishOnly', () {
+    test('runs finish in-process without re-rendering templates', () async {
+      await writeTemplateFile('README.md', '# {{ project_name }}\n');
+      await touchHook(MoldHooks.finishPath);
+      final stale = File(p.join(outputDirectory.path, 'README.md'));
+      await stale.writeAsString('# stale template output\n');
+
+      final beforeCwd = Directory.current.path;
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (context) async {
+            context.set('finish_saw', context.requiredString('project_name'));
+            // Relative path → proves cwd was the output directory.
+            await File('finish_marker.txt').writeAsString('done');
+          },
+        ),
+      ).runFinishOnly(vars: {'project_name': 'Ada'});
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      final success = result as BatchCastSessionSuccess;
+      expect(success.artifactCount, 0);
+      expect(success.writtenFiles, isEmpty);
+      expect(success.vars['project_name'], 'Ada');
+      expect(success.vars['finish_saw'], 'Ada');
+      expect(Directory.current.path, beforeCwd);
+      expect(await stale.readAsString(), '# stale template output\n');
+      expect(
+        await File(
+          p.join(outputDirectory.path, 'finish_marker.txt'),
+        ).readAsString(),
+        'done',
+      );
+    });
+
+    test('returns missing-finish failure when hook file is absent', () async {
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) async {},
+        ),
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionMissingFinishHookFailure>());
+      final failure = result as BatchCastSessionMissingFinishHookFailure;
+      expect(failure.moldName, 'cast_session_demo');
+      expect(failure.message, contains(MoldHooks.finishPath));
+    });
+
+    test('returns output-missing failure when output directory is gone',
+        () async {
+      final missingPath = p.join(outputDirectory.path, 'does_not_exist');
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: missingPath,
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionOutputMissingFailure>());
+      final failure = result as BatchCastSessionOutputMissingFailure;
+      expect(failure.outputPath, missingPath);
+      expect(failure.message, contains('does not exist'));
+    });
+
+    test('skips finish when noHooks is true', () async {
+      await touchHook(MoldHooks.finishPath);
+      var finishCalled = false;
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) async {
+            finishCalled = true;
+          },
+        ),
+      ).runFinishOnly(vars: {'project_name': 'Ada'}, noHooks: true);
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(finishCalled, isFalse);
+      expect(
+        File(p.join(outputDirectory.path, 'finish_marker.txt')).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('returns hook failure when finish throws', () async {
+      await touchHook(MoldHooks.finishPath);
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(variables: {}),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          finish: (_) {
+            throw const FoundryHookException('finish boom');
+          },
+        ),
+      ).runFinishOnly(vars: const {});
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.finish);
+      expect(failure.message, contains('finish boom'));
+    });
+  });
 }

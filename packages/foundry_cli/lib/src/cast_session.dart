@@ -177,6 +177,34 @@ final class BatchCastSessionValidationFailure extends BatchCastSessionFailure {
   }
 }
 
+/// Finish-only session could not run because the finish hook file is absent.
+final class BatchCastSessionMissingFinishHookFailure
+    extends BatchCastSessionFailure {
+  /// Creates a missing-finish-hook failure for [moldName].
+  const BatchCastSessionMissingFinishHookFailure(this.moldName);
+
+  /// Name of the mold that lacks `hooks/finish.dart`.
+  final String moldName;
+
+  @override
+  String get message =>
+      'No finish hook defined for mold "$moldName" at ${MoldHooks.finishPath}.';
+}
+
+/// Finish-only session could not run because the output directory is missing.
+final class BatchCastSessionOutputMissingFailure
+    extends BatchCastSessionFailure {
+  /// Creates an output-missing failure for the stored [outputPath].
+  const BatchCastSessionOutputMissingFailure(this.outputPath);
+
+  /// Output path recorded for the prior cast (as passed to the session).
+  final String outputPath;
+
+  @override
+  String get message => 'Output directory "$outputPath" does not exist. '
+      'Run `foundry cast` or `foundry recast` first.';
+}
+
 /// Runs a cast against a **live** [Mold.variableGroup] in the current isolate.
 ///
 /// Batch pipeline ([runBatch]): prepare → batch parse/evaluate/validate →
@@ -184,6 +212,12 @@ final class BatchCastSessionValidationFailure extends BatchCastSessionFailure {
 ///
 /// Interactive pipeline ([runInteractive]): prepare → Nocterm gather (or
 /// `FOUNDRY_E2E_VARS`) → evaluate/validate → shape → render → finish.
+///
+/// Seeded pipeline ([runSeeded]): seed context from projected vars → prepare →
+/// evaluate/validate → shape → render → finish (used by recast).
+///
+/// Finish-only pipeline ([runFinishOnly]): seed context from projected vars →
+/// in-process finish hook (no prepare/shape/render).
 ///
 /// Hooks use [runMoldHookInProcess] so prepare-seeded non-JSON values remain
 /// visible to later phases on the same [FoundryContext] instance. Batch parse
@@ -194,10 +228,11 @@ final class BatchCastSessionValidationFailure extends BatchCastSessionFailure {
 /// Callers (session bridges, tests) invoke this with an in-memory or
 /// same-isolate constructed [Mold].
 ///
-/// Do not run multiple [runBatch] / [runInteractive] calls concurrently in the
-/// same process (for example via `Future.wait`): in-process hooks temporarily
-/// set process-global [Directory.current] to each cast's output directory, so
-/// overlapping sessions can race. See [runMoldHookInProcess].
+/// Do not run multiple [runBatch] / [runInteractive] / [runSeeded] /
+/// [runFinishOnly] calls concurrently in the same process (for example via
+/// `Future.wait`): in-process hooks temporarily set process-global
+/// [Directory.current] to each cast's output directory, so overlapping
+/// sessions can race. See [runMoldHookInProcess].
 final class CastSession {
   /// Creates a cast session for [mold] writing into [outputPath].
   const CastSession({
@@ -351,6 +386,128 @@ final class CastSession {
       context: context,
       force: force,
       noHooks: noHooks,
+    );
+  }
+
+  /// Runs prepare → evaluate/validate → shape → render → finish with [values]
+  /// seeding the context before prepare.
+  ///
+  /// Unlike [runBatch], [values] are not parsed as `--vars` / `--vars-file`
+  /// inputs: non-variable keys (for example encodable prepare seeds persisted
+  /// in `.foundry/last_cast.json`) are kept on the context and are not reported
+  /// as unknown variables. Used by `foundry recast`.
+  ///
+  /// Keys present in [values] are treated as dirty so an explicit JSON `null`
+  /// from cast state is not overwritten by `defaultValue` (same dirty-key
+  /// semantics as batch parse).
+  ///
+  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  Future<BatchCastSessionResult> runSeeded({
+    required Map<String, Object?> values,
+    bool force = false,
+    bool noHooks = false,
+  }) async {
+    final outputDirectory = Directory(outputPath);
+    await outputDirectory.create(recursive: true);
+
+    final context = FoundryContext(
+      values: Map<String, Object?>.of(values),
+      logger: logger ?? Logger(),
+      moldDirectory: mold.directory,
+      outputDirectory: outputDirectory,
+    );
+
+    if (!noHooks) {
+      try {
+        await runMoldHookInProcess(
+          phase: MoldHookPhase.prepare,
+          hookFile: mold.prepareHook,
+          context: context,
+          entryPoint: hooks.prepare,
+        );
+      } on MoldHookException catch (exception) {
+        return BatchCastSessionHookFailure(exception);
+      }
+    }
+
+    try {
+      final evaluation = mold.variableGroup.evaluate(
+        rawValues: context.copyValues(),
+        dirtyKeys: values.keys.toSet(),
+      );
+      final validation = mold.variableGroup.validate(evaluation);
+      if (!validation.isValid) {
+        return BatchCastSessionValidationFailure(validation);
+      }
+      context.merge(evaluation.resolvedValues);
+    } on FoundryContextException catch (exception) {
+      return BatchCastSessionContextFailure(exception);
+    }
+
+    return _completeBatch(
+      context: context,
+      force: force,
+      noHooks: noHooks,
+    );
+  }
+
+  /// Runs only the finish hook against an existing [outputPath].
+  ///
+  /// Seeds [FoundryContext] from [vars] (typically the encodable projection
+  /// stored in `.foundry/last_cast.json`) and invokes the finish hook
+  /// in-process with cwd = [outputPath]. Does not create the output directory,
+  /// re-render templates, or run prepare/shape.
+  ///
+  /// When [noHooks] is `true`, returns success without invoking finish.
+  /// When `hooks/finish.dart` is absent, returns
+  /// [BatchCastSessionMissingFinishHookFailure] (unlike cast phases, where a
+  /// missing finish file is a no-op).
+  Future<BatchCastSessionResult> runFinishOnly({
+    required Map<String, Object?> vars,
+    bool noHooks = false,
+  }) async {
+    final outputDirectory = Directory(outputPath);
+    if (!outputDirectory.existsSync()) {
+      return BatchCastSessionOutputMissingFailure(outputPath);
+    }
+
+    if (noHooks) {
+      return BatchCastSessionSuccess(
+        artifactCount: 0,
+        vars: projectEncodableCastVars(vars),
+        writtenFiles: const [],
+        outputDirectory: outputDirectory,
+      );
+    }
+
+    final finishHook = mold.finishHook;
+    if (finishHook == null || !finishHook.existsSync()) {
+      return BatchCastSessionMissingFinishHookFailure(mold.name);
+    }
+
+    final context = FoundryContext(
+      values: Map<String, Object?>.of(vars),
+      logger: logger ?? Logger(),
+      moldDirectory: mold.directory,
+      outputDirectory: outputDirectory,
+    );
+
+    try {
+      await runMoldHookInProcess(
+        phase: MoldHookPhase.finish,
+        hookFile: finishHook,
+        context: context,
+        entryPoint: hooks.finish,
+      );
+    } on MoldHookException catch (exception) {
+      return BatchCastSessionHookFailure(exception);
+    }
+
+    return BatchCastSessionSuccess(
+      artifactCount: 0,
+      vars: projectEncodableCastVars(context.copyValues()),
+      writtenFiles: const [],
+      outputDirectory: outputDirectory,
     );
   }
 

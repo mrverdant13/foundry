@@ -46,24 +46,13 @@ Future<CastState?> readCastStateOrReportError({
   }
 }
 
-/// Runs the full cast pipeline for a loaded mold (`prepare` through `finish`).
-///
-/// Production code uses `castMold`; recast and tests inject fakes.
-typedef CastRunner = Future<CastOutcome> Function({
-  required Mold mold,
-  required String outputPath,
-  required Map<String, Object?> values,
-  bool force,
-  bool noHooks,
-});
-
 /// Reads the contents of a `--vars-file` path.
 ///
 /// Production code uses [File.readAsString]; tests inject failures.
 typedef VarsFileContentsReader = Future<String> Function(File file);
 
-/// Launches a mold cast session (batch or interactive) via the synthetic
-/// helper package.
+/// Launches a mold cast session (batch, interactive, or finish-only) via the
+/// synthetic helper package.
 ///
 /// Production code uses [launchBatchMoldCastSession]; tests inject fakes.
 typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
@@ -71,9 +60,11 @@ typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
   required String moldPath,
   required String outputPath,
   Map<String, Object?>? varsFileValues,
+  Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force,
   bool noHooks,
+  bool finishOnly,
 });
 
 /// {@template foundry_cli.cast_command}

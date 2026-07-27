@@ -170,9 +170,10 @@ foundry recast
 foundry finish
 ```
 
-`recast` repeats the last successful cast using state stored in
-`.foundry/last_cast.json`. `finish` runs only the finish hook against the last cast
-output without re-rendering templates.
+`recast` repeats the last successful cast using paths and the **encodable** variable
+projection stored in `.foundry/last_cast.json` (JSON-safe values only; non-encodable
+prepare seeds from the original cast are not restored). `finish` runs only the finish
+hook against the last cast output without re-rendering templates.
 
 ---
 
@@ -337,6 +338,9 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 foundry recast [--force] [--no-hooks]
 ```
 
+Replays the last cast from `.foundry/last_cast.json`. Stored `vars` are an encodable
+projection only.
+
 | Option | Description |
 | --- | --- |
 | `--force` | Allow casting into a non-empty output directory |
@@ -348,9 +352,12 @@ foundry recast [--force] [--no-hooks]
 foundry finish [--no-hooks]
 ```
 
+Runs only the finish hook for the last cast (requires `hooks/finish.dart`). Seeds
+context from the encodable `vars` projection in `.foundry/last_cast.json`.
+
 | Option | Description |
 | --- | --- |
-| `--no-hooks` | Skip the finish hook (no-op when omitted hook file) |
+| `--no-hooks` | Skip the finish hook |
 
 ---
 

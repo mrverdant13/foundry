@@ -93,10 +93,16 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
 /// Creates a temporary package that depends on `foundry_cli` and the target
 /// mold (path), runs `dart pub get`, then `dart run`s a generated bridge that
 /// imports the mold's root `variables.dart` (and hooks) by file URI so
-/// callbacks stay live. When [varsFlag] and/or [varsFileValues] are supplied
-/// the child runs a batch session; otherwise it runs interactive gather
-/// (Nocterm, or `FOUNDRY_E2E_VARS` when set). Helper directories are deleted on
-/// success and failure unless [keepHelperForDebug] is `true`.
+/// callbacks stay live.
+///
+/// Mode selection (via the request payload):
+/// - [finishOnly] `true` → finish-only session seeded from [varsFileValues]
+/// - [seededValues] → seeded session (recast; keeps non-variable keys)
+/// - [varsFlag] and/or [varsFileValues] → batch session
+/// - otherwise → interactive gather (Nocterm, or `FOUNDRY_E2E_VARS` when set)
+///
+/// Helper directories are deleted on success and failure unless
+/// [keepHelperForDebug] is `true`.
 ///
 /// Stdio from the child process is inherited so the interactive TUI and
 /// session logs surface on the host terminal.
@@ -106,9 +112,11 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   required String moldPath,
   required String outputPath,
   Map<String, Object?>? varsFileValues,
+  Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force = false,
   bool noHooks = false,
+  bool finishOnly = false,
   bool keepHelperForDebug = false,
   Directory? tempParent,
   FoundryCliHelperDependency? foundryCliDependency,
@@ -146,6 +154,22 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
       kind: 'load',
       message: 'Missing required file "variables.dart".',
       exitCode: FoundryExitCode.userError.code,
+    );
+  }
+
+  if (finishOnly && varsFileValues == null) {
+    return MoldCastSessionLaunchFailure(
+      kind: 'internal',
+      message: 'finishOnly session launch requires varsFileValues.',
+      exitCode: FoundryExitCode.internalError.code,
+    );
+  }
+  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
+    return MoldCastSessionLaunchFailure(
+      kind: 'internal',
+      message:
+          'seededValues cannot be combined with varsFlag or varsFileValues.',
+      exitCode: FoundryExitCode.internalError.code,
     );
   }
 
@@ -212,8 +236,10 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
         'resultPath': resultFile.path,
         'force': force,
         'noHooks': noHooks,
+        if (finishOnly) 'finishOnly': true,
         if (varsFlag != null) 'varsFlag': varsFlag,
         if (varsFileValues != null) 'varsFileValues': varsFileValues,
+        if (seededValues != null) 'seededValues': seededValues,
       }),
     );
 

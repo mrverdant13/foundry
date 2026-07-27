@@ -5,11 +5,10 @@ import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
 import 'package:foundry_cli/src/commands/finish_command.dart';
 import 'package:foundry_cli/src/exit_code.dart';
+import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-
-import 'cast_command_test_support.dart';
 
 void main() {
   late Directory workDir;
@@ -27,7 +26,7 @@ void main() {
   CommandRunner<int> buildRunner({
     required Directory workingDirectory,
     CastStateReader? readState,
-    FinishHookRunner? runFinishHook,
+    BatchMoldCastSessionLauncher? launchBatchSession,
     void Function(String message)? onInfo,
     void Function(String message)? onError,
   }) {
@@ -37,7 +36,7 @@ void main() {
           logger: Logger(onInfo: onInfo, onError: onError),
           workingDirectory: workingDirectory,
           readState: readState,
-          runFinishHook: runFinishHook,
+          launchBatchSession: launchBatchSession,
         ),
       );
   }
@@ -59,12 +58,61 @@ void main() {
     );
   }
 
+  BatchMoldCastSessionLauncher successfulFinishLauncher({
+    void Function({
+      required String moldPath,
+      required String outputPath,
+      Map<String, Object?>? varsFileValues,
+      Map<String, Object?>? seededValues,
+      String? varsFlag,
+      bool force,
+      bool noHooks,
+      bool finishOnly,
+    })? onLaunch,
+  }) {
+    return ({
+      required moldPath,
+      required outputPath,
+      varsFileValues,
+      seededValues,
+      varsFlag,
+      force = false,
+      noHooks = false,
+      finishOnly = false,
+    }) async {
+      onLaunch?.call(
+        moldPath: moldPath,
+        outputPath: outputPath,
+        varsFileValues: varsFileValues,
+        seededValues: seededValues,
+        varsFlag: varsFlag,
+        force: force,
+        noHooks: noHooks,
+        finishOnly: finishOnly,
+      );
+      await File(p.join(outputPath, 'finish_marker.txt')).writeAsString('done');
+      return MoldCastSessionLaunchSuccess(
+        artifactCount: 0,
+        vars: varsFileValues ?? const {},
+        writtenFilePaths: const [],
+        outputDirectory: outputPath,
+        exitCode: FoundryExitCode.success.code,
+      );
+    };
+  }
+
   group('FinishCommand', () {
+    test('defaults workingDirectory to Directory.current', () {
+      final command = FinishCommand(logger: Logger());
+      expect(command.workingDirectory.path, Directory.current.path);
+    });
+
     test('fails with a clear error when no prior cast state exists', () async {
       final errorMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: successfulFinishLauncher(),
       );
 
       final exitCode = await runner.run(['finish']);
@@ -80,6 +128,7 @@ void main() {
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: successfulFinishLauncher(),
         );
 
         final exitCode = await runner.run(['finish', '--no-hooks']);
@@ -100,6 +149,7 @@ void main() {
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: successfulFinishLauncher(),
         );
 
         final exitCode = await runner.run(['finish']);
@@ -121,6 +171,7 @@ void main() {
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: successfulFinishLauncher(),
         );
 
         final exitCode = await runner.run(['finish']);
@@ -131,7 +182,10 @@ void main() {
     );
 
     test('fails with a usage error when given positional arguments', () async {
-      final runner = buildRunner(workingDirectory: workDir);
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulFinishLauncher(),
+      );
 
       await expectLater(
         runner.run(['finish', 'extra']),
@@ -140,48 +194,46 @@ void main() {
     });
 
     test(
-      'fails with a clear error when the mold has no finish hook defined',
+      'launches a finish-only session seeded from last_cast vars',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMold(directory: moldDir, name: 'demo_app');
-        Directory(p.join(workDir.path, 'out')).createSync();
-        await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-        final errorMessages = <String>[];
-        final runner = buildRunner(
-          workingDirectory: workDir,
-          onError: errorMessages.add,
-        );
-
-        final exitCode = await runner.run(['finish']);
-
-        expect(exitCode, FoundryExitCode.userError.code);
-        expect(errorMessages, contains(contains('No finish hook defined')));
-        expect(errorMessages, contains(contains(MoldHooks.finishPath)));
-      },
-    );
-
-    test(
-      'runs the finish hook without re-rendering templates',
-      () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMoldWithFinishHook(
-          directory: moldDir,
-          name: 'demo_app',
-        );
+        Directory(p.join(workDir.path, 'mold')).createSync();
         final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
         final artifact = File(p.join(outputDir.path, 'README.md'));
         await artifact.writeAsString('# stale template output\n');
         await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+
+        String? seenMoldPath;
+        Map<String, Object?>? seenVars;
+        var seenFinishOnly = false;
         final infoMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onInfo: infoMessages.add,
+          launchBatchSession: successfulFinishLauncher(
+            onLaunch: ({
+              required moldPath,
+              required outputPath,
+              varsFileValues,
+              seededValues,
+              varsFlag,
+              force = false,
+              noHooks = false,
+              finishOnly = false,
+            }) {
+              seenMoldPath = moldPath;
+              seenVars = varsFileValues;
+              seenFinishOnly = finishOnly;
+            },
+          ),
         );
 
         final exitCode = await runner.run(['finish']);
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(infoMessages, contains('✓ Finish completed'));
+        expect(seenMoldPath, p.join(workDir.path, 'mold'));
+        expect(seenVars, {'project_name': 'Ada'});
+        expect(seenFinishOnly, isTrue);
         expect(await artifact.readAsString(), '# stale template output\n');
         expect(
           File(p.join(outputDir.path, 'finish_marker.txt')).readAsStringSync(),
@@ -191,49 +243,104 @@ void main() {
     );
 
     test('skips the finish hook when --no-hooks is passed', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMoldWithFinishHook(
-        directory: moldDir,
-        name: 'demo_app',
-      );
+      Directory(p.join(workDir.path, 'mold')).createSync();
       final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      var launched = false;
       final infoMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onInfo: infoMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          seededValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          launched = true;
+          return const MoldCastSessionLaunchSuccess(
+            artifactCount: 0,
+            vars: {},
+            writtenFilePaths: [],
+            outputDirectory: '',
+            exitCode: 0,
+          );
+        },
       );
 
       final exitCode = await runner.run(['finish', '--no-hooks']);
 
       expect(exitCode, FoundryExitCode.success.code);
       expect(infoMessages, contains(contains('skipped (--no-hooks)')));
+      expect(launched, isFalse);
       expect(
         File(p.join(outputDir.path, 'finish_marker.txt')).existsSync(),
         isFalse,
       );
     });
 
-    test('fails with a user error when a finish hook throws', () async {
-      final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-      await writeCastableMoldWithFinishHook(
-        directory: moldDir,
-        name: 'demo_app',
-      );
-      final hooksDir = Directory(p.join(moldDir.path, 'hooks'));
-      await File(p.join(hooksDir.path, 'finish.dart')).writeAsString('''
-import 'package:foundry_core/foundry_core.dart';
-
-Future<void> run(FoundryContext context) async {
-  throw const FoundryHookException('finish always fails');
-}
-''');
+    test('surfaces missing finish hook failures from the session', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
       Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
       final errorMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          seededValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          return MoldCastSessionLaunchFailure(
+            kind: 'hook',
+            message: 'No finish hook defined for mold "demo_app" at '
+                '${MoldHooks.finishPath}.',
+            exitCode: 1,
+          );
+        },
+      );
+
+      final exitCode = await runner.run(['finish']);
+
+      expect(exitCode, FoundryExitCode.userError.code);
+      expect(errorMessages, contains(contains('No finish hook defined')));
+      expect(errorMessages, contains(contains(MoldHooks.finishPath)));
+    });
+
+    test('fails with a user error when a finish hook throws', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final errorMessages = <String>[];
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          seededValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          return const MoldCastSessionLaunchFailure(
+            kind: 'hook',
+            message: 'MoldHookException(finish, /tmp/hooks/finish.dart): boom',
+            exitCode: 1,
+          );
+        },
       );
 
       final exitCode = await runner.run(['finish']);
@@ -246,6 +353,7 @@ Future<void> run(FoundryContext context) async {
     });
 
     test('fails with a user error when the mold cannot be loaded', () async {
+      Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(
         workDir,
         moldPath: 'does_not_exist',
@@ -255,6 +363,22 @@ Future<void> run(FoundryContext context) async {
       final runner = buildRunner(
         workingDirectory: workDir,
         onError: errorMessages.add,
+        launchBatchSession: ({
+          required moldPath,
+          required outputPath,
+          varsFileValues,
+          seededValues,
+          varsFlag,
+          force = false,
+          noHooks = false,
+          finishOnly = false,
+        }) async {
+          return MoldCastSessionLaunchFailure(
+            kind: 'load',
+            message: 'Mold directory does not exist: $moldPath',
+            exitCode: FoundryExitCode.userError.code,
+          );
+        },
       );
 
       final exitCode = await runner.run(['finish']);
@@ -266,16 +390,32 @@ Future<void> run(FoundryContext context) async {
     test(
       'fails with a user error when the stored output directory is missing',
       () async {
-        final moldDir = Directory(p.join(workDir.path, 'mold'))..createSync();
-        await writeCastableMoldWithFinishHook(
-          directory: moldDir,
-          name: 'demo_app',
-        );
+        Directory(p.join(workDir.path, 'mold')).createSync();
         await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+        var launched = false;
         final errorMessages = <String>[];
         final runner = buildRunner(
           workingDirectory: workDir,
           onError: errorMessages.add,
+          launchBatchSession: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            seededValues,
+            varsFlag,
+            force = false,
+            noHooks = false,
+            finishOnly = false,
+          }) async {
+            launched = true;
+            return const MoldCastSessionLaunchSuccess(
+              artifactCount: 0,
+              vars: {},
+              writtenFilePaths: [],
+              outputDirectory: '',
+              exitCode: 0,
+            );
+          },
         );
 
         final exitCode = await runner.run(['finish']);
@@ -285,6 +425,7 @@ Future<void> run(FoundryContext context) async {
           errorMessages,
           contains(contains('Output directory "out" does not exist')),
         );
+        expect(launched, isFalse);
       },
     );
   });

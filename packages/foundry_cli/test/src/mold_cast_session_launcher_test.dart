@@ -6,6 +6,7 @@ import 'package:foundry_cli/src/mold_cast_session_helper.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_cli/src/version.dart';
+import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -495,6 +496,206 @@ dependencies:
         contains('as mold_variables;'),
       );
     });
+
+    test(
+      'launches a seeded session that keeps non-variable prepare seeds',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+        await File(
+          p.join(moldDirectory.path, 'hooks', 'prepare.dart'),
+        ).writeAsString('''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+        await File(p.join(moldDirectory.path, 'template', 'README.md'))
+            .writeAsString(
+          'type={{ project_type }}\n'
+          'name={{ project_name }}\n'
+          '{% if package_name %}package={{ package_name }}\n'
+          '{% endif %}shaped={{ shaped }}\n'
+          'seed={{ seed }}\n',
+        );
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          seededValues: const {
+            'project_type': 'package',
+            'project_name': 'RecastMe',
+            'seed': 'stale',
+            'shaped': 'stale',
+          },
+          force: true,
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+        final success = result as MoldCastSessionLaunchSuccess;
+        expect(success.vars['package_name'], 'recastme');
+        expect(success.vars['seed'], 'from-prepare');
+        expect(success.vars['shaped'], 'yes');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'README.md'),
+          ).readAsString(),
+          'type=package\n'
+          'name=RecastMe\n'
+          'package=recastme\n'
+          'shaped=yes\n'
+          'seed=from-prepare\n',
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
+    test('rejects finishOnly without varsFileValues before resolving',
+        () async {
+      await _writeLiveCallbackMold(moldDirectory);
+
+      final result = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        finishOnly: true,
+        tempParent: helperParent,
+        pubGetRunner: (_) async {
+          fail('pub get should not run when finishOnly lacks vars');
+        },
+      );
+
+      expect(result, isA<MoldCastSessionLaunchFailure>());
+      final failure = result as MoldCastSessionLaunchFailure;
+      expect(failure.kind, 'internal');
+      expect(failure.message, contains('varsFileValues'));
+      expect(helperParent.listSync(), isEmpty);
+    });
+
+    test(
+      'rejects seededValues combined with batch vars inputs before resolving',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final withFlag = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          seededValues: const {'project_name': 'Ada'},
+          varsFlag: 'project_name=Ada',
+          tempParent: helperParent,
+          pubGetRunner: (_) async {
+            fail('pub get should not run when seededValues conflict');
+          },
+        );
+        expect(withFlag, isA<MoldCastSessionLaunchFailure>());
+        final flagFailure = withFlag as MoldCastSessionLaunchFailure;
+        expect(flagFailure.kind, 'internal');
+        expect(flagFailure.message, contains('seededValues'));
+        expect(flagFailure.message, contains('varsFlag'));
+
+        final withFile = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          seededValues: const {'project_name': 'Ada'},
+          varsFileValues: const {'project_name': 'Ada'},
+          tempParent: helperParent,
+          pubGetRunner: (_) async {
+            fail('pub get should not run when seededValues conflict');
+          },
+        );
+        expect(withFile, isA<MoldCastSessionLaunchFailure>());
+        final fileFailure = withFile as MoldCastSessionLaunchFailure;
+        expect(fileFailure.kind, 'internal');
+        expect(fileFailure.message, contains('varsFileValues'));
+        expect(helperParent.listSync(), isEmpty);
+      },
+    );
+
+    test(
+      'launches a finish-only session without re-rendering templates',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+        await File(
+          p.join(moldDirectory.path, 'hooks', 'finish.dart'),
+        ).writeAsString(r'''
+import 'dart:io';
+
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  await File('finish_marker.txt').writeAsString(
+    'name=${context.optionalString("project_name")}',
+  );
+}
+''');
+        final stale = File(p.join(outputDirectory.path, 'README.md'));
+        await stale.writeAsString('# stale template output\n');
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          finishOnly: true,
+          varsFileValues: const {
+            'project_type': 'package',
+            'project_name': 'FinishMe',
+          },
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchSuccess>());
+        final success = result as MoldCastSessionLaunchSuccess;
+        expect(success.artifactCount, 0);
+        expect(success.writtenFilePaths, isEmpty);
+        expect(success.vars['project_name'], 'FinishMe');
+        expect(await stale.readAsString(), '# stale template output\n');
+        expect(
+          await File(
+            p.join(outputDirectory.path, 'finish_marker.txt'),
+          ).readAsString(),
+          'name=FinishMe',
+        );
+        expect(helperParent.listSync(), isEmpty);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
+    test(
+      'reports missing finish hook from a finish-only session',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final result = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          finishOnly: true,
+          varsFileValues: const {
+            'project_type': 'app',
+            'project_name': 'NoFinish',
+          },
+          tempParent: helperParent,
+          foundryCliDependency: FoundryCliPathDependency(
+            (await resolveFoundryCliRoot()).path,
+          ),
+          foundryCoreOverridePath: foundryCorePackageRoot().path,
+        );
+
+        expect(result, isA<MoldCastSessionLaunchFailure>());
+        final failure = result as MoldCastSessionLaunchFailure;
+        expect(failure.kind, 'hook');
+        expect(failure.message, contains('No finish hook defined'));
+        expect(failure.message, contains(MoldHooks.finishPath));
+        expect(helperParent.listSync(), isEmpty);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
   });
 
   group('resolveFoundryCliHelperDependency', () {

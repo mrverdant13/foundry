@@ -2,7 +2,8 @@
 
 Foundry molds may define optional **Dart lifecycle hooks** under `hooks/`. Hooks run
 during `foundry cast` and `foundry recast` (unless `--no-hooks` is passed). The
-`foundry finish` command runs only the **finish** hook against the last cast output.
+`foundry finish` command runs only the **finish** hook against the last cast output
+(and requires `hooks/finish.dart` to exist).
 
 Hooks are **not** declared in `pubspec.yaml`. Foundry discovers them at conventional
 paths relative to the mold root:
@@ -13,7 +14,8 @@ paths relative to the mold root:
 | shape   | `hooks/shape.dart`   | After variables are gathered, before rendering    |
 | finish  | `hooks/finish.dart`  | After template rendering (also via `foundry finish`) |
 
-Missing hook files are **no-ops** for that phase.
+Missing prepare/shape/finish hook files are **no-ops** during `foundry cast` /
+`foundry recast`. `foundry finish` fails if `hooks/finish.dart` is absent.
 
 ## Mold package dependency
 
@@ -26,8 +28,9 @@ dependencies:
   foundry_core: ^0.0.1-dev.1
 ```
 
-Foundry runs `dart pub get` in the mold directory during **inspect** and **cast**
-before loading variables or spawning hooks.
+During cast / recast / finish, Foundry runs hooks **in-process** inside a mold cast
+session that imports the mold's root `variables.dart` and `hooks/*.dart` so callbacks
+and context mutations share one live heap (no JSON round-trip between phases).
 
 Hook files live under `hooks/` but resolve imports through the **mold root package**
 (the directory containing `pubspec.yaml`). There is no separate `hooks/pubspec.yaml`.
@@ -47,9 +50,6 @@ Future<void> run(FoundryContext context) async {
 - The function name must be **`run`**.
 - The parameter type must be **`FoundryContext`** (not `HookContext`).
 - Return type must be `Future<void>`.
-
-Foundry spawns each hook as a separate `dart run` process from the mold's package
-config, then merges any context changes back into the cast pipeline.
 
 ## Context API
 
@@ -90,8 +90,8 @@ context.remove('temporary');
 | `moldDirectory`    | `Directory` | Root of the mold package             |
 | `outputDirectory`  | `Directory` | The `--output` artifact directory    |
 
-The hook process **working directory** is `outputDirectory`. File paths in hook code
-are relative to the artifact being generated, not the mold source tree.
+While a hook runs, the process **working directory** is `outputDirectory`. File paths
+in hook code are relative to the artifact being generated, not the mold source tree.
 
 ## Aborting a cast
 
@@ -161,6 +161,14 @@ During `foundry cast` / `foundry recast`, hooks run in this order:
 output path from `.foundry/last_cast.json`.
 
 Pass **`--no-hooks`** to skip all hook phases for a command.
+
+## Cast state and recast / finish seeds
+
+Successful casts write `.foundry/last_cast.json` with an **encodable projection** of
+resolved variables (JSON primitives, lists, and string-keyed maps). Non-encodable
+values that prepare (or other hooks) may set on `FoundryContext` during a single cast
+are **not** restored on `foundry recast` or `foundry finish` — those commands seed
+context from the stored projection only.
 
 ## Related documentation
 

@@ -107,10 +107,14 @@ final class MoldCastSessionHelperHookImports {
 ///
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
 /// files by file URI, then runs a `CastSession` against the live
-/// `moldVariables` group in the helper isolate. When the request includes
-/// `--vars` / `--vars-file` inputs the bridge calls `CastSession.runBatch`;
-/// otherwise it calls `CastSession.runInteractive` (Nocterm gather with
-/// inherited stdio, or `FOUNDRY_E2E_VARS`).
+/// `moldVariables` group in the helper isolate.
+///
+/// Request routing:
+/// - `finishOnly: true` → finish-only session (seeded from `varsFileValues`)
+/// - `seededValues` present → seeded session (recast; keeps non-variable keys)
+/// - `--vars` / `--vars-file` inputs → batch session
+/// - otherwise → interactive gather (Nocterm with inherited stdio, or
+///   `FOUNDRY_E2E_VARS`)
 String buildMoldCastSessionBridgeSource({
   required Uri variablesUri,
   required MoldCastSessionHelperHookImports hooks,
@@ -199,6 +203,7 @@ Future<void> main(List<String> args) async {
 
   final force = request['force'] == true;
   final noHooks = request['noHooks'] == true;
+  final finishOnly = request['finishOnly'] == true;
   final varsFlag = request['varsFlag'];
   if (varsFlag != null && varsFlag is! String) {
     stderr.writeln('Session request varsFlag must be a string when present.');
@@ -220,6 +225,37 @@ Future<void> main(List<String> args) async {
       for (final entry in rawVarsFileValues.entries)
         if (entry.key is String) entry.key as String: entry.value,
     };
+  }
+
+  Map<String, Object?>? seededValues;
+  final rawSeededValues = request['seededValues'];
+  if (rawSeededValues != null) {
+    if (rawSeededValues is! Map) {
+      stderr.writeln(
+        'Session request seededValues must be a JSON object when present.',
+      );
+      exitCode = FoundryExitCode.internalError.code;
+      return;
+    }
+    seededValues = <String, Object?>{
+      for (final entry in rawSeededValues.entries)
+        if (entry.key is String) entry.key as String: entry.value,
+    };
+  }
+
+  if (finishOnly && varsFileValues == null) {
+    stderr.writeln(
+      'Session request finishOnly requires varsFileValues.',
+    );
+    exitCode = FoundryExitCode.internalError.code;
+    return;
+  }
+  if (seededValues != null && (varsFlag != null || varsFileValues != null)) {
+    stderr.writeln(
+      'Session request seededValues cannot be combined with batch vars inputs.',
+    );
+    exitCode = FoundryExitCode.internalError.code;
+    return;
   }
 
   final moldDirectory = Directory(moldPath);
@@ -262,18 +298,32 @@ Future<void> main(List<String> args) async {
     hooks: $hooksLiteral,
   );
 
-  final hasBatchInputs = varsFlag != null || varsFileValues != null;
-  final result = hasBatchInputs
-      ? await session.runBatch(
-          varsFileValues: varsFileValues,
-          varsFlag: varsFlag as String?,
-          force: force,
-          noHooks: noHooks,
-        )
-      : await session.runInteractive(
-          force: force,
-          noHooks: noHooks,
-        );
+  final BatchCastSessionResult result;
+  if (finishOnly) {
+    result = await session.runFinishOnly(
+      vars: varsFileValues!,
+      noHooks: noHooks,
+    );
+  } else if (seededValues != null) {
+    result = await session.runSeeded(
+      values: seededValues,
+      force: force,
+      noHooks: noHooks,
+    );
+  } else {
+    final hasBatchInputs = varsFlag != null || varsFileValues != null;
+    result = hasBatchInputs
+        ? await session.runBatch(
+            varsFileValues: varsFileValues,
+            varsFlag: varsFlag as String?,
+            force: force,
+            noHooks: noHooks,
+          )
+        : await session.runInteractive(
+            force: force,
+            noHooks: noHooks,
+          );
+  }
 
   switch (result) {
     case BatchCastSessionSuccess(
@@ -326,6 +376,20 @@ Future<void> main(List<String> args) async {
       await _writeFailureResult(
         resultPath: resultPath,
         kind: 'hook',
+        message: message,
+      );
+      exitCode = FoundryExitCode.userError.code;
+    case BatchCastSessionMissingFinishHookFailure(:final message):
+      await _writeFailureResult(
+        resultPath: resultPath,
+        kind: 'hook',
+        message: message,
+      );
+      exitCode = FoundryExitCode.userError.code;
+    case BatchCastSessionOutputMissingFailure(:final message):
+      await _writeFailureResult(
+        resultPath: resultPath,
+        kind: 'load',
         message: message,
       );
       exitCode = FoundryExitCode.userError.code;
