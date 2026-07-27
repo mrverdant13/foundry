@@ -576,6 +576,45 @@ Future<void> run(FoundryContext context) async {
     });
 
     test(
+      'rejects seededValues combined with batch vars inputs before resolving',
+      () async {
+        await _writeLiveCallbackMold(moldDirectory);
+
+        final withFlag = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          seededValues: const {'project_name': 'Ada'},
+          varsFlag: 'project_name=Ada',
+          tempParent: helperParent,
+          pubGetRunner: (_) async {
+            fail('pub get should not run when seededValues conflict');
+          },
+        );
+        expect(withFlag, isA<MoldCastSessionLaunchFailure>());
+        final flagFailure = withFlag as MoldCastSessionLaunchFailure;
+        expect(flagFailure.kind, 'internal');
+        expect(flagFailure.message, contains('seededValues'));
+        expect(flagFailure.message, contains('varsFlag'));
+
+        final withFile = await launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          seededValues: const {'project_name': 'Ada'},
+          varsFileValues: const {'project_name': 'Ada'},
+          tempParent: helperParent,
+          pubGetRunner: (_) async {
+            fail('pub get should not run when seededValues conflict');
+          },
+        );
+        expect(withFile, isA<MoldCastSessionLaunchFailure>());
+        final fileFailure = withFile as MoldCastSessionLaunchFailure;
+        expect(fileFailure.kind, 'internal');
+        expect(fileFailure.message, contains('varsFileValues'));
+        expect(helperParent.listSync(), isEmpty);
+      },
+    );
+
+    test(
       'launches a finish-only session without re-rendering templates',
       () async {
         await _writeLiveCallbackMold(moldDirectory);

@@ -984,6 +984,55 @@ void main() {
       final failure = result as BatchCastSessionValidationFailure;
       expect(failure.message, contains('project_name: nope'));
     });
+
+    test('returns hook failure when prepare throws', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      await touchHook(MoldHooks.preparePath);
+
+      final result = await CastSession(
+        mold: buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        ),
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            throw const FoundryHookException('prepare boom');
+          },
+        ),
+      ).runSeeded(values: const {'project_name': 'Ada'});
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.prepare);
+      expect(failure.message, contains('prepare boom'));
+    });
+
+    test(
+      'returns context failure when seeded values include a wrong-typed '
+      'variable',
+      () async {
+        await writeTemplateFile('out.txt', 'ok\n');
+
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: const FoundryVariableGroup(
+              variables: {
+                'project_name': FoundryStringVariable(label: 'Project name'),
+              },
+            ),
+          ),
+          outputPath: outputDirectory.path,
+        ).runSeeded(values: const {'project_name': 42});
+
+        expect(result, isA<BatchCastSessionContextFailure>());
+        final failure = result as BatchCastSessionContextFailure;
+        expect(failure.message, contains('project_name'));
+      },
+    );
   });
 
   group('CastSession.runFinishOnly', () {
