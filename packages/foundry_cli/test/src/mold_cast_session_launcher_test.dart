@@ -700,7 +700,8 @@ Future<void> run(FoundryContext context) async {
 
   group('launchDescribeMoldCastSession', () {
     test(
-      'reports live help, placeholder, and choice labels without writing output',
+      'reports live help, placeholder, '
+      'and choice labels without writing output',
       () async {
         await _writeDescribeMetadataMold(moldDirectory);
         final marker = File(p.join(outputDirectory.path, 'should_not_exist'));
@@ -1091,7 +1092,7 @@ dependencies:
     path: $corePath
 ''');
 
-  await File(p.join(directory.path, 'variables.dart')).writeAsString('''
+  await File(p.join(directory.path, 'variables.dart')).writeAsString(r'''
 import 'package:foundry_core/foundry_core.dart';
 
 final moldVariables = FoundryVariableGroup(
@@ -1105,7 +1106,7 @@ final moldVariables = FoundryVariableGroup(
     'project_type': FoundrySingleChoiceVariable<String>(
       label: 'Project type',
       options: {'app', 'package'},
-      displayLabel: (value) => 'LABEL_\$value',
+      displayLabel: (value) => 'LABEL_$value',
     ),
   },
 );

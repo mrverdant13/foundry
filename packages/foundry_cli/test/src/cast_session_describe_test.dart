@@ -11,7 +11,7 @@ void main() {
       final descriptions = describeMoldVariableGroup(
         FoundryVariableGroup(
           variables: {
-            'project_name': FoundryStringVariable(
+            'project_name': const FoundryStringVariable(
               label: 'Project name',
               description: 'UNIQUE_DESC_PROJECT_NAME',
               help: 'UNIQUE_HELP_PROJECT_NAME',
@@ -27,9 +27,9 @@ void main() {
               options: const {'a', 'b'},
               displayLabel: (value) => 'TAG_$value',
             ),
-            'count': FoundryIntVariable(label: 'Count'),
-            'ratio': FoundryDoubleVariable(label: 'Ratio'),
-            'enabled': FoundryBooleanVariable(label: 'Enabled'),
+            'count': const FoundryIntVariable(label: 'Count'),
+            'ratio': const FoundryDoubleVariable(label: 'Ratio'),
+            'enabled': const FoundryBooleanVariable(label: 'Enabled'),
           },
         ),
       );
@@ -78,7 +78,7 @@ void main() {
 
     test('describes nested object fields and values item schemas', () {
       final descriptions = describeMoldVariableGroup(
-        FoundryVariableGroup(
+        const FoundryVariableGroup(
           variables: {
             'author': FoundryObjectVariable(
               label: 'Author',
@@ -156,7 +156,7 @@ void main() {
             description: 'Describe session demo',
             version: '0.0.1',
           ),
-          variableGroup: FoundryVariableGroup(
+          variableGroup: const FoundryVariableGroup(
             variables: {
               'name': FoundryStringVariable(
                 label: 'Name',
