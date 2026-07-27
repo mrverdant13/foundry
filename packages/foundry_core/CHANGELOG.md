@@ -1,5 +1,6 @@
 ## 0.0.1-dev.1
 
+ - **FEAT**: add in-process mold hook runner ([#85](https://github.com/mrverdant13/foundry/issues/85)). ([75c5ce75](https://github.com/mrverdant13/foundry/commit/75c5ce759124374d31d12d9b33d65d00a536bd13))
  - **REFACTOR**: remove isolate serialize mold variable loading.
  - **FEAT**: add mold package model and definition loader ([#14](https://github.com/mrverdant13/foundry/issues/14)). ([f2cff9de](https://github.com/mrverdant13/foundry/commit/f2cff9def8d3ff6197af4652edb0e0ff4d896114))
  - **FEAT**: add mold inspection and validation ([#15](https://github.com/mrverdant13/foundry/issues/15)). ([1112a805](https://github.com/mrverdant13/foundry/commit/1112a80513fb59659d3a0590eaed6da20f313673))
