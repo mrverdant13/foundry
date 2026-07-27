@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/command_runner.dart' show UsageException;
 import 'package:foundry_cli/src/cast_session.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
@@ -590,6 +591,80 @@ void main() {
         File(p.join(outputDirectory.path, 'out.txt')).existsSync(),
         isFalse,
       );
+    });
+
+    test('returns hook failure when prepare throws', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+      await touchHook(MoldHooks.preparePath);
+      var gatherCalled = false;
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) {
+            throw const FoundryHookException('prepare boom');
+          },
+        ),
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          gatherCalled = true;
+          return {'project_name': 'Ada'};
+        },
+      );
+
+      expect(result, isA<BatchCastSessionHookFailure>());
+      expect(gatherCalled, isFalse);
+      final failure = result as BatchCastSessionHookFailure;
+      expect(failure.exception.phase, MoldHookPhase.prepare);
+      expect(failure.message, contains('prepare boom'));
+    });
+
+    test('returns gather failure when gather throws UsageException', () async {
+      await writeTemplateFile('out.txt', 'ok\n');
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+      ).runInteractive(
+        gatherVariables: ({
+          required variableGroup,
+          required moldName,
+          required moldDescription,
+          seedValues = const {},
+        }) async {
+          throw UsageException(
+            'FOUNDRY_E2E_VARS must be valid JSON: FormatException',
+            '',
+          );
+        },
+      );
+
+      expect(result, isA<BatchCastSessionGatherFailure>());
+      expect(result.isSuccess, isFalse);
+      final failure = result as BatchCastSessionGatherFailure;
+      expect(failure.message, contains('FOUNDRY_E2E_VARS'));
     });
 
     test('passes prepare seedValues into gather', () async {
