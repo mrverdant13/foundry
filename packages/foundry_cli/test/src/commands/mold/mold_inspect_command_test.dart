@@ -48,6 +48,13 @@ void main() {
   }
 
   group('MoldInspectCommand', () {
+    test('describes declared variables rather than cast-time visibility', () {
+      final command = MoldInspectCommand(logger: Logger());
+
+      expect(command.description, contains('declared variable'));
+      expect(command.description, contains('cast-time visibility'));
+    });
+
     test('reports success for a valid mold in the working directory', () async {
       await writeInspectableMold(directory: workDir, name: 'demo_app');
       final infoMessages = <String>[];
@@ -183,7 +190,7 @@ final moldVariables = FoundryVariableGroup(variables: {});
 
       expect(exitCode, FoundryExitCode.success.code);
       expect(describedMoldPath, workDir.path);
-      expect(infoMessages, contains('Variables:'));
+      expect(infoMessages, contains('Declared variables:'));
       expect(
         infoMessages,
         contains(contains('UNIQUE_DESC_PROJECT_NAME')),

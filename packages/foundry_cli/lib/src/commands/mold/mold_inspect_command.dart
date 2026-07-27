@@ -17,8 +17,10 @@ typedef MoldInspectDescribeLauncher = Future<MoldCastSessionLaunchResult>
 /// {@template foundry_cli.mold_inspect_command}
 /// `foundry mold inspect [<path>]`
 ///
-/// Analyzes a mold, reporting structural issues and live variable metadata.
-/// Defaults to the current directory when no path is given.
+/// Analyzes a mold, reporting structural issues and declared variable
+/// metadata from the live `variables.dart` group (not filtered by
+/// cast-time visibility). Defaults to the current directory when no path
+/// is given.
 /// {@endtemplate}
 class MoldInspectCommand extends Command<int> {
   /// {@macro foundry_cli.mold_inspect_command}
@@ -35,7 +37,8 @@ class MoldInspectCommand extends Command<int> {
 
   @override
   String get description =>
-      'Analyze a mold, reporting structural issues and variable metadata.';
+      'Analyze a mold, reporting structural issues and declared variable '
+      'metadata (not filtered by cast-time visibility).';
 
   @override
   String get invocation => '${runner!.executableName} mold inspect [<path>]';
@@ -97,7 +100,7 @@ class MoldInspectCommand extends Command<int> {
       return;
     }
 
-    logger.info('Variables:');
+    logger.info('Declared variables:');
     for (final variable in variables) {
       _logVariable(variable, indent: '  ');
     }
