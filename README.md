@@ -127,8 +127,9 @@ directory.
 foundry mold inspect
 ```
 
-Validates the mold package, variable group, `template/` directory, and optional hook
-files. Defaults to the current directory when no path is given.
+Validates the mold package, `template/` directory, and optional hook files, and
+reports variable metadata from a live describe session over `variables.dart`.
+Defaults to the current directory when no path is given.
 
 ### Import a mold
 
@@ -149,9 +150,18 @@ comes from the mold's root `pubspec.yaml` `name` field.
 foundry cast ./flutter_app --output=./my_app
 ```
 
-Foundry gathers variables through an interactive TUI by default, renders files
-under `template/` into `--output`, and writes `.foundry/last_cast.json` in the
-process working directory on success.
+Cast runs inside a **mold cast session**: Foundry composes a short-lived helper
+package that depends on the CLI and your mold, then runs prepare → gather → shape →
+render → finish in one process that imports the mold's live `variables.dart` and
+in-process hooks. Callbacks such as `visibleWhen` / `defaultValue` / validators
+execute as real Dart; prepare can seed rich context values that gather, shape, and
+finish see on the same `FoundryContext` (see [`doc/hooks.md`](doc/hooks.md)).
+
+By default Foundry gathers variables through an interactive TUI inside that session,
+renders files under `template/` into `--output`, and on success writes
+`.foundry/last_cast.json` in the process working directory. That file stores an
+**encodable projection** of resolved values (JSON primitives, lists, and
+string-keyed maps only) — not arbitrary Dart objects seeded during the cast.
 
 Pass `--vars` and/or `--vars-file` to supply values in batch and skip the TUI:
 
@@ -170,10 +180,11 @@ foundry recast
 foundry finish
 ```
 
-`recast` repeats the last successful cast using paths and the **encodable** variable
-projection stored in `.foundry/last_cast.json` (JSON-safe values only; non-encodable
-prepare seeds from the original cast are not restored). `finish` runs only the finish
-hook against the last cast output without re-rendering templates.
+`recast` and `finish` also launch a mold cast session against the last successful
+cast. `recast` re-runs the full pipeline using paths and the **encodable** `vars`
+projection from `.foundry/last_cast.json` (JSON-safe values only; non-encodable
+prepare seeds from the original cast are not restored). `finish` runs only the
+finish hook against the stored output path without re-rendering templates.
 
 ---
 
@@ -323,6 +334,9 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
   [--vars=<k=v,…>] [--vars-file=<path>]
 ```
 
+Runs a mold cast session (live `variables.dart` + in-process hooks). On success,
+writes `.foundry/last_cast.json` with an encodable `vars` projection only.
+
 | Argument / option | Description |
 | --- | --- |
 | `<mold-path>` | **Required.** Path to the mold directory |
@@ -338,8 +352,8 @@ foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
 foundry recast [--force] [--no-hooks]
 ```
 
-Replays the last cast from `.foundry/last_cast.json`. Stored `vars` are an encodable
-projection only.
+Replays the last cast via a mold cast session seeded from `.foundry/last_cast.json`.
+Stored `vars` are an encodable projection only.
 
 | Option | Description |
 | --- | --- |
@@ -352,8 +366,9 @@ projection only.
 foundry finish [--no-hooks]
 ```
 
-Runs only the finish hook for the last cast (requires `hooks/finish.dart`). Seeds
-context from the encodable `vars` projection in `.foundry/last_cast.json`.
+Runs a finish-only mold cast session for the last cast (requires
+`hooks/finish.dart`). Seeds context from the encodable `vars` projection in
+`.foundry/last_cast.json`.
 
 | Option | Description |
 | --- | --- |
@@ -393,9 +408,10 @@ library package. Public APIs for mold loading, variable resolution, template
 rendering, and cast orchestration are exported from
 `package:foundry_core/foundry_core.dart`.
 
-Mold hooks depend on **`foundry_core`** (not `foundry_cli`). See
-[`doc/hooks.md`](doc/hooks.md) for the full hook contract. Pattern derive/sync
-transforms are documented in [`doc/annotations.md`](doc/annotations.md).
+Mold hooks depend on **`foundry_core`** (not `foundry_cli`). The CLI runs them
+inside a mold cast session so prepare, gather, shape, and finish share one live
+context — see [`doc/hooks.md`](doc/hooks.md). Pattern derive/sync transforms are
+documented in [`doc/annotations.md`](doc/annotations.md).
 
 ```dart
 import 'package:foundry_core/foundry_core.dart';
