@@ -278,6 +278,65 @@ void main() {
       expect(value, 'ok');
       expect(lockLink.existsSync(), isFalse);
     });
+
+    test('times out when a held lock cannot be acquired', () async {
+      final helperRoot = Directory(p.join(tempRoot.path, 'entry'))
+        ..createSync();
+      Link(
+        p.join(helperRoot.path, moldCastSessionHelperCacheLockName),
+      ).createSync(helperRoot.path);
+
+      var clockCalls = 0;
+      final base = DateTime.utc(2020);
+
+      await expectLater(
+        withMoldCastSessionHelperCacheLock<String>(
+          helperRoot: helperRoot,
+          acquireTimeout: const Duration(seconds: 1),
+          staleLockTimeout: const Duration(hours: 1),
+          retryDelay: Duration.zero,
+          clock: () {
+            clockCalls += 1;
+            if (clockCalls <= 1) {
+              return base;
+            }
+            return base.add(const Duration(seconds: 2));
+          },
+          action: () async => 'never',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Timed out waiting for mold cast session helper cache'),
+          ),
+        ),
+      );
+    });
+
+    test('retries when the held lock disappears before stat', () async {
+      final helperRoot = Directory(p.join(tempRoot.path, 'entry'))
+        ..createSync();
+      final lockLink = Link(
+        p.join(helperRoot.path, moldCastSessionHelperCacheLockName),
+      )..createSync(helperRoot.path);
+
+      final value = await withMoldCastSessionHelperCacheLock(
+        helperRoot: helperRoot,
+        staleLockTimeout: const Duration(hours: 1),
+        retryDelay: Duration.zero,
+        readLockStat: (link) {
+          if (link.existsSync()) {
+            link.deleteSync();
+          }
+          throw const FileSystemException('lock disappeared');
+        },
+        action: () async => 'recovered',
+      );
+
+      expect(value, 'recovered');
+      expect(lockLink.existsSync(), isFalse);
+    });
   });
 
   group('defaultMoldCastSessionHelperCacheRoot', () {
@@ -291,6 +350,32 @@ void main() {
         isTrue,
       );
       expect(p.basename(root.path), moldCastSessionHelperCacheDirName);
+    });
+  });
+
+  group('prepareMoldCastSessionHelperRoot default cache root', () {
+    test('uses the system-temp cache root when helperCacheRoot is omitted',
+        () async {
+      final cacheKey = 'default-root-${DateTime.now().microsecondsSinceEpoch}';
+      final prepared = await prepareMoldCastSessionHelperRoot(
+        cacheKey: cacheKey,
+        cacheHelperResolve: true,
+      );
+      addTearDown(() async {
+        if (prepared.helperRoot.existsSync()) {
+          await prepared.helperRoot.delete(recursive: true);
+        }
+      });
+
+      expect(
+        p.isWithin(
+          defaultMoldCastSessionHelperCacheRoot().path,
+          prepared.helperRoot.path,
+        ),
+        isTrue,
+      );
+      expect(prepared.ephemeral, isFalse);
+      expect(prepared.resolveCached, isFalse);
     });
   });
 }

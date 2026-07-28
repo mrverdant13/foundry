@@ -144,6 +144,8 @@ Future<void> clearMoldCastSessionHelperResolveCache({
 /// Concurrent launches that share the same cache entry serialize on this lock.
 /// Stale lock links older than [staleLockTimeout] are removed so a crashed
 /// process cannot permanently block the entry.
+///
+/// [readLockStat] overrides [Link.statSync] for the held lock (unit tests).
 Future<T> withMoldCastSessionHelperCacheLock<T>({
   required Directory helperRoot,
   required Future<T> Function() action,
@@ -151,6 +153,7 @@ Future<T> withMoldCastSessionHelperCacheLock<T>({
   Duration retryDelay = const Duration(milliseconds: 50),
   Duration acquireTimeout = const Duration(seconds: 30),
   DateTime Function()? clock,
+  FileStat Function(Link lockLink)? readLockStat,
 }) async {
   await helperRoot.create(recursive: true);
   final lockLink = Link(
@@ -158,6 +161,7 @@ Future<T> withMoldCastSessionHelperCacheLock<T>({
   );
   final now = clock ?? DateTime.now;
   final deadline = now().add(acquireTimeout);
+  final statLock = readLockStat ?? (Link link) => link.statSync();
 
   while (true) {
     try {
@@ -173,7 +177,7 @@ Future<T> withMoldCastSessionHelperCacheLock<T>({
         );
       }
       try {
-        final stat = lockLink.statSync();
+        final stat = statLock(lockLink);
         if (now().difference(stat.modified) > staleLockTimeout) {
           await lockLink.delete();
           continue;

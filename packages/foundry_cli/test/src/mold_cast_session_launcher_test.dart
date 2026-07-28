@@ -974,6 +974,44 @@ dependencies:
         isTrue,
       );
     });
+
+    test('writes a debug line when FOUNDRY_DEBUG_HELPER_CACHE is set',
+        () async {
+      await _writeLiveCallbackMold(moldDirectory);
+      final cliRoot = await resolveFoundryCliRoot();
+      final coreRoot = foundryCorePackageRoot();
+
+      Future<MoldCastSessionLaunchResult> launchOnce({
+        Map<String, String>? environment,
+      }) {
+        return launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFlag: 'project_type=app,project_name=CacheDemo',
+          force: true,
+          helperCacheRoot: cacheRoot,
+          foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+          foundryCoreOverridePath: coreRoot.path,
+          pubGetRunner: countingPubGet(),
+          childRunner: successChild(),
+          environment: environment,
+          onHelperCacheEvent: cacheEvents.add,
+        );
+      }
+
+      expect(await launchOnce(), isA<MoldCastSessionLaunchSuccess>());
+      expect(cacheEvents, ['miss']);
+
+      cacheEvents.clear();
+      expect(
+        await launchOnce(
+          environment: const {'FOUNDRY_DEBUG_HELPER_CACHE': '1'},
+        ),
+        isA<MoldCastSessionLaunchSuccess>(),
+      );
+      expect(cacheEvents, ['hit']);
+      expect(pubGetCount, 1);
+    });
   });
 
   group('resolveFoundryCliHelperDependency', () {
