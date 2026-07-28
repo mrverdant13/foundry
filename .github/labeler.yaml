@@ -22,15 +22,14 @@ build:
 
 chore:
   - head-branch:
-      - ^chore(/|$)
-      - ^(foundry_core|foundry_cli)/chore/release-
+      - (^|/)chore(/|$)
 
 ci:
   - changed-files:
       - any-glob-to-any-file:
           - .github/**
   - head-branch:
-      - ^ci(/|$)
+      - (^|/)ci(/|$)
 
 docs:
   - changed-files:
@@ -40,19 +39,19 @@ docs:
           - CONTRIBUTING.md
           - doc/**
   - head-branch:
-      - ^docs(/|$)
+      - (^|/)docs(/|$)
 
 feat:
   - head-branch:
-      - ^feat(/|$)
+      - (^|/)feat(/|$)
 
 fix:
   - head-branch:
-      - ^fix(/|$)
+      - (^|/)fix(/|$)
 
 refactor:
   - head-branch:
-      - ^refactor(/|$)
+      - (^|/)refactor(/|$)
 
 test:
   - changed-files:
@@ -61,4 +60,4 @@ test:
           - "**/e2e/**"
           - "**/*_test.dart"
   - head-branch:
-      - ^test(/|$)
+      - (^|/)test(/|$)
