@@ -5,9 +5,14 @@ import 'dart:isolate';
 import 'package:foundry_cli/src/cast_session_describe.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_helper.dart';
+import 'package:foundry_cli/src/mold_cast_session_helper_cache.dart';
 import 'package:foundry_cli/src/version.dart';
 import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
+
+/// Receives helper-resolve cache lifecycle events (`hit`, `miss`,
+/// `resolve-failed`) for tests and optional debug logging.
+typedef MoldCastSessionHelperCacheEventSink = void Function(String event);
 
 /// Outcome of [launchBatchMoldCastSession].
 sealed class MoldCastSessionLaunchResult {
@@ -109,10 +114,10 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
 
 /// Launches a mold cast session inside a synthetic helper package process.
 ///
-/// Creates a temporary package that depends on `foundry_cli` and the target
-/// mold (path), runs `dart pub get`, then `dart run`s a generated bridge that
-/// imports the mold's root `variables.dart` (and hooks) by file URI so
-/// callbacks stay live.
+/// Creates (or reuses) a helper package that depends on `foundry_cli` and the
+/// target mold (path), runs `dart pub get` when needed, then `dart run`s a
+/// generated bridge that imports the mold's root `variables.dart` (and hooks)
+/// by file URI so callbacks stay live.
 ///
 /// Mode selection (via the request payload):
 /// - [finishOnly] `true` → finish-only session seeded from [varsFileValues]
@@ -120,13 +125,17 @@ typedef MoldCastSessionChildRunner = Future<int> Function({
 /// - [varsFlag] and/or [varsFileValues] → batch session
 /// - otherwise → interactive gather (Nocterm, or `FOUNDRY_E2E_VARS` when set)
 ///
-/// Helper directories are deleted on success and failure unless
-/// [keepHelperForDebug] is `true`.
+/// When [cacheHelperResolve] is `true` (default), helper package resolution is
+/// cached under [helperCacheRoot] (or the system-temp cache root) keyed by
+/// absolute mold path, mold pubspec/lock digest, and `foundry_cli` linkage.
+/// Cached helpers are retained across launches. Ephemeral helpers (cache off)
+/// are deleted on success and failure unless [keepHelperForDebug] is `true`.
 ///
 /// Stdio from the child process is inherited so the interactive TUI and
 /// session logs surface on the host terminal.
 ///
 /// [pubGetRunner] and [childRunner] are seam points for unit tests.
+/// [onHelperCacheEvent] receives `hit` / `miss` / `resolve-failed` events.
 ///
 /// For variable metadata without cast/render, use
 /// [launchDescribeMoldCastSession] instead.
@@ -140,12 +149,15 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   bool noHooks = false,
   bool finishOnly = false,
   bool keepHelperForDebug = false,
+  bool cacheHelperResolve = true,
+  Directory? helperCacheRoot,
   Directory? tempParent,
   FoundryCliHelperDependency? foundryCliDependency,
   String? foundryCoreOverridePath,
   Map<String, String>? environment,
   MoldCastSessionPubGetRunner? pubGetRunner,
   MoldCastSessionChildRunner? childRunner,
+  MoldCastSessionHelperCacheEventSink? onHelperCacheEvent,
 }) async {
   if (finishOnly && varsFileValues == null) {
     return MoldCastSessionLaunchFailure(
@@ -166,12 +178,15 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   return _launchMoldCastSession(
     moldPath: moldPath,
     keepHelperForDebug: keepHelperForDebug,
+    cacheHelperResolve: cacheHelperResolve,
+    helperCacheRoot: helperCacheRoot,
     tempParent: tempParent,
     foundryCliDependency: foundryCliDependency,
     foundryCoreOverridePath: foundryCoreOverridePath,
     environment: environment,
     pubGetRunner: pubGetRunner,
     childRunner: childRunner,
+    onHelperCacheEvent: onHelperCacheEvent,
     buildRequest: ({
       required resolvedMoldPath,
       required resultPath,
@@ -198,27 +213,32 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
 /// but does not create an output directory, run hooks, render templates, or
 /// write cast state.
 ///
-/// Helper directories are deleted on success and failure unless
-/// [keepHelperForDebug] is `true`.
+/// See [launchBatchMoldCastSession] for helper resolve caching behavior.
 Future<MoldCastSessionLaunchResult> launchDescribeMoldCastSession({
   required String moldPath,
   bool keepHelperForDebug = false,
+  bool cacheHelperResolve = true,
+  Directory? helperCacheRoot,
   Directory? tempParent,
   FoundryCliHelperDependency? foundryCliDependency,
   String? foundryCoreOverridePath,
   Map<String, String>? environment,
   MoldCastSessionPubGetRunner? pubGetRunner,
   MoldCastSessionChildRunner? childRunner,
+  MoldCastSessionHelperCacheEventSink? onHelperCacheEvent,
 }) {
   return _launchMoldCastSession(
     moldPath: moldPath,
     keepHelperForDebug: keepHelperForDebug,
+    cacheHelperResolve: cacheHelperResolve,
+    helperCacheRoot: helperCacheRoot,
     tempParent: tempParent,
     foundryCliDependency: foundryCliDependency,
     foundryCoreOverridePath: foundryCoreOverridePath,
     environment: environment,
     pubGetRunner: pubGetRunner,
     childRunner: childRunner,
+    onHelperCacheEvent: onHelperCacheEvent,
     buildRequest: ({
       required resolvedMoldPath,
       required resultPath,
@@ -235,12 +255,15 @@ Future<MoldCastSessionLaunchResult> launchDescribeMoldCastSession({
 Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
   required String moldPath,
   required bool keepHelperForDebug,
+  required bool cacheHelperResolve,
+  required Directory? helperCacheRoot,
   required Directory? tempParent,
   required FoundryCliHelperDependency? foundryCliDependency,
   required String? foundryCoreOverridePath,
   required Map<String, String>? environment,
   required MoldCastSessionPubGetRunner? pubGetRunner,
   required MoldCastSessionChildRunner? childRunner,
+  required MoldCastSessionHelperCacheEventSink? onHelperCacheEvent,
   required Map<String, Object?> Function({
     required String resolvedMoldPath,
     required String resultPath,
@@ -278,10 +301,14 @@ Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
     );
   }
 
+  final cacheInputs = await readMoldCastSessionHelperCacheInputs(
+    moldDirectory: resolvedMoldDirectory,
+  );
+
   final MoldPubspec pubspec;
   try {
     pubspec = parseMoldPubspec(
-      yamlContent: await pubspecFile.readAsString(),
+      yamlContent: cacheInputs.pubspec,
       sourcePath: pubspecFile.path,
     );
   } on MoldLoadException catch (exception) {
@@ -305,11 +332,23 @@ Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
     };
   }
 
-  final helperRoot = await (tempParent ?? Directory.systemTemp).createTemp(
-    moldCastSessionHelperTempPrefix,
+  final cacheKey = buildMoldCastSessionHelperCacheKey(
+    moldPath: resolvedMoldDirectory.path,
+    moldPubspecContents: cacheInputs.pubspec,
+    moldPubspecLockContents: cacheInputs.lock,
+    foundryCli: resolvedFoundryCli,
+    foundryCoreOverridePath: resolvedCoreOverride,
   );
 
-  try {
+  final prepared = await prepareMoldCastSessionHelperRoot(
+    cacheKey: cacheKey,
+    cacheHelperResolve: cacheHelperResolve,
+    helperCacheRoot: helperCacheRoot,
+    tempParent: tempParent,
+  );
+  final helperRoot = prepared.helperRoot;
+
+  Future<MoldCastSessionLaunchResult> runSession() async {
     await _materializeHelperPackage(
       helperRoot: helperRoot,
       moldPackageName: pubspec.name,
@@ -320,20 +359,49 @@ Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
       moldDirectory: resolvedMoldDirectory,
     );
 
-    final resolveResult = await (pubGetRunner ?? _runHelperPubGet)(helperRoot);
-    if (resolveResult.exitCode != 0) {
-      final output = '${resolveResult.stdout}${resolveResult.stderr}'.trim();
-      return MoldCastSessionLaunchFailure(
-        kind: 'resolve',
-        message: output.isEmpty
-            ? 'dart pub get failed for the mold cast session helper.'
-            : 'dart pub get failed: $output',
-        exitCode: FoundryExitCode.userError.code,
-      );
+    final resolveCached = cacheHelperResolve &&
+        isMoldCastSessionHelperResolveCached(
+          helperRoot: helperRoot,
+          cacheKey: cacheKey,
+        );
+    if (resolveCached) {
+      onHelperCacheEvent?.call('hit');
+      final debugEnv = environment ?? Platform.environment;
+      if (debugEnv['FOUNDRY_DEBUG_HELPER_CACHE'] == '1') {
+        stderr.writeln(
+          'Reusing cached mold cast session helper resolve '
+          '(${helperRoot.path})',
+        );
+      }
+    } else {
+      onHelperCacheEvent?.call('miss');
+      final resolveResult =
+          await (pubGetRunner ?? _runHelperPubGet)(helperRoot);
+      if (resolveResult.exitCode != 0) {
+        onHelperCacheEvent?.call('resolve-failed');
+        await clearMoldCastSessionHelperResolveCache(helperRoot: helperRoot);
+        final output = '${resolveResult.stdout}${resolveResult.stderr}'.trim();
+        return MoldCastSessionLaunchFailure(
+          kind: 'resolve',
+          message: output.isEmpty
+              ? 'dart pub get failed for the mold cast session helper.'
+              : 'dart pub get failed: $output',
+          exitCode: FoundryExitCode.userError.code,
+        );
+      }
+      if (cacheHelperResolve) {
+        await markMoldCastSessionHelperResolveCached(
+          helperRoot: helperRoot,
+          cacheKey: cacheKey,
+        );
+      }
     }
 
     final requestFile = File(p.join(helperRoot.path, 'request.json'));
     final resultFile = File(p.join(helperRoot.path, 'result.json'));
+    if (resultFile.existsSync()) {
+      await resultFile.delete();
+    }
     await requestFile.writeAsString(
       jsonEncode(
         buildRequest(
@@ -368,8 +436,20 @@ Future<MoldCastSessionLaunchResult> _launchMoldCastSession({
       resultFile: resultFile,
       fallbackExitCode: childExitCode,
     );
+  }
+
+  try {
+    if (cacheHelperResolve) {
+      return await withMoldCastSessionHelperCacheLock(
+        helperRoot: helperRoot,
+        action: runSession,
+      );
+    }
+    return await runSession();
   } finally {
-    if (!keepHelperForDebug && helperRoot.existsSync()) {
+    final shouldDelete =
+        prepared.ephemeral && !keepHelperForDebug && helperRoot.existsSync();
+    if (shouldDelete) {
       await helperRoot.delete(recursive: true);
     }
   }

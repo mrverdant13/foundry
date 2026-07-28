@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_helper.dart';
+import 'package:foundry_cli/src/mold_cast_session_helper_cache.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_cli/src/tui/gather_cast_variables.dart';
 import 'package:foundry_cli/src/version.dart';
@@ -44,6 +45,7 @@ void main() {
   group('launchBatchMoldCastSession', () {
     test('fails clearly when the mold directory is missing', () async {
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: p.join(moldDirectory.path, 'missing'),
         outputPath: outputDirectory.path,
       );
@@ -66,6 +68,7 @@ void main() {
       );
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -91,6 +94,7 @@ dependencies:
 ''');
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -112,6 +116,7 @@ dependencies:
       );
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -132,6 +137,7 @@ dependencies:
         final coreRoot = foundryCorePackageRoot();
 
         final packageResult = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: p.join(outputDirectory.path, 'package'),
           varsFlag: 'project_type=package,project_name=LiveDemo',
@@ -163,6 +169,7 @@ dependencies:
 
         final appOut = p.join(outputDirectory.path, 'app');
         final appResult = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: appOut,
           varsFlag: 'project_type=app,project_name=LiveDemo',
@@ -196,6 +203,7 @@ dependencies:
         await _writeLiveCallbackMold(moldDirectory);
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           varsFileValues: const {
@@ -232,6 +240,7 @@ dependencies:
         await _writeLiveCallbackMold(moldDirectory);
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           varsFlag: 'project_type=app,project_name=Hosted',
@@ -280,6 +289,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         foundryCliDependency: FoundryCliPathDependency(
@@ -297,6 +307,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -318,6 +329,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -341,6 +353,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final zeroExit = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -364,6 +377,7 @@ dependencies:
       expect(zeroFailure.message, contains('exit code 0'));
 
       final nonzeroExit = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         tempParent: helperParent,
@@ -390,6 +404,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         varsFlag: 'not_a_real_key=1',
@@ -417,6 +432,7 @@ dependencies:
         await _writeLiveCallbackMold(moldDirectory);
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           tempParent: helperParent,
@@ -455,6 +471,7 @@ dependencies:
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         varsFlag: 'project_type=app,project_name=KeepHelper',
@@ -520,6 +537,7 @@ Future<void> run(FoundryContext context) async {
         );
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           seededValues: const {
@@ -560,6 +578,7 @@ Future<void> run(FoundryContext context) async {
       await _writeLiveCallbackMold(moldDirectory);
 
       final result = await launchBatchMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         outputPath: outputDirectory.path,
         finishOnly: true,
@@ -582,6 +601,7 @@ Future<void> run(FoundryContext context) async {
         await _writeLiveCallbackMold(moldDirectory);
 
         final withFlag = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           seededValues: const {'project_name': 'Ada'},
@@ -598,6 +618,7 @@ Future<void> run(FoundryContext context) async {
         expect(flagFailure.message, contains('varsFlag'));
 
         final withFile = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           seededValues: const {'project_name': 'Ada'},
@@ -636,6 +657,7 @@ Future<void> run(FoundryContext context) async {
         await stale.writeAsString('# stale template output\n');
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           finishOnly: true,
@@ -673,6 +695,7 @@ Future<void> run(FoundryContext context) async {
         await _writeLiveCallbackMold(moldDirectory);
 
         final result = await launchBatchMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           outputPath: outputDirectory.path,
           finishOnly: true,
@@ -707,6 +730,7 @@ Future<void> run(FoundryContext context) async {
         final marker = File(p.join(outputDirectory.path, 'should_not_exist'));
 
         final result = await launchDescribeMoldCastSession(
+          cacheHelperResolve: false,
           moldPath: moldDirectory.path,
           tempParent: helperParent,
           foundryCliDependency: FoundryCliPathDependency(
@@ -759,6 +783,7 @@ dependencies:
 ''');
 
       final result = await launchDescribeMoldCastSession(
+        cacheHelperResolve: false,
         moldPath: moldDirectory.path,
         tempParent: helperParent,
       );
@@ -768,6 +793,224 @@ dependencies:
       expect(failure.kind, 'load');
       expect(failure.message, contains('variables.dart'));
       expect(helperParent.listSync(), isEmpty);
+    });
+  });
+
+  group('launchBatchMoldCastSession helper resolve cache', () {
+    late Directory cacheRoot;
+    late List<String> cacheEvents;
+    var pubGetCount = 0;
+
+    setUp(() async {
+      cacheRoot = await Directory.systemTemp.createTemp(
+        'foundry_session_launch_cache_',
+      );
+      cacheEvents = <String>[];
+      pubGetCount = 0;
+    });
+
+    tearDown(() async {
+      if (cacheRoot.existsSync()) {
+        await cacheRoot.delete(recursive: true);
+      }
+    });
+
+    MoldCastSessionPubGetRunner countingPubGet({
+      int exitCode = 0,
+    }) {
+      return (helperRoot) async {
+        pubGetCount += 1;
+        await Directory(p.join(helperRoot.path, '.dart_tool')).create(
+          recursive: true,
+        );
+        await File(
+          p.join(helperRoot.path, '.dart_tool', 'package_config.json'),
+        ).writeAsString('{"configVersion":2,"packages":[]}');
+        return ProcessResult(1, exitCode, '', exitCode == 0 ? '' : 'err');
+      };
+    }
+
+    MoldCastSessionChildRunner successChild() {
+      return ({
+        required helperRoot,
+        required entrypoint,
+        required requestFile,
+        environment,
+      }) async {
+        final request = Map<String, Object?>.from(
+          jsonDecode(await requestFile.readAsString()) as Map<dynamic, dynamic>,
+        );
+        final resultPath = request['resultPath']! as String;
+        await File(resultPath).writeAsString(
+          jsonEncode({
+            'ok': true,
+            'artifactCount': 0,
+            'vars': <String, Object?>{'project_name': 'CacheDemo'},
+            'writtenFiles': <String>[],
+            'outputDirectory': outputDirectory.path,
+          }),
+        );
+        return 0;
+      };
+    }
+
+    test('second launch reuses resolve when the cache key matches', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+      final cliRoot = await resolveFoundryCliRoot();
+      final coreRoot = foundryCorePackageRoot();
+
+      Future<MoldCastSessionLaunchResult> launchOnce() {
+        return launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFlag: 'project_type=app,project_name=CacheDemo',
+          force: true,
+          helperCacheRoot: cacheRoot,
+          foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+          foundryCoreOverridePath: coreRoot.path,
+          pubGetRunner: countingPubGet(),
+          childRunner: successChild(),
+          onHelperCacheEvent: cacheEvents.add,
+        );
+      }
+
+      final first = await launchOnce();
+      expect(first, isA<MoldCastSessionLaunchSuccess>());
+      expect(pubGetCount, 1);
+      expect(cacheEvents, ['miss']);
+
+      cacheEvents.clear();
+      final second = await launchOnce();
+      expect(second, isA<MoldCastSessionLaunchSuccess>());
+      expect(pubGetCount, 1, reason: 'second launch must skip pub get');
+      expect(cacheEvents, ['hit']);
+      expect(cacheRoot.listSync().whereType<Directory>(), isNotEmpty);
+    });
+
+    test('editing mold pubspec.yaml invalidates the cache entry', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+      final cliRoot = await resolveFoundryCliRoot();
+      final coreRoot = foundryCorePackageRoot();
+
+      Future<MoldCastSessionLaunchResult> launchOnce() {
+        return launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFlag: 'project_type=app,project_name=CacheDemo',
+          force: true,
+          helperCacheRoot: cacheRoot,
+          foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+          foundryCoreOverridePath: coreRoot.path,
+          pubGetRunner: countingPubGet(),
+          childRunner: successChild(),
+          onHelperCacheEvent: cacheEvents.add,
+        );
+      }
+
+      expect(await launchOnce(), isA<MoldCastSessionLaunchSuccess>());
+      expect(pubGetCount, 1);
+
+      final pubspec = File(p.join(moldDirectory.path, 'pubspec.yaml'));
+      await pubspec.writeAsString(
+        '${await pubspec.readAsString()}\n# cache-bust\n',
+      );
+
+      cacheEvents.clear();
+      expect(await launchOnce(), isA<MoldCastSessionLaunchSuccess>());
+      expect(pubGetCount, 2);
+      expect(cacheEvents, ['miss']);
+    });
+
+    test('failed resolves do not leave a successful cache stamp', () async {
+      await _writeLiveCallbackMold(moldDirectory);
+      final cliRoot = await resolveFoundryCliRoot();
+      final coreRoot = foundryCorePackageRoot();
+
+      final failed = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        varsFlag: 'project_type=app,project_name=CacheDemo',
+        helperCacheRoot: cacheRoot,
+        foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+        foundryCoreOverridePath: coreRoot.path,
+        pubGetRunner: countingPubGet(exitCode: 1),
+        childRunner: successChild(),
+        onHelperCacheEvent: cacheEvents.add,
+      );
+      expect(failed, isA<MoldCastSessionLaunchFailure>());
+      expect((failed as MoldCastSessionLaunchFailure).kind, 'resolve');
+      expect(cacheEvents, ['miss', 'resolve-failed']);
+      expect(pubGetCount, 1);
+
+      final entries = cacheRoot.listSync().whereType<Directory>().toList();
+      expect(entries, hasLength(1));
+      expect(
+        File(
+          p.join(entries.single.path, moldCastSessionHelperCacheStampFileName),
+        ).existsSync(),
+        isFalse,
+      );
+
+      cacheEvents.clear();
+      final recovered = await launchBatchMoldCastSession(
+        moldPath: moldDirectory.path,
+        outputPath: outputDirectory.path,
+        varsFlag: 'project_type=app,project_name=CacheDemo',
+        force: true,
+        helperCacheRoot: cacheRoot,
+        foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+        foundryCoreOverridePath: coreRoot.path,
+        pubGetRunner: countingPubGet(),
+        childRunner: successChild(),
+        onHelperCacheEvent: cacheEvents.add,
+      );
+      expect(recovered, isA<MoldCastSessionLaunchSuccess>());
+      expect(pubGetCount, 2);
+      expect(cacheEvents, ['miss']);
+      expect(
+        File(
+          p.join(entries.single.path, moldCastSessionHelperCacheStampFileName),
+        ).existsSync(),
+        isTrue,
+      );
+    });
+
+    test('writes a debug line when FOUNDRY_DEBUG_HELPER_CACHE is set',
+        () async {
+      await _writeLiveCallbackMold(moldDirectory);
+      final cliRoot = await resolveFoundryCliRoot();
+      final coreRoot = foundryCorePackageRoot();
+
+      Future<MoldCastSessionLaunchResult> launchOnce({
+        Map<String, String>? environment,
+      }) {
+        return launchBatchMoldCastSession(
+          moldPath: moldDirectory.path,
+          outputPath: outputDirectory.path,
+          varsFlag: 'project_type=app,project_name=CacheDemo',
+          force: true,
+          helperCacheRoot: cacheRoot,
+          foundryCliDependency: FoundryCliPathDependency(cliRoot.path),
+          foundryCoreOverridePath: coreRoot.path,
+          pubGetRunner: countingPubGet(),
+          childRunner: successChild(),
+          environment: environment,
+          onHelperCacheEvent: cacheEvents.add,
+        );
+      }
+
+      expect(await launchOnce(), isA<MoldCastSessionLaunchSuccess>());
+      expect(cacheEvents, ['miss']);
+
+      cacheEvents.clear();
+      expect(
+        await launchOnce(
+          environment: const {'FOUNDRY_DEBUG_HELPER_CACHE': '1'},
+        ),
+        isA<MoldCastSessionLaunchSuccess>(),
+      );
+      expect(cacheEvents, ['hit']);
+      expect(pubGetCount, 1);
     });
   });
 
