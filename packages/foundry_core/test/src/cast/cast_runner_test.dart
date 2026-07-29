@@ -5,6 +5,8 @@ import 'package:foundry_core/src/mold/mold_pub_get.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../mold/fixtures/hooks/preserve_seeded_object.dart'
+    as preserve_seeded_object;
 import '../mold/mold_test_support.dart';
 
 void main() {
@@ -59,6 +61,14 @@ void main() {
     final file = File(p.join(moldDirectory.path, 'template', relativePath));
     await file.parent.create(recursive: true);
     await file.writeAsString(contents);
+  }
+
+  Future<void> touchHook(String relativePath) async {
+    final file = File(p.join(moldDirectory.path, relativePath));
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      '// Placeholder so the cast runner sees an on-disk hook file.\n',
+    );
   }
 
   group('castMold', () {
@@ -490,6 +500,98 @@ Future<void> run(FoundryContext context) async {
           noHooks: true,
         );
         expect(withDirtyKeys.values['project_name'], isNull);
+      },
+    );
+  });
+
+  group('castMold with CastHooks (in-process)', () {
+    test(
+      'preserves non-JSON object identity across prepare, shape, and finish',
+      () async {
+        await touchHook(MoldHooks.preparePath);
+        await touchHook(MoldHooks.shapePath);
+        await touchHook(MoldHooks.finishPath);
+        final token = preserve_seeded_object.createSeedToken();
+        FoundryContext? prepareContext;
+        FoundryContext? shapeContext;
+        FoundryContext? finishContext;
+
+        await writeTemplateFile('out.txt', 'ok\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+
+        final outcome = await castMold(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          values: const {'project_name': 'Ada'},
+          hooks: CastHooks(
+            prepare: (context) {
+              prepareContext = context..set('seed', token);
+            },
+            shape: (context) {
+              shapeContext = context;
+              expect(identical(context.required<Object>('seed'), token), isTrue);
+              preserve_seeded_object.run(context);
+            },
+            finish: (context) {
+              finishContext = context;
+              expect(identical(context.required<Object>('seen'), token), isTrue);
+            },
+          ),
+        );
+
+        expect(prepareContext, isNotNull);
+        expect(shapeContext, same(prepareContext));
+        expect(finishContext, same(prepareContext));
+        expect(identical(outcome.values['seen'], token), isTrue);
+        expect(
+          outcome.values['seen_type'],
+          token.runtimeType.toString(),
+        );
+      },
+    );
+
+    test(
+      'prepareCastContext and completeCast share in-process hook context',
+      () async {
+        await touchHook(MoldHooks.preparePath);
+        await touchHook(MoldHooks.shapePath);
+        final token = preserve_seeded_object.createSeedToken();
+        await writeTemplateFile('out.txt', '{{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+
+        final context = await prepareCastContext(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          values: const {'project_name': 'Ada'},
+          hooks: CastHooks(
+            prepare: (context) {
+              context.set('seed', token);
+            },
+          ),
+        );
+        expect(identical(context.required<Object>('seed'), token), isTrue);
+
+        final outcome = await completeCast(
+          mold: mold,
+          context: context,
+          hooks: CastHooks(
+            shape: preserve_seeded_object.run,
+          ),
+        );
+
+        expect(identical(outcome.values['seen'], token), isTrue);
       },
     );
   });
