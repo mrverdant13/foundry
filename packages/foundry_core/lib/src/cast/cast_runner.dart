@@ -25,9 +25,9 @@ import 'package:path/path.dart' as p;
 /// twice. Prefer [castMold] when the full pipeline should run in one shot with
 /// no separate gather step.
 ///
-/// When [hooks] supplies a prepare [MoldHookEntryPoint], prepare runs
-/// in-process on [context] (no JSON round-trip). Otherwise [runMoldHook]
-/// spawns the hook as a subprocess.
+/// When [hooks] supplies a prepare `MoldHookEntryPoint`, prepare runs
+/// in-process on the returned [FoundryContext] (no JSON round-trip).
+/// Otherwise `runMoldHook` spawns the hook as a subprocess.
 ///
 /// Throws [MoldHookException] when the prepare hook fails. On failure, the
 /// newly created [outputPath] directory (and any files the hook wrote before

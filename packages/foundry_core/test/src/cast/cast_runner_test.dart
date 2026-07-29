@@ -533,14 +533,20 @@ Future<void> run(FoundryContext context) async {
             prepare: (context) {
               prepareContext = context..set('seed', token);
             },
-            shape: (context) {
+            shape: (context) async {
               shapeContext = context;
-              expect(identical(context.required<Object>('seed'), token), isTrue);
-              preserve_seeded_object.run(context);
+              expect(
+                identical(context.required<Object>('seed'), token),
+                isTrue,
+              );
+              await preserve_seeded_object.run(context);
             },
             finish: (context) {
               finishContext = context;
-              expect(identical(context.required<Object>('seen'), token), isTrue);
+              expect(
+                identical(context.required<Object>('seen'), token),
+                isTrue,
+              );
             },
           ),
         );
@@ -586,7 +592,7 @@ Future<void> run(FoundryContext context) async {
         final outcome = await completeCast(
           mold: mold,
           context: context,
-          hooks: CastHooks(
+          hooks: const CastHooks(
             shape: preserve_seeded_object.run,
           ),
         );
