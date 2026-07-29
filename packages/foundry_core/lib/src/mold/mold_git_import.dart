@@ -5,6 +5,16 @@ import 'package:foundry_core/src/mold/mold_import_support.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
+/// Runs `git` with [arguments], optionally in [workingDirectory].
+///
+/// Exposed so unit tests can simulate sparse-checkout failures without
+/// depending on a specific Git capability matrix.
+@visibleForTesting
+typedef MoldGitRunner = Future<ProcessResult> Function(
+  List<String> arguments, {
+  String? workingDirectory,
+});
+
 /// Imports a mold from a git repository into `./<name>/` under
 /// [destinationParent] (the process cwd when omitted).
 ///
@@ -65,13 +75,17 @@ Future<Directory> importMoldFromGit({
 /// Clones [gitUrl] into [destination], optionally limiting the working tree
 /// to [path] via sparse checkout.
 ///
+/// When [gitRunner] is omitted, invokes the real `git` executable. Prefer
+/// [importMoldFromGit] for normal callers.
+///
 /// Exposed for unit tests that need to inspect the clone before import
-/// cleanup. Prefer [importMoldFromGit] for normal callers.
+/// cleanup or simulate Git failures.
 @visibleForTesting
 Future<void> cloneMoldRepository({
   required String gitUrl,
   required Directory destination,
   String? path,
+  MoldGitRunner? gitRunner,
 }) async {
   final sparsePath = (path == null || path.isEmpty) ? null : path;
   if (sparsePath != null) {
@@ -81,14 +95,19 @@ Future<void> cloneMoldRepository({
       gitUrl: gitUrl,
       destination: destination,
       path: sparsePath,
+      gitRunner: gitRunner,
     );
     if (sparseSucceeded) {
       return;
     }
-    await _clearDirectoryContents(destination);
+    await clearMoldImportDirectory(destination);
   }
 
-  await _shallowClone(gitUrl: gitUrl, destination: destination);
+  await _shallowClone(
+    gitUrl: gitUrl,
+    destination: destination,
+    gitRunner: gitRunner,
+  );
 }
 
 /// Attempts a sparse / partial clone limited to [path].
@@ -100,24 +119,28 @@ Future<bool> _trySparseClone({
   required String gitUrl,
   required Directory destination,
   required String path,
+  MoldGitRunner? gitRunner,
 }) async {
-  final cloneResult = await Process.run('git', [
-    'clone',
-    '--depth=1',
-    '--filter=blob:none',
-    '--sparse',
-    '--quiet',
-    gitUrl,
-    destination.path,
-  ]);
+  final cloneResult = await _runGit(
+    [
+      'clone',
+      '--depth=1',
+      '--filter=blob:none',
+      '--sparse',
+      '--quiet',
+      gitUrl,
+      destination.path,
+    ],
+    gitRunner: gitRunner,
+  );
   if (cloneResult.exitCode != 0) {
     return false;
   }
 
-  final sparseResult = await Process.run(
-    'git',
+  final sparseResult = await _runGit(
     ['sparse-checkout', 'set', '--', path],
     workingDirectory: destination.path,
+    gitRunner: gitRunner,
   );
   return sparseResult.exitCode == 0;
 }
@@ -125,22 +148,50 @@ Future<bool> _trySparseClone({
 Future<void> _shallowClone({
   required String gitUrl,
   required Directory destination,
+  MoldGitRunner? gitRunner,
 }) async {
-  final cloneResult = await Process.run('git', [
-    'clone',
-    '--depth=1',
-    '--quiet',
-    gitUrl,
-    destination.path,
-  ]);
+  final cloneResult = await _runGit(
+    [
+      'clone',
+      '--depth=1',
+      '--quiet',
+      gitUrl,
+      destination.path,
+    ],
+    gitRunner: gitRunner,
+  );
   if (cloneResult.exitCode != 0) {
     throw MoldImportException(
-      'Failed to clone "$gitUrl": ${_processOutput(cloneResult)}',
+      'Failed to clone "$gitUrl": ${describeGitCloneFailure(cloneResult)}',
     );
   }
 }
 
-Future<void> _clearDirectoryContents(Directory directory) async {
+Future<ProcessResult> _runGit(
+  List<String> arguments, {
+  String? workingDirectory,
+  MoldGitRunner? gitRunner,
+}) {
+  if (gitRunner != null) {
+    return gitRunner(arguments, workingDirectory: workingDirectory);
+  }
+  return Process.run(
+    'git',
+    arguments,
+    workingDirectory: workingDirectory,
+  );
+}
+
+/// Clears [directory] so a full shallow clone can reuse it after a failed
+/// sparse checkout attempt.
+///
+/// When [directory] is missing, creates an empty directory. When it exists,
+/// deletes its contents (including a partial `.git`) but keeps the directory
+/// itself so `git clone` can write into it.
+///
+/// Exposed for unit tests covering the sparse-checkout fallback cleanup.
+@visibleForTesting
+Future<void> clearMoldImportDirectory(Directory directory) async {
   if (!directory.existsSync()) {
     await directory.create(recursive: true);
     return;
@@ -171,7 +222,11 @@ Directory _resolveClonePath(Directory tempDirectory, String path) {
   return Directory(resolved);
 }
 
-String _processOutput(ProcessResult result) {
+/// Builds the error detail used when a `git clone` exits non-zero.
+///
+/// Exposed for unit tests covering empty and non-empty process output.
+@visibleForTesting
+String describeGitCloneFailure(ProcessResult result) {
   final output = '${result.stdout}${result.stderr}'.trim();
   return output.isEmpty ? 'git exited with code ${result.exitCode}.' : output;
 }
