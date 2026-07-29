@@ -26,7 +26,8 @@ tree, and optional lifecycle hooks. This library provides:
   still spawns a `dart run` subprocess for host-side callers.
 - **Cast orchestration** — end-to-end `castMold` pipeline and
   `.foundry/last_cast.json` persistence
-- **Import** — copy molds from a local path or shallow git clone
+- **Import** — copy molds from a local path or git (shallow clone; sparse
+  checkout of a subdirectory when `path` is set, with full shallow fallback)
 - **Pattern inspect / mold derive / mold sync** — summarize pattern directories,
   best-effort derive a starter mold, and refresh an existing mold's `template/`
   while preserving `variables.dart` and `hooks/`. Derive/sync resolve pattern
