@@ -19,9 +19,10 @@ produce an **Artifact** — a generated project or file tree at `--output`.
 
 ## Why Foundry?
 
-Foundry uses **Liquid everywhere** — in file templates, computed defaults, and
-conditional variable visibility — with validation and business rules in **Dart**
-(`variables.dart` and hooks), not in the mold manifest.
+Foundry renders mold **templates** with **Liquid** — file contents and dynamic path
+segments — while interactive variable behavior (`defaultValue`, `visibleWhen`,
+validators) and hook logic live in **Dart** (`variables.dart` and `hooks/`), not in
+the mold manifest.
 
 Inspired by [Mason](https://pub.dev/packages/mason).
 
