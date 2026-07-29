@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/foundry_core.dart';
+import 'package:foundry_core/src/mold/mold_git_import.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -11,10 +12,14 @@ Future<ProcessResult> _git(List<String> args, {required String cwd}) {
 /// Initializes a local git repository at [repoDir] with a mold at
 /// `<repoDir>/<subPath>` and commits it, so tests can clone from a `file://`
 /// remote without hitting the network.
+///
+/// When [siblingPath] is set, also writes a sibling file outside the mold
+/// subtree so sparse-checkout coverage can assert that path is omitted.
 Future<void> _initMoldRepo(
   Directory repoDir, {
   required String moldName,
   String subPath = '.',
+  String? siblingPath,
 }) async {
   final moldDir =
       subPath == '.' ? repoDir : Directory(p.join(repoDir.path, subPath))
@@ -28,6 +33,12 @@ version: 0.0.1
   Directory(p.join(moldDir.path, 'template')).createSync();
   File(p.join(moldDir.path, 'template', 'README.md'))
       .writeAsStringSync('# $moldName\n');
+
+  if (siblingPath != null) {
+    File(p.join(repoDir.path, siblingPath))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('sibling content that should not be checked out\n');
+  }
 
   await _git(['init', '--quiet'], cwd: repoDir.path);
   await _git(
@@ -113,7 +124,12 @@ void main() {
     test('descends into the given path when the mold is in a subdirectory',
         () async {
       final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
-      await _initMoldRepo(repoDir, moldName: 'nested', subPath: 'molds/api');
+      await _initMoldRepo(
+        repoDir,
+        moldName: 'nested',
+        subPath: 'molds/api',
+        siblingPath: 'other/large.txt',
+      );
       final destinationParent = Directory(p.join(workDir.path, 'dest'))
         ..createSync();
 
@@ -121,11 +137,66 @@ void main() {
         gitUrl: Uri.file(repoDir.path).toString(),
         path: 'molds/api',
         destinationParent: destinationParent,
+        tempParent: tempParent,
       );
 
       expect(destination.path, p.join(destinationParent.path, 'nested'));
       expect(
         File(p.join(destination.path, 'pubspec.yaml')).existsSync(),
+        isTrue,
+      );
+      expect(tempParent.listSync(), isEmpty);
+    });
+
+    test('sparse-checkouts only the requested subdirectory path', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(
+        repoDir,
+        moldName: 'nested',
+        subPath: 'molds/api',
+        siblingPath: 'other/large.txt',
+      );
+      final cloneDir = Directory(p.join(workDir.path, 'clone'))..createSync();
+
+      await cloneMoldRepository(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        destination: cloneDir,
+        path: 'molds/api',
+      );
+
+      expect(
+        File(p.join(cloneDir.path, 'molds', 'api', 'pubspec.yaml'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(cloneDir.path, 'other', 'large.txt')).existsSync(),
+        isFalse,
+      );
+      expect(Directory(p.join(cloneDir.path, 'other')).existsSync(), isFalse);
+    });
+
+    test('full shallow clone keeps sibling paths when path is omitted',
+        () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(
+        repoDir,
+        moldName: 'greeter',
+        siblingPath: 'other/large.txt',
+      );
+      final cloneDir = Directory(p.join(workDir.path, 'clone'))..createSync();
+
+      await cloneMoldRepository(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        destination: cloneDir,
+      );
+
+      expect(
+        File(p.join(cloneDir.path, 'pubspec.yaml')).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(cloneDir.path, 'other', 'large.txt')).existsSync(),
         isTrue,
       );
     });
@@ -296,6 +367,165 @@ version: 0.0.1
           destinationParent: destinationParent,
         ),
         throwsA(isA<MoldImportException>()),
+      );
+    });
+
+    test('treats an empty path like an omitted path', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(repoDir, moldName: 'greeter');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+
+      final destination = await importMoldFromGit(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        path: '',
+        destinationParent: destinationParent,
+        tempParent: tempParent,
+      );
+
+      expect(destination.path, p.join(destinationParent.path, 'greeter'));
+    });
+
+    test('defaults destinationParent to the process cwd', () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(repoDir, moldName: 'greeter');
+      final destinationParent = Directory(p.join(workDir.path, 'dest'))
+        ..createSync();
+      final previousCwd = Directory.current;
+      Directory.current = destinationParent;
+      try {
+        final destination = await importMoldFromGit(
+          gitUrl: Uri.file(repoDir.path).toString(),
+          tempParent: tempParent,
+        );
+
+        expect(
+          destination.resolveSymbolicLinksSync(),
+          Directory(p.join(destinationParent.path, 'greeter'))
+              .resolveSymbolicLinksSync(),
+        );
+      } finally {
+        Directory.current = previousCwd;
+      }
+    });
+
+    test('falls back to a full shallow clone when sparse clone fails',
+        () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(
+        repoDir,
+        moldName: 'nested',
+        subPath: 'molds/api',
+        siblingPath: 'other/large.txt',
+      );
+      final cloneDir = Directory(p.join(workDir.path, 'clone'))..createSync();
+      File(p.join(cloneDir.path, 'blocker.txt')).writeAsStringSync('blocked');
+
+      await cloneMoldRepository(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        destination: cloneDir,
+        path: 'molds/api',
+      );
+
+      expect(
+        File(p.join(cloneDir.path, 'blocker.txt')).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(cloneDir.path, 'molds', 'api', 'pubspec.yaml'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(cloneDir.path, 'other', 'large.txt')).existsSync(),
+        isTrue,
+      );
+    });
+
+    test('falls back to a full shallow clone when sparse-checkout set fails',
+        () async {
+      final repoDir = Directory(p.join(workDir.path, 'repo'))..createSync();
+      await _initMoldRepo(
+        repoDir,
+        moldName: 'nested',
+        subPath: 'molds/api',
+        siblingPath: 'other/large.txt',
+      );
+      final cloneDir = Directory(p.join(workDir.path, 'clone'))..createSync();
+
+      await cloneMoldRepository(
+        gitUrl: Uri.file(repoDir.path).toString(),
+        destination: cloneDir,
+        path: 'molds/api',
+        gitRunner: (arguments, {workingDirectory}) async {
+          if (arguments.isNotEmpty && arguments.first == 'sparse-checkout') {
+            return ProcessResult(
+              0,
+              1,
+              '',
+              'simulated sparse-checkout failure',
+            );
+          }
+          return Process.run(
+            'git',
+            arguments,
+            workingDirectory: workingDirectory,
+          );
+        },
+      );
+
+      expect(
+        File(p.join(cloneDir.path, 'molds', 'api', 'pubspec.yaml'))
+            .existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(cloneDir.path, 'other', 'large.txt')).existsSync(),
+        isTrue,
+      );
+    });
+  });
+
+  group('clearMoldImportDirectory', () {
+    test('creates a missing directory', () async {
+      final missing = Directory(p.join(workDir.path, 'missing_clear'));
+
+      await clearMoldImportDirectory(missing);
+
+      expect(missing.existsSync(), isTrue);
+      expect(missing.listSync(), isEmpty);
+    });
+
+    test('removes existing directory contents', () async {
+      final directory = Directory(p.join(workDir.path, 'clear_me'))
+        ..createSync();
+      File(p.join(directory.path, 'keep_dir_remove_file.txt'))
+          .writeAsStringSync('gone');
+      Directory(p.join(directory.path, 'nested')).createSync();
+
+      await clearMoldImportDirectory(directory);
+
+      expect(directory.existsSync(), isTrue);
+      expect(directory.listSync(), isEmpty);
+    });
+  });
+
+  group('describeGitCloneFailure', () {
+    test('prefers combined process output', () {
+      expect(
+        describeGitCloneFailure(
+          ProcessResult(0, 1, 'out\n', 'err\n'),
+        ),
+        'out\nerr',
+      );
+    });
+
+    test('uses a fallback when output is empty', () {
+      expect(
+        describeGitCloneFailure(
+          ProcessResult(0, 128, '  ', '\n'),
+        ),
+        'git exited with code 128.',
       );
     });
   });
