@@ -114,7 +114,10 @@ void main() {
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(infoMessages, contains('✓ Cast completed'));
-        expect(infoMessages, contains(contains('1 artifacts generated')));
+        expect(
+          infoMessages,
+          contains('✓ 1 artifacts generated at .${p.separator}out'),
+        );
         final artifact = File(p.join(workDir.path, 'out', 'README.md'));
         expect(artifact.existsSync(), isTrue);
         expect(await artifact.readAsString(), '# Ada\n');
@@ -123,6 +126,41 @@ void main() {
         expect(state['moldPath'], 'mold');
         expect(state['outputPath'], 'out');
         expect((state['vars']! as Map)['project_name'], 'Ada');
+      },
+    );
+
+    test(
+      'prints an absolute success path when --output is outside cwd',
+      () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final outsideOut = Directory.systemTemp.createTempSync(
+          'foundry_cast_out_',
+        );
+        addTearDown(() {
+          if (outsideOut.existsSync()) {
+            outsideOut.deleteSync(recursive: true);
+          }
+        });
+        final infoMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onInfo: infoMessages.add,
+          launchBatchSession: successfulLauncher(),
+        );
+
+        final exitCode = await runner.run([
+          'cast',
+          'mold',
+          '--output=${outsideOut.path}',
+        ]);
+
+        expect(exitCode, FoundryExitCode.success.code);
+        expect(
+          infoMessages,
+          contains(
+            '✓ 1 artifacts generated at ${p.normalize(outsideOut.path)}',
+          ),
+        );
       },
     );
 
@@ -578,9 +616,7 @@ void main() {
         expect(infoMessages, contains('✓ Cast completed'));
         expect(
           infoMessages,
-          contains(
-            contains('1 artifacts generated at'),
-          ),
+          contains('✓ 1 artifacts generated at .${p.separator}out'),
         );
         final state = readCastState(workDir);
         expect(state['moldPath'], 'mold');
