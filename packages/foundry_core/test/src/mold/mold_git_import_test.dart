@@ -35,10 +35,9 @@ version: 0.0.1
       .writeAsStringSync('# $moldName\n');
 
   if (siblingPath != null) {
-    final sibling = File(p.join(repoDir.path, siblingPath))
-      ..parent.createSync(recursive: true);
-    sibling
-        .writeAsStringSync('sibling content that should not be checked out\n');
+    File(p.join(repoDir.path, siblingPath))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('sibling content that should not be checked out\n');
   }
 
   await _git(['init', '--quiet'], cwd: repoDir.path);
