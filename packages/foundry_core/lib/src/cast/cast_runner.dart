@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:foundry_core/src/cast/cast_hooks.dart';
 import 'package:foundry_core/src/cast/cast_outcome.dart';
 import 'package:foundry_core/src/cast/cast_variables_invalid_exception.dart';
 import 'package:foundry_core/src/context/foundry_context.dart';
 import 'package:foundry_core/src/logging/logger.dart';
 import 'package:foundry_core/src/mold/mold.dart';
 import 'package:foundry_core/src/mold/mold_hook_exception.dart';
+import 'package:foundry_core/src/mold/mold_hook_in_process_runner.dart';
 import 'package:foundry_core/src/mold/mold_hook_runner.dart';
 import 'package:foundry_core/src/rendering/template_render_exception.dart';
 import 'package:foundry_core/src/rendering/template_renderer.dart';
@@ -23,6 +25,10 @@ import 'package:path/path.dart' as p;
 /// twice. Prefer [castMold] when the full pipeline should run in one shot with
 /// no separate gather step.
 ///
+/// When [hooks] supplies a prepare [MoldHookEntryPoint], prepare runs
+/// in-process on [context] (no JSON round-trip). Otherwise [runMoldHook]
+/// spawns the hook as a subprocess.
+///
 /// Throws [MoldHookException] when the prepare hook fails. On failure, the
 /// newly created [outputPath] directory (and any files the hook wrote before
 /// failing) are left on disk — this call is not a no-op with respect to the
@@ -32,6 +38,7 @@ Future<FoundryContext> prepareCastContext({
   required String outputPath,
   Map<String, Object?> values = const {},
   bool noHooks = false,
+  CastHooks hooks = const CastHooks(),
 }) async {
   final outputDirectory = Directory(outputPath);
   await outputDirectory.create(recursive: true);
@@ -44,10 +51,11 @@ Future<FoundryContext> prepareCastContext({
   );
 
   if (!noHooks) {
-    await runMoldHook(
+    await _runCastPhaseHook(
       phase: MoldHookPhase.prepare,
       hookFile: mold.prepareHook,
       context: context,
+      entryPoint: hooks.prepare,
     );
   }
 
@@ -65,7 +73,9 @@ Future<FoundryContext> prepareCastContext({
 /// (null) fields are not replaced by `defaultValue` during this re-evaluate
 /// pass. Defaults to empty, matching historical `castMold` behavior.
 ///
-/// When [noHooks] is `true`, shape and finish are skipped.
+/// When [noHooks] is `true`, shape and finish are skipped. Per-phase
+/// [hooks] entry points select in-process vs subprocess execution the same
+/// way as [prepareCastContext].
 ///
 /// Throws [CastVariablesInvalidException] when resolved variables fail
 /// validation, [MoldHookException] when a hook fails, and
@@ -78,6 +88,7 @@ Future<CastOutcome> completeCast({
   bool force = false,
   bool noHooks = false,
   Set<String> dirtyKeys = const {},
+  CastHooks hooks = const CastHooks(),
 }) async {
   final evaluation = mold.variableGroup.evaluate(
     rawValues: context.entries,
@@ -90,10 +101,11 @@ Future<CastOutcome> completeCast({
   context.merge(evaluation.resolvedValues);
 
   if (!noHooks) {
-    await runMoldHook(
+    await _runCastPhaseHook(
       phase: MoldHookPhase.shape,
       hookFile: mold.shapeHook,
       context: context,
+      entryPoint: hooks.shape,
     );
   }
 
@@ -105,10 +117,11 @@ Future<CastOutcome> completeCast({
   );
 
   if (!noHooks) {
-    await runMoldHook(
+    await _runCastPhaseHook(
       phase: MoldHookPhase.finish,
       hookFile: mold.finishHook,
       context: context,
+      entryPoint: hooks.finish,
     );
   }
 
@@ -142,9 +155,13 @@ Future<CastOutcome> completeCast({
 /// phases and to [CastOutcome.values]. [values] seeds that context before
 /// the prepare hook runs.
 ///
+/// When [hooks] supplies [MoldHookEntryPoint]s, matching phases run
+/// in-process (no JSON boundary). Omitted entry points fall back to
+/// [runMoldHook] for that phase.
+///
 /// When [force] is `false` (the default), rendering fails if a destination
 /// file already exists. When [noHooks] is `true`, all three hook phases are
-/// skipped. [dirtyKeys] is forwarded to [completeCast].
+/// skipped. [dirtyKeys] and [hooks] are forwarded to [completeCast].
 ///
 /// Throws [CastVariablesInvalidException] when resolved variables fail
 /// validation, [MoldHookException] when a hook fails, and
@@ -158,12 +175,14 @@ Future<CastOutcome> castMold({
   bool force = false,
   bool noHooks = false,
   Set<String> dirtyKeys = const {},
+  CastHooks hooks = const CastHooks(),
 }) async {
   final context = await prepareCastContext(
     mold: mold,
     outputPath: outputPath,
     values: values,
     noHooks: noHooks,
+    hooks: hooks,
   );
   return completeCast(
     mold: mold,
@@ -171,5 +190,27 @@ Future<CastOutcome> castMold({
     force: force,
     noHooks: noHooks,
     dirtyKeys: dirtyKeys,
+    hooks: hooks,
+  );
+}
+
+Future<void> _runCastPhaseHook({
+  required MoldHookPhase phase,
+  required File? hookFile,
+  required FoundryContext context,
+  required MoldHookEntryPoint? entryPoint,
+}) {
+  if (entryPoint != null) {
+    return runMoldHookInProcess(
+      phase: phase,
+      hookFile: hookFile,
+      context: context,
+      entryPoint: entryPoint,
+    );
+  }
+  return runMoldHook(
+    phase: phase,
+    hookFile: hookFile,
+    context: context,
   );
 }

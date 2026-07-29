@@ -1,6 +1,7 @@
 /// Core library for Foundry — molds, variables, templates, and cast.
 library;
 
+export 'src/cast/cast_hooks.dart' show CastHooks;
 export 'src/cast/cast_outcome.dart';
 export 'src/cast/cast_runner.dart'
     show castMold, completeCast, prepareCastContext;
