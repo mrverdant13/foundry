@@ -237,7 +237,10 @@ void main() {
 
         expect(exitCode, FoundryExitCode.success.code);
         expect(infoMessages, contains('✓ Recast completed'));
-        expect(infoMessages, contains(contains('1 artifacts generated')));
+        expect(
+          infoMessages,
+          contains('✓ 1 artifacts generated at .${p.separator}out'),
+        );
         expect(seenMoldPath, p.join(workDir.path, 'mold'));
         expect(seenSeededValues, {
           'project_name': 'Ada',
@@ -259,6 +262,42 @@ void main() {
         expect(
           await File(p.join(outputDir.path, 'README.md')).readAsString(),
           '# Ada\n',
+        );
+      },
+    );
+
+    test(
+      'prints an absolute success path when stored output is outside cwd',
+      () async {
+        Directory(p.join(workDir.path, 'mold')).createSync();
+        final outsideOut = Directory.systemTemp.createTempSync(
+          'foundry_recast_out_',
+        );
+        addTearDown(() {
+          if (outsideOut.existsSync()) {
+            outsideOut.deleteSync(recursive: true);
+          }
+        });
+        await writeCastState(
+          workDir,
+          moldPath: 'mold',
+          outputPath: outsideOut.path,
+        );
+        final infoMessages = <String>[];
+        final runner = buildRunner(
+          workingDirectory: workDir,
+          onInfo: infoMessages.add,
+          launchBatchSession: successfulLauncher(),
+        );
+
+        final exitCode = await runner.run(['recast', '--force']);
+
+        expect(exitCode, FoundryExitCode.success.code);
+        expect(
+          infoMessages,
+          contains(
+            '✓ 1 artifacts generated at ${p.normalize(outsideOut.path)}',
+          ),
         );
       },
     );

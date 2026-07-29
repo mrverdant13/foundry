@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/commands/cast_command.dart';
+import 'package:foundry_cli/src/display_path.dart';
 import 'package:foundry_cli/src/exit_code.dart';
 import 'package:foundry_cli/src/mold_cast_session_launcher.dart';
 import 'package:foundry_core/foundry_core.dart';
@@ -118,9 +119,15 @@ class RecastCommand extends Command<int> {
           ),
           cwd: workingDirectory,
         );
+        final displayOutputPath = formatDisplayPath(
+          outputPath,
+          cwd: workingDirectory.path,
+        );
         logger
           ..info('✓ Recast completed')
-          ..info('✓ $artifactCount artifacts generated at $outputPath');
+          ..info(
+            '✓ $artifactCount artifacts generated at $displayOutputPath',
+          );
         return exitCode;
       case MoldCastSessionLaunchFailure(:final message, :final exitCode):
         logger.error(message);
