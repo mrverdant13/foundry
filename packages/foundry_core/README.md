@@ -113,7 +113,9 @@ output directory as the process working directory.
 
 When a host already imports the hook (for example via a file URI and
 `moldHookFileUriImport`), call `runMoldHookInProcess` with that `run` as
-`entryPoint`. Mutations stay on the same `FoundryContext` instance — including
+`entryPoint`, or pass `CastHooks` to `castMold` / `prepareCastContext` /
+`completeCast` so the cast runner invokes those entry points in-process.
+Mutations stay on the same `FoundryContext` instance — including
 non-JSON `Object` values seeded by prepare — with no JSON round-trip between
 phases. Prefer that path whenever prepare, gather/shape, and finish must share
 a live heap. Use `runMoldHook` only when the host cannot import the hook and
@@ -133,7 +135,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Sync | `syncMoldFromPattern`, `MoldSyncException` |
 | Pattern | `inspectPattern`, `PatternInspectionReport`, `PatternMarker` |
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
-| Cast | `castMold`, `prepareCastContext`, `completeCast`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
+| Cast | `castMold`, `prepareCastContext`, `completeCast`, `CastHooks`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
 | Render | `renderTemplate` |
 | Hooks | `runMoldHook`, `runMoldHookInProcess`, `MoldHookEntryPoint`, `moldHookFileUriImport`, `FoundryHookException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
