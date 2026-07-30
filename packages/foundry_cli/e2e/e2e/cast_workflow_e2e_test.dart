@@ -100,5 +100,109 @@ void main() {
       // (pub get + bridge) — well over the default 30s on cold CI runners.
       timeout: const Timeout(Duration(minutes: 3)),
     );
+
+    test(
+      'rejects --skip-hooks finish when hooks/policy.dart requires finish',
+      () async {
+        final castResult = await runFoundry(
+          [
+            'cast',
+            moldPath,
+            '--output=out',
+            '--vars=project_name=my project',
+            '--skip-hooks=finish',
+          ],
+          workingDirectory: workDir.path,
+        );
+
+        expect(castResult.exitCode, isNot(0));
+        expect(
+          '${castResult.stdout}${castResult.stderr}',
+          contains('Cannot skip required hook phase(s): finish'),
+        );
+      },
+      tags: const ['e2e'],
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
+    test(
+      'finish --skip-hooks finish no-ops when finish is not required',
+      () async {
+        final moldCopy = Directory(p.join(workDir.path, 'mold'))..createSync();
+        await _copyDirectory(Directory(moldPath), moldCopy);
+        final foundryCorePath = Directory(
+          p.normalize(
+            p.join(moldPath, '..', '..', '..', '..', '..', 'foundry_core'),
+          ),
+        ).absolute.path;
+        await File(p.join(moldCopy.path, 'pubspec.yaml')).writeAsString(
+          'name: cast_pipeline_mold\n'
+          'description: E2E mold copy with optional finish\n'
+          'version: 0.0.1\n'
+          'publish_to: none\n'
+          '\n'
+          'environment:\n'
+          '  sdk: ">=3.5.0 <4.0.0"\n'
+          '\n'
+          'dependencies:\n'
+          '  foundry_core:\n'
+          '    path: ${jsonEncode(foundryCorePath)}\n',
+        );
+        await File(p.join(moldCopy.path, 'hooks', 'policy.dart')).writeAsString(
+          "import 'package:foundry_core/foundry_core.dart';\n\n"
+          'Future<Set<MoldHookPhase>> get requiredHooks async => {};\n',
+        );
+        final pubGet = await Process.run(
+          Platform.resolvedExecutable,
+          ['pub', 'get'],
+          workingDirectory: moldCopy.path,
+        );
+        expect(pubGet.exitCode, 0, reason: '${pubGet.stdout}${pubGet.stderr}');
+
+        final castResult = await runFoundry(
+          [
+            'cast',
+            moldCopy.path,
+            '--output=out',
+            '--vars=project_name=my project',
+          ],
+          workingDirectory: workDir.path,
+        );
+        expect(castResult.exitCode, 0, reason: castResult.stderr);
+
+        final finishMarker = File(
+          p.join(workDir.path, 'out', 'cast_complete.txt'),
+        );
+        await finishMarker.delete();
+
+        final finishResult = await runFoundry(
+          ['finish', '--skip-hooks=finish'],
+          workingDirectory: workDir.path,
+        );
+
+        expect(finishResult.exitCode, 0, reason: finishResult.stderr);
+        expect(finishResult.stdout, contains('Finish completed'));
+        expect(finishMarker.existsSync(), isFalse);
+      },
+      tags: const ['e2e'],
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
   });
+}
+
+Future<void> _copyDirectory(Directory source, Directory destination) async {
+  await for (final entity in source.list(recursive: true)) {
+    final relative = p.relative(entity.path, from: source.path);
+    if (relative == '.dart_tool' ||
+        relative.startsWith('.dart_tool${p.separator}')) {
+      continue;
+    }
+    final targetPath = p.join(destination.path, relative);
+    if (entity is Directory) {
+      await Directory(targetPath).create(recursive: true);
+    } else if (entity is File) {
+      await File(targetPath).parent.create(recursive: true);
+      await entity.copy(targetPath);
+    }
+  }
 }

@@ -39,7 +39,9 @@ void main() {
             moldPath,
             '--output=out',
             '--vars-file=$varsFilePath',
-            '--no-hooks',
+            '--skip-hooks=prepare',
+            '--skip-hooks=shape',
+            '--skip-hooks=finish',
           ],
           workingDirectory: workDir.path,
         );
