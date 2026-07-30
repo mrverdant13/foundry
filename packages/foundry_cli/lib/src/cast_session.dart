@@ -23,8 +23,8 @@ typedef CastSessionVariableGatherer = Future<Map<String, Object?>?> Function({
 /// Callers that import mold `hooks/*.dart` by file URI (or construct closures
 /// in tests) supply the phase `run` functions here. Missing entry points are
 /// fine when the corresponding hook file is absent; when a hook file exists
-/// and [CastSession.runBatch] / [CastSession.runInteractive] is not skipping
-/// hooks, `runMoldHookInProcess` reports a missing `run` entry point.
+/// and that phase is not listed in `skipHooks`, `runMoldHookInProcess`
+/// reports a missing `run` entry point.
 final class CastSessionHooks {
   /// Creates hook entry points for prepare, shape, and finish.
   const CastSessionHooks({
@@ -270,12 +270,12 @@ final class CastSession {
   ///
   /// [varsFileValues] is the decoded JSON object from `--vars-file` (or
   /// `null` when omitted). [varsFlag] is the raw `--vars` string.
-  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  /// Phases listed in [skipHooks] are not run.
   Future<BatchCastSessionResult> runBatch({
     Map<String, Object?>? varsFileValues,
     String? varsFlag,
     bool force = false,
-    bool noHooks = false,
+    Set<MoldHookPhase> skipHooks = const {},
   }) async {
     final outputDirectory = Directory(outputPath);
     await outputDirectory.create(recursive: true);
@@ -286,7 +286,7 @@ final class CastSession {
       outputDirectory: outputDirectory,
     );
 
-    if (!noHooks) {
+    if (!skipHooks.contains(MoldHookPhase.prepare)) {
       try {
         await runMoldHookInProcess(
           phase: MoldHookPhase.prepare,
@@ -321,7 +321,7 @@ final class CastSession {
         return _completeBatch(
           context: context,
           force: force,
-          noHooks: noHooks,
+          skipHooks: skipHooks,
         );
     }
   }
@@ -334,10 +334,10 @@ final class CastSession {
   /// rendering. Host callers are responsible for empty-`--output` cleanup and
   /// the "Cast cancelled." message.
   ///
-  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  /// Phases listed in [skipHooks] are not run.
   Future<BatchCastSessionResult> runInteractive({
     bool force = false,
-    bool noHooks = false,
+    Set<MoldHookPhase> skipHooks = const {},
     CastSessionVariableGatherer? gatherVariables,
   }) async {
     final outputDirectory = Directory(outputPath);
@@ -349,7 +349,7 @@ final class CastSession {
       outputDirectory: outputDirectory,
     );
 
-    if (!noHooks) {
+    if (!skipHooks.contains(MoldHookPhase.prepare)) {
       try {
         await runMoldHookInProcess(
           phase: MoldHookPhase.prepare,
@@ -397,7 +397,7 @@ final class CastSession {
     return _completeBatch(
       context: context,
       force: force,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
   }
 
@@ -413,11 +413,11 @@ final class CastSession {
   /// from cast state is not overwritten by `defaultValue` (same dirty-key
   /// semantics as batch parse).
   ///
-  /// When [noHooks] is `true`, prepare / shape / finish are skipped.
+  /// Phases listed in [skipHooks] are not run.
   Future<BatchCastSessionResult> runSeeded({
     required Map<String, Object?> values,
     bool force = false,
-    bool noHooks = false,
+    Set<MoldHookPhase> skipHooks = const {},
   }) async {
     final outputDirectory = Directory(outputPath);
     await outputDirectory.create(recursive: true);
@@ -429,7 +429,7 @@ final class CastSession {
       outputDirectory: outputDirectory,
     );
 
-    if (!noHooks) {
+    if (!skipHooks.contains(MoldHookPhase.prepare)) {
       try {
         await runMoldHookInProcess(
           phase: MoldHookPhase.prepare,
@@ -459,7 +459,7 @@ final class CastSession {
     return _completeBatch(
       context: context,
       force: force,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
   }
 
@@ -470,20 +470,21 @@ final class CastSession {
   /// in-process with cwd = [outputPath]. Does not create the output directory,
   /// re-render templates, or run prepare/shape.
   ///
-  /// When [noHooks] is `true`, returns success without invoking finish.
-  /// When `hooks/finish.dart` is absent, returns
+  /// When [skipHooks] contains [MoldHookPhase.finish], returns success without
+  /// invoking finish (and without requiring `hooks/finish.dart`).
+  /// When finish is not skipped and `hooks/finish.dart` is absent, returns
   /// [BatchCastSessionMissingFinishHookFailure] (unlike cast phases, where a
   /// missing finish file is a no-op).
   Future<BatchCastSessionResult> runFinishOnly({
     required Map<String, Object?> vars,
-    bool noHooks = false,
+    Set<MoldHookPhase> skipHooks = const {},
   }) async {
     final outputDirectory = Directory(outputPath);
     if (!outputDirectory.existsSync()) {
       return BatchCastSessionOutputMissingFailure(outputPath);
     }
 
-    if (noHooks) {
+    if (skipHooks.contains(MoldHookPhase.finish)) {
       return BatchCastSessionSuccess(
         artifactCount: 0,
         vars: projectEncodableCastVars(vars),
@@ -526,9 +527,9 @@ final class CastSession {
   Future<BatchCastSessionResult> _completeBatch({
     required FoundryContext context,
     required bool force,
-    required bool noHooks,
+    required Set<MoldHookPhase> skipHooks,
   }) async {
-    if (!noHooks) {
+    if (!skipHooks.contains(MoldHookPhase.shape)) {
       try {
         await runMoldHookInProcess(
           phase: MoldHookPhase.shape,
@@ -553,7 +554,7 @@ final class CastSession {
       return BatchCastSessionRenderFailure(exception);
     }
 
-    if (!noHooks) {
+    if (!skipHooks.contains(MoldHookPhase.finish)) {
       try {
         await runMoldHookInProcess(
           phase: MoldHookPhase.finish,

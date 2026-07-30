@@ -413,7 +413,7 @@ void main() {
       expect(failure.message, contains('Name is reserved'));
     });
 
-    test('skips hooks when noHooks is true', () async {
+    test('skips all hook phases when every phase is in skipHooks', () async {
       await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
       await touchHook(MoldHooks.preparePath);
       var prepareCalled = false;
@@ -436,7 +436,7 @@ void main() {
         ),
       ).runBatch(
         varsFlag: 'project_name=Ada',
-        noHooks: true,
+        skipHooks: MoldHookPhase.values.toSet(),
       );
 
       expect(result, isA<BatchCastSessionSuccess>());
@@ -445,6 +445,38 @@ void main() {
         await File(p.join(outputDirectory.path, 'out.txt')).readAsString(),
         'name=Ada\n',
       );
+    });
+
+    test('skips only the listed hook phase', () async {
+      await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
+      await touchHook(MoldHooks.preparePath);
+      await touchHook(MoldHooks.shapePath);
+      await touchHook(MoldHooks.finishPath);
+      final called = <MoldHookPhase>[];
+
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      final result = await CastSession(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        hooks: CastSessionHooks(
+          prepare: (_) => called.add(MoldHookPhase.prepare),
+          shape: (_) => called.add(MoldHookPhase.shape),
+          finish: (_) => called.add(MoldHookPhase.finish),
+        ),
+      ).runBatch(
+        varsFlag: 'project_name=Ada',
+        skipHooks: {MoldHookPhase.shape},
+      );
+
+      expect(result, isA<BatchCastSessionSuccess>());
+      expect(called, [MoldHookPhase.prepare, MoldHookPhase.finish]);
     });
 
     test('returns render failure on output conflict without force', () async {
@@ -705,7 +737,7 @@ void main() {
       expect(seenSeed!['from_prepare'], 'yes');
     });
 
-    test('skips prepare seeding when noHooks is true', () async {
+    test('skips prepare seeding when prepare is in skipHooks', () async {
       await writeTemplateFile('out.txt', 'name={{ project_name }}\n');
       await touchHook(MoldHooks.preparePath);
       Map<String, Object?>? seenSeed;
@@ -728,7 +760,7 @@ void main() {
           },
         ),
       ).runInteractive(
-        noHooks: true,
+        skipHooks: {MoldHookPhase.prepare},
         gatherVariables: ({
           required variableGroup,
           required moldName,
@@ -1155,7 +1187,7 @@ void main() {
       expect(failure.message, contains('does not exist'));
     });
 
-    test('skips finish when noHooks is true', () async {
+    test('skips finish when finish is in skipHooks', () async {
       await touchHook(MoldHooks.finishPath);
       var finishCalled = false;
       final result = await CastSession(
@@ -1168,7 +1200,10 @@ void main() {
             finishCalled = true;
           },
         ),
-      ).runFinishOnly(vars: {'project_name': 'Ada'}, noHooks: true);
+      ).runFinishOnly(
+        vars: {'project_name': 'Ada'},
+        skipHooks: {MoldHookPhase.finish},
+      );
 
       expect(result, isA<BatchCastSessionSuccess>());
       expect(finishCalled, isFalse);
@@ -1177,6 +1212,30 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'skips finish without requiring the hook file when finish is skipped',
+      () async {
+        var finishCalled = false;
+        final result = await CastSession(
+          mold: buildMold(
+            variableGroup: const FoundryVariableGroup(variables: {}),
+          ),
+          outputPath: outputDirectory.path,
+          hooks: CastSessionHooks(
+            finish: (_) async {
+              finishCalled = true;
+            },
+          ),
+        ).runFinishOnly(
+          vars: const {},
+          skipHooks: {MoldHookPhase.finish},
+        );
+
+        expect(result, isA<BatchCastSessionSuccess>());
+        expect(finishCalled, isFalse);
+      },
+    );
 
     test('returns hook failure when finish throws', () async {
       await touchHook(MoldHooks.finishPath);
