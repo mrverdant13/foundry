@@ -530,6 +530,167 @@ Future<void> run(FoundryContext context) async {
     });
 
     test(
+      'prepareCastContext fails before creating output when skipping a '
+      'required phase',
+      () async {
+        await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final missingOutput = Directory(
+          p.join(outputDirectory.path, 'missing_prepare_output'),
+        );
+
+        await expectLater(
+          prepareCastContext(
+            mold: mold,
+            outputPath: missingOutput.path,
+            skipHooks: {MoldHookPhase.prepare},
+            requiredHooks: {MoldHookPhase.prepare},
+          ),
+          throwsA(
+            isA<MoldHookSelectionException>().having(
+              (e) => e.skippedRequiredPhases,
+              'skippedRequiredPhases',
+              {MoldHookPhase.prepare},
+            ),
+          ),
+        );
+        expect(missingOutput.existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'prepareCastContext fails before creating output when a required hook '
+      'file is missing',
+      () async {
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final missingOutput = Directory(
+          p.join(outputDirectory.path, 'missing_required_output'),
+        );
+
+        await expectLater(
+          prepareCastContext(
+            mold: mold,
+            outputPath: missingOutput.path,
+            requiredHooks: {MoldHookPhase.finish},
+          ),
+          throwsA(
+            isA<MoldHookSelectionException>().having(
+              (e) => e.missingRequiredPhases,
+              'missingRequiredPhases',
+              {MoldHookPhase.finish},
+            ),
+          ),
+        );
+        expect(missingOutput.existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'completeCast fails before shape when skipping a required phase',
+      () async {
+        await writeHook(MoldHooks.shapePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('shaped_value', 'from-shape');
+}
+''');
+        await writeTemplateFile('README.md', '# {{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final context = FoundryContext(
+          values: const {'project_name': 'Ada'},
+          logger: Logger(),
+          moldDirectory: moldDirectory,
+          outputDirectory: outputDirectory,
+        );
+
+        await expectLater(
+          completeCast(
+            mold: mold,
+            context: context,
+            skipHooks: {MoldHookPhase.shape},
+            requiredHooks: {MoldHookPhase.shape},
+          ),
+          throwsA(
+            isA<MoldHookSelectionException>().having(
+              (e) => e.skippedRequiredPhases,
+              'skippedRequiredPhases',
+              {MoldHookPhase.shape},
+            ),
+          ),
+        );
+        expect(context.entries.containsKey('shaped_value'), isFalse);
+        expect(
+          File(p.join(outputDirectory.path, 'README.md')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'completeCast fails before shape when a required hook file is missing',
+      () async {
+        await writeTemplateFile('README.md', '# {{ project_name }}\n');
+        final mold = buildMold(
+          variableGroup: const FoundryVariableGroup(
+            variables: {
+              'project_name': FoundryStringVariable(label: 'Project name'),
+            },
+          ),
+        );
+        final context = FoundryContext(
+          values: const {'project_name': 'Ada'},
+          logger: Logger(),
+          moldDirectory: moldDirectory,
+          outputDirectory: outputDirectory,
+        );
+
+        await expectLater(
+          completeCast(
+            mold: mold,
+            context: context,
+            requiredHooks: {MoldHookPhase.finish},
+          ),
+          throwsA(
+            isA<MoldHookSelectionException>().having(
+              (e) => e.missingRequiredPhases,
+              'missingRequiredPhases',
+              {MoldHookPhase.finish},
+            ),
+          ),
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'README.md')).existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test(
       'completeCast accepts a hand-built context without prepareCastContext',
       () async {
         await writeTemplateFile('README.md', '# {{ project_name }}\n');
