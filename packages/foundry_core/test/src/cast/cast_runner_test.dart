@@ -211,7 +211,7 @@ Future<void> run(FoundryContext context) async {
       },
     );
 
-    test('skips all hook phases when noHooks is true', () async {
+    test('skips all hook phases when every phase is in skipHooks', () async {
       await writeHook(MoldHooks.preparePath, '''
 import 'package:foundry_core/foundry_core.dart';
 
@@ -245,7 +245,7 @@ Future<void> run(FoundryContext context) async {
       final outcome = await castMold(
         mold: mold,
         outputPath: outputDirectory.path,
-        noHooks: true,
+        skipHooks: MoldHookPhase.values.toSet(),
       );
 
       expect(outcome.values['prepared_value'], 'fallback');
@@ -254,6 +254,111 @@ Future<void> run(FoundryContext context) async {
         await File(p.join(outputDirectory.path, 'output.txt')).readAsString(),
         'prepared=fallback shaped=',
       );
+    });
+
+    test('skips only the listed hook phases', () async {
+      await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+      await writeHook(MoldHooks.shapePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('shaped_value', 'from-shape');
+}
+''');
+      await writeTemplateFile(
+        'output.txt',
+        'prepared={{ prepared_value }} shaped={{ shaped_value }}',
+      );
+      final mold = buildMold(
+        variableGroup: FoundryVariableGroup(
+          variables: {
+            'prepared_value': FoundryStringVariable(
+              label: 'Prepared value',
+              defaultValue: (context) =>
+                  context.optionalString('seed') ?? 'fallback',
+            ),
+          },
+        ),
+      );
+
+      final outcome = await castMold(
+        mold: mold,
+        outputPath: outputDirectory.path,
+        skipHooks: {MoldHookPhase.shape},
+      );
+
+      expect(outcome.values['prepared_value'], 'from-prepare');
+      expect(outcome.values.containsKey('shaped_value'), isFalse);
+      expect(
+        await File(p.join(outputDirectory.path, 'output.txt')).readAsString(),
+        'prepared=from-prepare shaped=',
+      );
+    });
+
+    test('fails early when skipping a required phase', () async {
+      await writeHook(MoldHooks.preparePath, '''
+import 'package:foundry_core/foundry_core.dart';
+
+Future<void> run(FoundryContext context) async {
+  context.set('seed', 'from-prepare');
+}
+''');
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      await expectLater(
+        castMold(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          skipHooks: {MoldHookPhase.prepare},
+          requiredHooks: {MoldHookPhase.prepare},
+        ),
+        throwsA(
+          isA<MoldHookSelectionException>().having(
+            (e) => e.skippedRequiredPhases,
+            'skippedRequiredPhases',
+            {MoldHookPhase.prepare},
+          ),
+        ),
+      );
+      expect(outputDirectory.listSync(), isEmpty);
+    });
+
+    test('fails early when a required hook file is missing', () async {
+      final mold = buildMold(
+        variableGroup: const FoundryVariableGroup(
+          variables: {
+            'project_name': FoundryStringVariable(label: 'Project name'),
+          },
+        ),
+      );
+
+      await expectLater(
+        castMold(
+          mold: mold,
+          outputPath: outputDirectory.path,
+          requiredHooks: {MoldHookPhase.finish},
+        ),
+        throwsA(
+          isA<MoldHookSelectionException>().having(
+            (e) => e.missingRequiredPhases,
+            'missingRequiredPhases',
+            {MoldHookPhase.finish},
+          ),
+        ),
+      );
+      expect(outputDirectory.listSync(), isEmpty);
     });
 
     test(
@@ -399,7 +504,7 @@ Future<void> run(FoundryContext context) async {
       expect(outcome.values['prepared_value'], 'from-prepare');
     });
 
-    test('prepareCastContext skips prepare when noHooks is true', () async {
+    test('prepareCastContext skips prepare when listed in skipHooks', () async {
       await writeHook(MoldHooks.preparePath, '''
 import 'package:foundry_core/foundry_core.dart';
 
@@ -418,7 +523,7 @@ Future<void> run(FoundryContext context) async {
       final context = await prepareCastContext(
         mold: mold,
         outputPath: outputDirectory.path,
-        noHooks: true,
+        skipHooks: {MoldHookPhase.prepare},
       );
 
       expect(context.entries.containsKey('seed'), isFalse);
@@ -445,7 +550,7 @@ Future<void> run(FoundryContext context) async {
         final outcome = await completeCast(
           mold: mold,
           context: context,
-          noHooks: true,
+          skipHooks: MoldHookPhase.values.toSet(),
         );
 
         expect(outcome.values['project_name'], 'Ada');
@@ -483,7 +588,7 @@ Future<void> run(FoundryContext context) async {
             outputDirectory: outputDirectory,
           ),
           force: true,
-          noHooks: true,
+          skipHooks: MoldHookPhase.values.toSet(),
         );
         expect(withoutDirtyKeys.values['project_name'], 'from-default');
 
@@ -497,7 +602,7 @@ Future<void> run(FoundryContext context) async {
           ),
           dirtyKeys: const {'project_name'},
           force: true,
-          noHooks: true,
+          skipHooks: MoldHookPhase.values.toSet(),
         );
         expect(withDirtyKeys.values['project_name'], isNull);
       },

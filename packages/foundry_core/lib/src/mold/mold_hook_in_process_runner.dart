@@ -36,8 +36,8 @@ String moldHookFileUriImport({
 /// Runs the lifecycle hook for [phase] in the **current** isolate.
 ///
 /// Does nothing when [hookFile] is `null` or does not exist — missing hooks
-/// are no-ops. Callers that honor `--no-hooks` should skip invoking this
-/// entirely.
+/// are no-ops. Callers that skip a phase (via `skipHooks`) should skip
+/// invoking this entirely.
 ///
 /// When the hook file exists, [entryPoint] must be that file's top-level
 /// `run` function, typically imported via a file URI:

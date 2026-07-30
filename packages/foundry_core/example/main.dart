@@ -49,7 +49,7 @@ Future<void> main() async {
     outputPath: outputPath,
     values: const {'project_name': 'hello_foundry'},
     force: true,
-    noHooks: true,
+    skipHooks: MoldHookPhase.values.toSet(),
   );
 
   stdout

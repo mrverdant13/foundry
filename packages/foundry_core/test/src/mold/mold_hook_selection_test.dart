@@ -38,7 +38,10 @@ void main() {
 
   group('moldHookPathForPhase', () {
     test('maps each phase to its relative hook path', () {
-      expect(moldHookPathForPhase(MoldHookPhase.prepare), MoldHooks.preparePath);
+      expect(
+        moldHookPathForPhase(MoldHookPhase.prepare),
+        MoldHooks.preparePath,
+      );
       expect(moldHookPathForPhase(MoldHookPhase.shape), MoldHooks.shapePath);
       expect(moldHookPathForPhase(MoldHookPhase.finish), MoldHooks.finishPath);
     });
@@ -83,17 +86,15 @@ void main() {
           requiredHooks: {MoldHookPhase.shape},
         ),
         throwsA(
-          isA<MoldHookSelectionException>()
-              .having(
-                (e) => e.skippedRequiredPhases,
-                'skippedRequiredPhases',
-                {MoldHookPhase.shape},
-              )
-              .having(
-                (e) => e.message,
-                'message',
-                contains('Cannot skip required hook phase(s): shape'),
-              ),
+          isA<MoldHookSelectionException>().having(
+            (e) => e.skippedRequiredPhases,
+            'skippedRequiredPhases',
+            {MoldHookPhase.shape},
+          ).having(
+            (e) => e.message,
+            'message',
+            contains('Cannot skip required hook phase(s): shape'),
+          ),
         ),
       );
     });
@@ -105,19 +106,17 @@ void main() {
           requiredHooks: {MoldHookPhase.finish},
         ),
         throwsA(
-          isA<MoldHookSelectionException>()
-              .having(
-                (e) => e.missingRequiredPhases,
-                'missingRequiredPhases',
-                {MoldHookPhase.finish},
-              )
-              .having(
-                (e) => e.message,
-                'message',
-                contains(
-                  'Required hook file(s) missing: ${MoldHooks.finishPath}',
-                ),
-              ),
+          isA<MoldHookSelectionException>().having(
+            (e) => e.missingRequiredPhases,
+            'missingRequiredPhases',
+            {MoldHookPhase.finish},
+          ).having(
+            (e) => e.message,
+            'message',
+            contains(
+              'Required hook file(s) missing: ${MoldHooks.finishPath}',
+            ),
+          ),
         ),
       );
     });
@@ -130,17 +129,15 @@ void main() {
           requiredHooks: {MoldHookPhase.prepare, MoldHookPhase.finish},
         ),
         throwsA(
-          isA<MoldHookSelectionException>()
-              .having(
-                (e) => e.skippedRequiredPhases,
-                'skippedRequiredPhases',
-                {MoldHookPhase.prepare},
-              )
-              .having(
-                (e) => e.missingRequiredPhases,
-                'missingRequiredPhases',
-                isEmpty,
-              ),
+          isA<MoldHookSelectionException>().having(
+            (e) => e.skippedRequiredPhases,
+            'skippedRequiredPhases',
+            {MoldHookPhase.prepare},
+          ).having(
+            (e) => e.missingRequiredPhases,
+            'missingRequiredPhases',
+            isEmpty,
+          ),
         ),
       );
     });
