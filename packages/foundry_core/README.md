@@ -85,7 +85,11 @@ Future<void> main() async {
     outputPath: outputPath,
     values: {'project_name': 'my_app'},
     force: true,
-    noHooks: true,
+    skipHooks: {
+      MoldHookPhase.prepare,
+      MoldHookPhase.shape,
+      MoldHookPhase.finish,
+    },
   );
 
   stdout.writeln(
@@ -109,8 +113,15 @@ Future<void> run(FoundryContext context) async {
 }
 ```
 
-Missing hook files are no-ops. Relative file I/O inside a hook uses the cast
-output directory as the process working directory.
+Missing hook files are no-ops unless a caller marks that phase in
+`requiredHooks` — then `validateMoldHookSelection` fails before the cast
+mutates the filesystem. Pass `skipHooks` to skip a subset of phases; skipping
+a required phase also fails validation. Optional `hooks/policy.dart` is a
+stable path (`MoldHooks.policyPath` / `Mold.policyFile`) for hosts to load
+author-declared required phases — core does not execute it.
+
+Relative file I/O inside a hook uses the cast output directory as the process
+working directory.
 
 When a host already imports the hook (for example via a file URI and
 `moldHookFileUriImport`), call `runMoldHookInProcess` with that `run` as
@@ -138,7 +149,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
 | Cast | `castMold`, `prepareCastContext`, `completeCast`, `CastHooks`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
 | Render | `renderTemplate` |
-| Hooks | `runMoldHook`, `runMoldHookInProcess`, `MoldHookEntryPoint`, `moldHookFileUriImport`, `FoundryHookException` |
+| Hooks | `runMoldHook`, `runMoldHookInProcess`, `MoldHookEntryPoint`, `moldHookFileUriImport`, `validateMoldHookSelection`, `FoundryHookException`, `MoldHookSelectionException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
 
 ## Resources
