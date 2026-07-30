@@ -141,9 +141,10 @@ void main() {
         ),
       );
     });
+  });
 
-    test('Mold.policyFile is present only when hooks/policy.dart exists',
-        () async {
+  group('Mold.policyFile', () {
+    test('is present only when hooks/policy.dart exists', () async {
       final mold = buildMold();
       expect(mold.policyFile, isNull);
 
