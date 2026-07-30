@@ -132,8 +132,7 @@ void main() {
         await _copyMoldWithPolicy(
           sourceMoldPath: moldPath,
           destination: moldCopy,
-          policySource:
-              "import 'package:foundry_core/foundry_core.dart';\n\n"
+          policySource: "import 'package:foundry_core/foundry_core.dart';\n\n"
               'Future<Set<MoldHookPhase>> get requiredHooks async => {\n'
               '  MoldHookPhase.prepare,\n'
               '};\n',
@@ -175,7 +174,8 @@ void main() {
         expect(finishResult.exitCode, 0, reason: finishResult.stderr);
         expect(finishResult.stdout, contains('Finish completed'));
         expect(
-          await File(p.join(outputDir.path, 'cast_complete.txt')).readAsString(),
+          await File(p.join(outputDir.path, 'cast_complete.txt'))
+              .readAsString(),
           'finished\n',
         );
       },
@@ -190,8 +190,7 @@ void main() {
         await _copyMoldWithPolicy(
           sourceMoldPath: moldPath,
           destination: moldCopy,
-          policySource:
-              "import 'package:foundry_core/foundry_core.dart';\n\n"
+          policySource: "import 'package:foundry_core/foundry_core.dart';\n\n"
               'Future<Set<MoldHookPhase>> get requiredHooks async => {};\n',
         );
 
