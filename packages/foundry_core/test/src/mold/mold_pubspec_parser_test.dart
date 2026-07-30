@@ -10,9 +10,11 @@ void main() {
       expect(MoldHooks.prepare, 'prepare.dart');
       expect(MoldHooks.shape, 'shape.dart');
       expect(MoldHooks.finish, 'finish.dart');
+      expect(MoldHooks.policy, 'policy.dart');
       expect(MoldHooks.preparePath, p.join('hooks', 'prepare.dart'));
       expect(MoldHooks.shapePath, p.join('hooks', 'shape.dart'));
       expect(MoldHooks.finishPath, p.join('hooks', 'finish.dart'));
+      expect(MoldHooks.policyPath, p.join('hooks', 'policy.dart'));
       expect(MoldHooks.allPaths, [
         p.join('hooks', 'prepare.dart'),
         p.join('hooks', 'shape.dart'),
