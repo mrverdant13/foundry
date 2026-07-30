@@ -1,9 +1,10 @@
 # Mold lifecycle hooks
 
 Foundry molds may define optional **Dart lifecycle hooks** under `hooks/`. Hooks run
-during `foundry cast` and `foundry recast` (unless `--no-hooks` is passed). The
-`foundry finish` command runs only the **finish** hook against the last cast output
-(and requires `hooks/finish.dart` to exist).
+during `foundry cast` and `foundry recast`. Skip individual phases with repeatable
+`--skip-hooks=<phase>` (`prepare`, `shape`, or `finish`). The `foundry finish`
+command runs only the **finish** hook against the last cast output; pass
+`--skip-hooks=finish` to skip it when the mold's optional hook policy allows.
 
 Hooks are **not** declared in `pubspec.yaml`. Foundry discovers them at conventional
 paths relative to the mold root:
@@ -15,7 +16,10 @@ paths relative to the mold root:
 | finish  | `hooks/finish.dart`  | After template rendering (also via `foundry finish`) |
 
 Missing prepare/shape/finish hook files are **no-ops** during `foundry cast` /
-`foundry recast`. `foundry finish` fails if `hooks/finish.dart` is absent.
+`foundry recast` unless a phase is **required** by `hooks/policy.dart` (see
+[Required hook policy](#required-hook-policy)). Plain `foundry finish` fails if
+`hooks/finish.dart` is absent. With `--skip-hooks=finish` and finish not required,
+the command succeeds without needing that file.
 
 ## Mold cast session
 
@@ -23,11 +27,14 @@ Missing prepare/shape/finish hook files are **no-ops** during `foundry cast` /
 session**: a short-lived helper package that depends on `foundry_cli` and the target
 mold, then runs the pipeline in one Dart process.
 
-That process imports the mold's root `variables.dart` and any present `hooks/*.dart`
-by file URI. Variable callbacks (`visibleWhen`, `defaultValue`, validators, and so
-on) therefore run as live Dart. Hooks run **in-process** against one shared
-`FoundryContext` — mutations are visible to later phases in the same cast with
-**no JSON round-trip** between prepare, gather, shape, and finish.
+That process imports the mold's root `variables.dart` and any present lifecycle
+hook files (`prepare` / `shape` / `finish`) by file URI. When `hooks/policy.dart`
+exists, it is imported as well so the session can await `requiredHooks` before
+running the pipeline. Variable callbacks (`visibleWhen`, `defaultValue`,
+validators, and so on) therefore run as live Dart. Hooks run **in-process**
+against one shared `FoundryContext` — mutations are visible to later phases in
+the same cast with **no JSON round-trip** between prepare, gather, shape, and
+finish.
 
 Within a single cast, prepare may seed non-encodable Dart values (for example custom
 objects). Gather, shape, and finish in that same session see those values.
@@ -184,7 +191,60 @@ order:
 `foundry finish` skips steps 1–4 and runs only the **finish** hook against the stored
 output path from `.foundry/last_cast.json`.
 
-Pass **`--no-hooks`** to skip all hook phases for a command.
+### Skipping hook phases
+
+Pass **`--skip-hooks=<phase>`** once per phase to skip (`prepare`, `shape`, and/or
+`finish`). Duplicate values are treated as a set. Invalid phase names are rejected
+as usage errors.
+
+```bash
+foundry cast ./my_mold --output=./out --skip-hooks=prepare --skip-hooks=finish
+foundry recast --skip-hooks=shape
+foundry finish --skip-hooks=finish
+```
+
+There is no skip-all shorthand. `foundry finish` accepts only `--skip-hooks=finish`.
+
+Skipped phases do not run. Skipping a phase that the mold marks as required fails
+early — see [Required hook policy](#required-hook-policy).
+
+## Required hook policy
+
+Mold authors may optionally add `hooks/policy.dart` to declare which lifecycle
+phases must run. The file is not scaffolded by `mold init` / `mold derive`; omit
+it when every present hook remains skippable.
+
+When the file exists, the mold cast session imports it by file URI and awaits a
+top-level getter:
+
+```dart
+import 'package:foundry_core/foundry_core.dart';
+
+/// Phases that callers must not skip, and that must have a hook file on disk.
+Future<Set<MoldHookPhase>> get requiredHooks async => {
+      MoldHookPhase.finish,
+    };
+```
+
+- The getter name must be **`requiredHooks`**.
+- Return type must be `Future<Set<MoldHookPhase>>` (async is required).
+- If `hooks/policy.dart` is absent, the required set is empty — all present hooks
+  are skippable, and missing prepare/shape/finish files remain no-ops for cast /
+  recast.
+
+Before the pipeline runs, Foundry validates the caller's `--skip-hooks` selection
+against that set:
+
+1. If any skipped phase is also required → fail early (names the required phases).
+2. If a required phase has no `hooks/<phase>.dart` → fail early (lists missing
+   paths).
+3. Otherwise run the pipeline, skipping only phases listed in `--skip-hooks`.
+
+`foundry finish` evaluates policy for the **finish** phase only (it never runs
+prepare or shape). With `--skip-hooks=finish`:
+
+- finish **not** required → success no-op (finish file not required)
+- finish **required** → fail early
 
 ## Cast state and recast / finish seeds
 
