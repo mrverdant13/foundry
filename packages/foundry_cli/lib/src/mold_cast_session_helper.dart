@@ -92,6 +92,7 @@ final class MoldCastSessionHelperHookImports {
     this.prepareUri,
     this.shapeUri,
     this.finishUri,
+    this.policyUri,
   });
 
   /// Absolute file URI for `hooks/prepare.dart`, if present.
@@ -103,6 +104,8 @@ final class MoldCastSessionHelperHookImports {
   /// Absolute file URI for `hooks/finish.dart`, if present.
   final Uri? finishUri;
 
+  /// Absolute file URI for `hooks/policy.dart`, if present.
+  final Uri? policyUri;
 }
 
 /// Builds the generated `bin/cast_session.dart` bridge source.
@@ -110,6 +113,10 @@ final class MoldCastSessionHelperHookImports {
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
 /// files by file URI, then runs a `CastSession` against the live
 /// `moldVariables` group in the helper isolate.
+///
+/// When [MoldCastSessionHelperHookImports.policyUri] is set, the bridge also
+/// imports `hooks/policy.dart`, awaits `requiredHooks`, and validates
+/// selection via `validateMoldHookSelection` before running the session.
 ///
 /// Request routing:
 /// - `describeOnly: true` → describe live variable metadata (no hooks/render)
@@ -128,6 +135,7 @@ String buildMoldCastSessionBridgeSource({
       "import '${hooks.prepareUri}' as prepare_hook;",
     if (hooks.shapeUri != null) "import '${hooks.shapeUri}' as shape_hook;",
     if (hooks.finishUri != null) "import '${hooks.finishUri}' as finish_hook;",
+    if (hooks.policyUri != null) "import '${hooks.policyUri}' as hook_policy;",
   ];
 
   final hookArgs = <String>[
@@ -142,6 +150,10 @@ String buildMoldCastSessionBridgeSource({
       CastSessionHooks(
 ${hookArgs.map((line) => '        $line').join('\n')}
       )''';
+
+  final requiredHooksExpression = hooks.policyUri != null
+      ? 'await hook_policy.requiredHooks'
+      : '<MoldHookPhase>{}';
 
   return '''
 import 'dart:convert';
@@ -351,10 +363,24 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  final Set<MoldHookPhase> requiredHooks;
+  try {
+    requiredHooks = $requiredHooksExpression;
+  } on Object catch (error) {
+    await _writeFailureResult(
+      resultPath: resultPath,
+      kind: 'hook',
+      message: 'Failed to load hooks/policy.dart requiredHooks: \$error',
+    );
+    exitCode = FoundryExitCode.userError.code;
+    return;
+  }
+
   try {
     validateMoldHookSelection(
       mold: mold,
       skipHooks: skipHooks,
+      requiredHooks: requiredHooks,
     );
   } on MoldHookSelectionException catch (exception) {
     await _writeFailureResult(

@@ -538,6 +538,7 @@ Future<void> _materializeHelperPackage({
     prepareUri: _existingHookUri(moldDirectory, MoldHooks.preparePath),
     shapeUri: _existingHookUri(moldDirectory, MoldHooks.shapePath),
     finishUri: _existingHookUri(moldDirectory, MoldHooks.finishPath),
+    policyUri: _existingHookUri(moldDirectory, MoldHooks.policyPath),
   );
 
   final entrypoint = File(

@@ -147,7 +147,26 @@ void main() {
       expect(source, isNot(contains('const CastSessionHooks()')));
       expect(source, contains('skipHooks'));
       expect(source, contains('validateMoldHookSelection'));
+      expect(source, contains('<MoldHookPhase>{}'));
+      expect(source, isNot(contains('hook_policy')));
     });
 
+    test('imports policy.dart and awaits requiredHooks when present', () {
+      final source = buildMoldCastSessionBridgeSource(
+        variablesUri: Uri.file('/tmp/mold/variables.dart'),
+        hooks: MoldCastSessionHelperHookImports(
+          policyUri: Uri.file('/tmp/mold/hooks/policy.dart'),
+        ),
+      );
+
+      expect(
+        source,
+        contains(
+          "import 'file:///tmp/mold/hooks/policy.dart' as hook_policy;",
+        ),
+      );
+      expect(source, contains('await hook_policy.requiredHooks'));
+      expect(source, contains('validateMoldHookSelection'));
+    });
   });
 }
