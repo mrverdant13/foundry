@@ -275,7 +275,10 @@ void main() {
       final exitCode = await runner.run(['finish', '--skip-hooks=finish']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(infoMessages, contains('✓ Finish completed'));
+      expect(
+        infoMessages,
+        contains('Finish skipped (--skip-hooks finish).'),
+      );
       expect(seenFinishOnly, isTrue);
       expect(seenSkipHooks, {MoldHookPhase.finish});
       expect(

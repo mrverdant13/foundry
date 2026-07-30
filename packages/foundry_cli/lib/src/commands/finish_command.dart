@@ -101,7 +101,11 @@ class FinishCommand extends Command<int> {
 
     switch (result) {
       case MoldCastSessionLaunchSuccess(:final exitCode):
-        logger.info('✓ Finish completed');
+        if (skipHooks.contains(MoldHookPhase.finish)) {
+          logger.info('Finish skipped (--skip-hooks finish).');
+        } else {
+          logger.info('✓ Finish completed');
+        }
         return exitCode;
       case MoldCastSessionLaunchFailure(:final message, :final exitCode):
         logger.error(message);

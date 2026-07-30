@@ -217,7 +217,10 @@ void main() {
         );
 
         expect(finishResult.exitCode, 0, reason: finishResult.stderr);
-        expect(finishResult.stdout, contains('Finish completed'));
+        expect(
+          finishResult.stdout,
+          contains('Finish skipped (--skip-hooks finish).'),
+        );
         expect(finishMarker.existsSync(), isFalse);
       },
       tags: const ['e2e'],
