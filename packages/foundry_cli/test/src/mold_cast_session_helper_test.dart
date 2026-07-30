@@ -167,6 +167,11 @@ void main() {
       );
       expect(source, contains('await hook_policy.requiredHooks'));
       expect(source, contains('validateMoldHookSelection'));
+      expect(source, contains('effectiveRequiredHooks'));
+      expect(
+        source,
+        contains('requiredHooks.intersection({MoldHookPhase.finish})'),
+      );
     });
   });
 }

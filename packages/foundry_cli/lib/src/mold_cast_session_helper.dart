@@ -376,11 +376,17 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  // Finish-only sessions never run prepare/shape; only enforce policy for
+  // phases this mode can actually execute.
+  final effectiveRequiredHooks = finishOnly
+      ? requiredHooks.intersection({MoldHookPhase.finish})
+      : requiredHooks;
+
   try {
     validateMoldHookSelection(
       mold: mold,
       skipHooks: skipHooks,
-      requiredHooks: requiredHooks,
+      requiredHooks: effectiveRequiredHooks,
     );
   } on MoldHookSelectionException catch (exception) {
     await _writeFailureResult(
