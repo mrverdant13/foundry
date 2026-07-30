@@ -274,7 +274,7 @@ Replays the last successful cast via a mold cast session seeded from
 #### `foundry finish`
 
 ```
-foundry finish [--skip-hooks=<phase>]
+foundry finish [--skip-hooks=finish]
 ```
 
 Runs a finish-only mold cast session for the last cast (requires
@@ -284,7 +284,7 @@ without re-rendering templates.
 
 | Option | Description |
 | ------ | ----------- |
-| `--skip-hooks` | Skip a lifecycle phase (`prepare`, `shape`, or `finish`); repeatable |
+| `--skip-hooks` | Skip the finish hook when policy allows (`finish` only) |
 
 ## Resources
 

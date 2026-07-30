@@ -133,8 +133,6 @@ void main() {
 
         final exitCode = await runner.run([
           'finish',
-          '--skip-hooks=prepare',
-          '--skip-hooks=shape',
           '--skip-hooks=finish',
         ]);
 
@@ -297,6 +295,21 @@ void main() {
 
       await expectLater(
         runner.run(['finish', '--skip-hooks=nope']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
+    test('rejects --skip-hooks prepare on finish', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulFinishLauncher(),
+      );
+
+      await expectLater(
+        runner.run(['finish', '--skip-hooks=prepare']),
         throwsA(isA<UsageException>()),
       );
     });

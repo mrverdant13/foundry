@@ -8,7 +8,7 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 
 /// {@template foundry_cli.finish_command}
-/// `foundry finish [--skip-hooks=<phase>]`
+/// `foundry finish [--skip-hooks=finish]`
 ///
 /// Runs the finish hook from the last cast's mold against the stored output
 /// directory without re-rendering templates. Launches a finish-only mold cast
@@ -17,7 +17,7 @@ import 'package:path/path.dart' as p;
 ///
 /// Passing `--skip-hooks finish` is evaluated in-session against the mold's
 /// optional hook policy: skipped + not required → success no-op; required →
-/// fail early.
+/// fail early. Only `finish` is accepted as a skip phase for this command.
 /// {@endtemplate}
 class FinishCommand extends Command<int> {
   /// {@macro foundry_cli.finish_command}
@@ -31,9 +31,8 @@ class FinishCommand extends Command<int> {
         _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
     argParser.addMultiOption(
       CastCommand.skipHooksOptionName,
-      help: 'Skip a lifecycle hook phase (`prepare`, `shape`, or `finish`). '
-          'May be repeated. Duplicate values are treated as a set.',
-      allowed: CastCommand.skipHooksAllowedValues,
+      help: 'Skip the finish hook. Duplicate values are treated as a set.',
+      allowed: const ['finish'],
       valueHelp: 'phase',
     );
   }
@@ -57,7 +56,7 @@ class FinishCommand extends Command<int> {
 
   @override
   String get invocation =>
-      '${runner!.executableName} finish [--skip-hooks=<phase>]';
+      '${runner!.executableName} finish [--skip-hooks=finish]';
 
   @override
   Future<int> run() async {
