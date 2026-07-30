@@ -125,7 +125,9 @@ final moldVariables = FoundryVariableGroup(
             moldDir.path,
             '--output=out',
             '--vars=package_name=acme_app',
-            '--no-hooks',
+            '--skip-hooks=prepare',
+            '--skip-hooks=shape',
+            '--skip-hooks=finish',
           ],
           workingDirectory: workDir.path,
         );

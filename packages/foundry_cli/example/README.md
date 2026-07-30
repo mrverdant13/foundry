@@ -52,13 +52,13 @@ Exits with code `0` when the mold loads and passes inspection.
 Interactive cast (prompts for `project_name`):
 
 ```bash
-foundry cast mold --output=output --force --no-hooks
+foundry cast mold --output=output --force --skip-hooks=prepare --skip-hooks=shape --skip-hooks=finish
 ```
 
 Local development:
 
 ```bash
-dart run ../bin/foundry.dart cast mold --output=output --force --no-hooks
+dart run ../bin/foundry.dart cast mold --output=output --force --skip-hooks=prepare --skip-hooks=shape --skip-hooks=finish
 ```
 
 After a successful cast, `output/README.md` contains the rendered project name

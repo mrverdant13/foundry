@@ -146,7 +146,7 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
   Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force = false,
-  bool noHooks = false,
+  Set<MoldHookPhase> skipHooks = const {},
   bool finishOnly = false,
   bool keepHelperForDebug = false,
   bool cacheHelperResolve = true,
@@ -196,7 +196,9 @@ Future<MoldCastSessionLaunchResult> launchBatchMoldCastSession({
         'outputPath': Directory(outputPath).absolute.path,
         'resultPath': resultPath,
         'force': force,
-        'noHooks': noHooks,
+        'skipHooks': [
+          for (final phase in skipHooks) phase.name,
+        ],
         if (finishOnly) 'finishOnly': true,
         if (varsFlag != null) 'varsFlag': varsFlag,
         if (varsFileValues != null) 'varsFileValues': varsFileValues,
@@ -536,6 +538,7 @@ Future<void> _materializeHelperPackage({
     prepareUri: _existingHookUri(moldDirectory, MoldHooks.preparePath),
     shapeUri: _existingHookUri(moldDirectory, MoldHooks.shapePath),
     finishUri: _existingHookUri(moldDirectory, MoldHooks.finishPath),
+    policyUri: _existingHookUri(moldDirectory, MoldHooks.policyPath),
   );
 
   final entrypoint = File(

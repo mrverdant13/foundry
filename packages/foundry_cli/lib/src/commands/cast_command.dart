@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:foundry_cli/src/display_path.dart';
 import 'package:foundry_cli/src/exit_code.dart';
@@ -64,12 +65,12 @@ typedef BatchMoldCastSessionLauncher = Future<MoldCastSessionLaunchResult>
   Map<String, Object?>? seededValues,
   String? varsFlag,
   bool force,
-  bool noHooks,
+  Set<MoldHookPhase> skipHooks,
   bool finishOnly,
 });
 
 /// {@template foundry_cli.cast_command}
-/// `foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]`
+/// `foundry cast <mold-path> --output=<dir> [--force] [--skip-hooks=<phase>]`
 /// `[--vars=<k=v,…>] [--vars-file=<path>]`
 ///
 /// Launches a mold cast session so live `variables.dart` callbacks run in a
@@ -100,10 +101,12 @@ class CastCommand extends Command<int> {
         negatable: false,
         help: 'Allow casting into a non-empty --output directory.',
       )
-      ..addFlag(
-        noHooksOptionName,
-        negatable: false,
-        help: 'Skip all lifecycle hooks (prepare, shape, finish).',
+      ..addMultiOption(
+        skipHooksOptionName,
+        help: 'Skip a lifecycle hook phase (`prepare`, `shape`, or `finish`). '
+            'May be repeated. Duplicate values are treated as a set.',
+        allowed: skipHooksAllowedValues,
+        valueHelp: 'phase',
       )
       ..addOption(
         varsOptionName,
@@ -125,14 +128,32 @@ class CastCommand extends Command<int> {
   /// The flag name used to allow casting into a non-empty output directory.
   static const String forceOptionName = 'force';
 
-  /// The flag name used to skip all lifecycle hooks.
-  static const String noHooksOptionName = 'no-hooks';
+  /// The multi-option name used to skip individual lifecycle hook phases.
+  static const String skipHooksOptionName = 'skip-hooks';
+
+  /// Allowed values for [skipHooksOptionName].
+  static const List<String> skipHooksAllowedValues = [
+    'prepare',
+    'shape',
+    'finish',
+  ];
 
   /// The option name used to supply batch cast values as key=value pairs.
   static const String varsOptionName = 'vars';
 
   /// The option name used to supply batch cast values from a JSON file.
   static const String varsFileOptionName = 'vars-file';
+
+  /// Parses [skipHooksOptionName] from [results] into a phase set.
+  ///
+  /// Duplicate option values are collapsed. Invalid values are rejected by
+  /// `args` via [skipHooksAllowedValues] before this runs.
+  static Set<MoldHookPhase> parseSkipHooks(ArgResults results) {
+    return {
+      for (final value in results.multiOption(skipHooksOptionName))
+        MoldHookPhase.values.byName(value),
+    };
+  }
 
   /// The logger used to report command output.
   final Logger logger;
@@ -153,25 +174,26 @@ class CastCommand extends Command<int> {
   @override
   String get invocation =>
       '${runner!.executableName} cast <mold-path> --output=<dir> '
-      '[--force] [--no-hooks] [--vars=<k=v,…>] [--vars-file=<path>]';
+      '[--force] [--skip-hooks=<phase>] [--vars=<k=v,…>] [--vars-file=<path>]';
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
+    final results = argResults!;
+    final rest = results.rest;
     if (rest.isEmpty) {
       usageException('A <mold-path> argument is required.');
     }
     if (rest.length > 1) {
       usageException('Too many arguments: expected exactly one <mold-path>.');
     }
-    if (!argResults!.wasParsed(outputOptionName)) {
+    if (!results.wasParsed(outputOptionName)) {
       usageException('Option $outputOptionName is mandatory.');
     }
 
     final rawMoldPath = rest.single;
-    final rawOutputPath = argResults!.option(outputOptionName)!;
-    final force = argResults!.flag(forceOptionName);
-    final noHooks = argResults!.flag(noHooksOptionName);
+    final rawOutputPath = results.option(outputOptionName)!;
+    final force = results.flag(forceOptionName);
+    final skipHooks = parseSkipHooks(results);
 
     final moldPath = p.normalize(p.join(workingDirectory.path, rawMoldPath));
     final outputPath = p.normalize(
@@ -189,8 +211,8 @@ class CastCommand extends Command<int> {
       return FoundryExitCode.userError.code;
     }
 
-    final hasVars = argResults!.wasParsed(varsOptionName);
-    final hasVarsFile = argResults!.wasParsed(varsFileOptionName);
+    final hasVars = results.wasParsed(varsOptionName);
+    final hasVarsFile = results.wasParsed(varsFileOptionName);
     final varsFileValues = await _readVarsFileValues(hasVarsFile: hasVarsFile);
     if (hasVarsFile && varsFileValues == null) {
       return FoundryExitCode.userError.code;
@@ -200,9 +222,9 @@ class CastCommand extends Command<int> {
       moldPath: moldPath,
       outputPath: outputPath,
       varsFileValues: varsFileValues,
-      varsFlag: hasVars ? argResults!.option(varsOptionName) : null,
+      varsFlag: hasVars ? results.option(varsOptionName) : null,
       force: force,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
 
     switch (result) {

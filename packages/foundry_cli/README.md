@@ -108,8 +108,9 @@ flag assignment such as `publish={…}` cannot be combined with `publish.*`
 dotted children; a `--vars-file` object value at that path can deep-merge with
 dotted `--vars` overrides.
 
-Use `--force` to cast into a non-empty output directory. Use `--no-hooks` to
-skip all hook phases.
+Use `--force` to cast into a non-empty output directory. Use
+`--skip-hooks=<phase>` (repeatable: `prepare`, `shape`, `finish`) to skip
+individual hook phases.
 
 ### Recast and finish
 
@@ -240,7 +241,7 @@ foundry mold inspect [<path>]
 #### `foundry cast`
 
 ```
-foundry cast <mold-path> --output=<dir> [--force] [--no-hooks]
+foundry cast <mold-path> --output=<dir> [--force] [--skip-hooks=<phase>]
   [--vars=<k=v,…>] [--vars-file=<path>]
 ```
 
@@ -252,14 +253,14 @@ writes `.foundry/last_cast.json` with an encodable `vars` projection only.
 | `<mold-path>` | **Required.** Path to the mold directory |
 | `--output` | **Required.** Destination directory for rendered artifacts |
 | `--force` | Allow casting into a non-empty output directory |
-| `--no-hooks` | Skip prepare, shape, and finish hooks |
+| `--skip-hooks` | Skip a lifecycle phase (`prepare`, `shape`, or `finish`); repeatable |
 | `--vars` | Comma-separated `key=value` pairs (skips the TUI) |
 | `--vars-file` | Path to a JSON object of variable values (skips the TUI) |
 
 #### `foundry recast`
 
 ```
-foundry recast [--force] [--no-hooks]
+foundry recast [--force] [--skip-hooks=<phase>]
 ```
 
 Replays the last successful cast via a mold cast session seeded from
@@ -268,21 +269,22 @@ Replays the last successful cast via a mold cast session seeded from
 | Option | Description |
 | ------ | ----------- |
 | `--force` | Allow casting into a non-empty output directory |
-| `--no-hooks` | Skip prepare, shape, and finish hooks |
+| `--skip-hooks` | Skip a lifecycle phase (`prepare`, `shape`, or `finish`); repeatable |
 
 #### `foundry finish`
 
 ```
-foundry finish [--no-hooks]
+foundry finish [--skip-hooks=finish]
 ```
 
 Runs a finish-only mold cast session for the last cast (requires
-`hooks/finish.dart`). Seeds context from the encodable `vars` projection in
-`.foundry/last_cast.json` without re-rendering templates.
+`hooks/finish.dart` unless finish is skipped and not required by policy). Seeds
+context from the encodable `vars` projection in `.foundry/last_cast.json`
+without re-rendering templates.
 
 | Option | Description |
 | ------ | ----------- |
-| `--no-hooks` | Skip the finish hook |
+| `--skip-hooks` | Skip the finish hook when policy allows (`finish` only) |
 
 ## Resources
 

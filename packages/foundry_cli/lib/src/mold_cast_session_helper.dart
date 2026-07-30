@@ -84,13 +84,15 @@ dependency_overrides:
 ''';
 }
 
-/// Hook file URIs to import into the generated session bridge.
+/// Hook and optional policy file URIs to import into the generated session
+/// bridge.
 final class MoldCastSessionHelperHookImports {
   /// Creates hook import URIs; omit a phase when that hook file is absent.
   const MoldCastSessionHelperHookImports({
     this.prepareUri,
     this.shapeUri,
     this.finishUri,
+    this.policyUri,
   });
 
   /// Absolute file URI for `hooks/prepare.dart`, if present.
@@ -101,6 +103,9 @@ final class MoldCastSessionHelperHookImports {
 
   /// Absolute file URI for `hooks/finish.dart`, if present.
   final Uri? finishUri;
+
+  /// Absolute file URI for `hooks/policy.dart`, if present.
+  final Uri? policyUri;
 }
 
 /// Builds the generated `bin/cast_session.dart` bridge source.
@@ -108,6 +113,10 @@ final class MoldCastSessionHelperHookImports {
 /// Imports [variablesUri] (mold root `variables.dart`) and any present hook
 /// files by file URI, then runs a `CastSession` against the live
 /// `moldVariables` group in the helper isolate.
+///
+/// When [MoldCastSessionHelperHookImports.policyUri] is set, the bridge also
+/// imports `hooks/policy.dart`, awaits `requiredHooks`, and validates
+/// selection via `validateMoldHookSelection` before running the session.
 ///
 /// Request routing:
 /// - `describeOnly: true` → describe live variable metadata (no hooks/render)
@@ -126,6 +135,7 @@ String buildMoldCastSessionBridgeSource({
       "import '${hooks.prepareUri}' as prepare_hook;",
     if (hooks.shapeUri != null) "import '${hooks.shapeUri}' as shape_hook;",
     if (hooks.finishUri != null) "import '${hooks.finishUri}' as finish_hook;",
+    if (hooks.policyUri != null) "import '${hooks.policyUri}' as hook_policy;",
   ];
 
   final hookArgs = <String>[
@@ -140,6 +150,10 @@ String buildMoldCastSessionBridgeSource({
       CastSessionHooks(
 ${hookArgs.map((line) => '        $line').join('\n')}
       )''';
+
+  final requiredHooksExpression = hooks.policyUri != null
+      ? 'await hook_policy.requiredHooks'
+      : '<MoldHookPhase>{}';
 
   return '''
 import 'dart:convert';
@@ -199,13 +213,42 @@ Future<void> main(List<String> args) async {
 
   final describeOnly = request['describeOnly'] == true;
   final force = request['force'] == true;
-  final noHooks = request['noHooks'] == true;
   final finishOnly = request['finishOnly'] == true;
   final varsFlag = request['varsFlag'];
   if (varsFlag != null && varsFlag is! String) {
     stderr.writeln('Session request varsFlag must be a string when present.');
     exitCode = FoundryExitCode.internalError.code;
     return;
+  }
+
+  final skipHooks = <MoldHookPhase>{};
+  final rawSkipHooks = request['skipHooks'];
+  if (rawSkipHooks != null) {
+    if (rawSkipHooks is! List) {
+      stderr.writeln(
+        'Session request skipHooks must be a JSON array when present.',
+      );
+      exitCode = FoundryExitCode.internalError.code;
+      return;
+    }
+    for (final entry in rawSkipHooks) {
+      if (entry is! String) {
+        stderr.writeln(
+          'Session request skipHooks entries must be strings.',
+        );
+        exitCode = FoundryExitCode.internalError.code;
+        return;
+      }
+      final phase = MoldHookPhase.values.asNameMap()[entry];
+      if (phase == null) {
+        stderr.writeln(
+          'Session request skipHooks contains unknown phase: \$entry',
+        );
+        exitCode = FoundryExitCode.internalError.code;
+        return;
+      }
+      skipHooks.add(phase);
+    }
   }
 
   Map<String, Object?>? varsFileValues;
@@ -320,6 +363,41 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  final Set<MoldHookPhase> requiredHooks;
+  try {
+    requiredHooks = $requiredHooksExpression;
+  } on Object catch (error) {
+    await _writeFailureResult(
+      resultPath: resultPath,
+      kind: 'hook',
+      message: 'Failed to load hooks/policy.dart requiredHooks: \$error',
+    );
+    exitCode = FoundryExitCode.userError.code;
+    return;
+  }
+
+  // Finish-only sessions never run prepare/shape; only enforce policy for
+  // phases this mode can actually execute.
+  final effectiveRequiredHooks = finishOnly
+      ? requiredHooks.intersection({MoldHookPhase.finish})
+      : requiredHooks;
+
+  try {
+    validateMoldHookSelection(
+      mold: mold,
+      skipHooks: skipHooks,
+      requiredHooks: effectiveRequiredHooks,
+    );
+  } on MoldHookSelectionException catch (exception) {
+    await _writeFailureResult(
+      resultPath: resultPath,
+      kind: 'hook',
+      message: '\$exception',
+    );
+    exitCode = FoundryExitCode.userError.code;
+    return;
+  }
+
   final session = CastSession(
     mold: mold,
     outputPath: outputPath as String,
@@ -330,13 +408,13 @@ Future<void> main(List<String> args) async {
   if (finishOnly) {
     result = await session.runFinishOnly(
       vars: varsFileValues!,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
   } else if (seededValues != null) {
     result = await session.runSeeded(
       values: seededValues,
       force: force,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
   } else {
     final hasBatchInputs = varsFlag != null || varsFileValues != null;
@@ -345,11 +423,11 @@ Future<void> main(List<String> args) async {
             varsFileValues: varsFileValues,
             varsFlag: varsFlag as String?,
             force: force,
-            noHooks: noHooks,
+            skipHooks: skipHooks,
           )
         : await session.runInteractive(
             force: force,
-            noHooks: noHooks,
+            skipHooks: skipHooks,
           );
   }
 

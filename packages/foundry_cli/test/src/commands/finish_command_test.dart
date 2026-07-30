@@ -66,7 +66,7 @@ void main() {
       Map<String, Object?>? seededValues,
       String? varsFlag,
       bool force,
-      bool noHooks,
+      Set<MoldHookPhase> skipHooks,
       bool finishOnly,
     })? onLaunch,
   }) {
@@ -77,7 +77,7 @@ void main() {
       seededValues,
       varsFlag,
       force = false,
-      noHooks = false,
+      skipHooks = const {},
       finishOnly = false,
     }) async {
       onLaunch?.call(
@@ -87,7 +87,7 @@ void main() {
         seededValues: seededValues,
         varsFlag: varsFlag,
         force: force,
-        noHooks: noHooks,
+        skipHooks: skipHooks,
         finishOnly: finishOnly,
       );
       await File(p.join(outputPath, 'finish_marker.txt')).writeAsString('done');
@@ -122,7 +122,7 @@ void main() {
     });
 
     test(
-      'fails with a clear error when --no-hooks is passed without cast state',
+      'fails with a clear error when --skip-hooks is passed without cast state',
       () async {
         final errorMessages = <String>[];
         final runner = buildRunner(
@@ -131,7 +131,10 @@ void main() {
           launchBatchSession: successfulFinishLauncher(),
         );
 
-        final exitCode = await runner.run(['finish', '--no-hooks']);
+        final exitCode = await runner.run([
+          'finish',
+          '--skip-hooks=finish',
+        ]);
 
         expect(exitCode, FoundryExitCode.userError.code);
         expect(errorMessages, contains(contains('Run `foundry cast` first')));
@@ -217,7 +220,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) {
               seenMoldPath = moldPath;
@@ -242,44 +245,75 @@ void main() {
       },
     );
 
-    test('skips the finish hook when --no-hooks is passed', () async {
+    test('forwards --skip-hooks finish to the session launcher', () async {
       Directory(p.join(workDir.path, 'mold')).createSync();
       final outputDir = Directory(p.join(workDir.path, 'out'))..createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-      var launched = false;
+      Set<MoldHookPhase>? seenSkipHooks;
+      var seenFinishOnly = false;
       final infoMessages = <String>[];
       final runner = buildRunner(
         workingDirectory: workDir,
         onInfo: infoMessages.add,
-        launchBatchSession: ({
-          required moldPath,
-          required outputPath,
-          varsFileValues,
-          seededValues,
-          varsFlag,
-          force = false,
-          noHooks = false,
-          finishOnly = false,
-        }) async {
-          launched = true;
-          return const MoldCastSessionLaunchSuccess(
-            artifactCount: 0,
-            vars: {},
-            writtenFilePaths: [],
-            outputDirectory: '',
-            exitCode: 0,
-          );
-        },
+        launchBatchSession: successfulFinishLauncher(
+          onLaunch: ({
+            required moldPath,
+            required outputPath,
+            varsFileValues,
+            seededValues,
+            varsFlag,
+            force = false,
+            skipHooks = const {},
+            finishOnly = false,
+          }) {
+            seenSkipHooks = skipHooks;
+            seenFinishOnly = finishOnly;
+          },
+        ),
       );
 
-      final exitCode = await runner.run(['finish', '--no-hooks']);
+      final exitCode = await runner.run(['finish', '--skip-hooks=finish']);
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(infoMessages, contains(contains('skipped (--no-hooks)')));
-      expect(launched, isFalse);
+      expect(
+        infoMessages,
+        contains('Finish skipped (--skip-hooks finish).'),
+      );
+      expect(seenFinishOnly, isTrue);
+      expect(seenSkipHooks, {MoldHookPhase.finish});
       expect(
         File(p.join(outputDir.path, 'finish_marker.txt')).existsSync(),
-        isFalse,
+        isTrue,
+      );
+    });
+
+    test('rejects an invalid --skip-hooks phase name', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulFinishLauncher(),
+      );
+
+      await expectLater(
+        runner.run(['finish', '--skip-hooks=nope']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
+    test('rejects --skip-hooks prepare on finish', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      Directory(p.join(workDir.path, 'out')).createSync();
+      await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulFinishLauncher(),
+      );
+
+      await expectLater(
+        runner.run(['finish', '--skip-hooks=prepare']),
+        throwsA(isA<UsageException>()),
       );
     });
 
@@ -298,7 +332,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async {
           return MoldCastSessionLaunchFailure(
@@ -332,7 +366,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async {
           return const MoldCastSessionLaunchFailure(
@@ -370,7 +404,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async {
           return MoldCastSessionLaunchFailure(
@@ -404,7 +438,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launched = true;
@@ -446,7 +480,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             return const MoldCastSessionDescribeSuccess(
