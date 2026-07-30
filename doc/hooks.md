@@ -27,11 +27,14 @@ the command succeeds without needing that file.
 session**: a short-lived helper package that depends on `foundry_cli` and the target
 mold, then runs the pipeline in one Dart process.
 
-That process imports the mold's root `variables.dart` and any present `hooks/*.dart`
-by file URI. Variable callbacks (`visibleWhen`, `defaultValue`, validators, and so
-on) therefore run as live Dart. Hooks run **in-process** against one shared
-`FoundryContext` — mutations are visible to later phases in the same cast with
-**no JSON round-trip** between prepare, gather, shape, and finish.
+That process imports the mold's root `variables.dart` and any present lifecycle
+hook files (`prepare` / `shape` / `finish`) by file URI. When `hooks/policy.dart`
+exists, it is imported as well so the session can await `requiredHooks` before
+running the pipeline. Variable callbacks (`visibleWhen`, `defaultValue`,
+validators, and so on) therefore run as live Dart. Hooks run **in-process**
+against one shared `FoundryContext` — mutations are visible to later phases in
+the same cast with **no JSON round-trip** between prepare, gather, shape, and
+finish.
 
 Within a single cast, prepare may seed non-encodable Dart values (for example custom
 objects). Gather, shape, and finish in that same session see those values.
