@@ -8,12 +8,16 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 
 /// {@template foundry_cli.finish_command}
-/// `foundry finish [--no-hooks]`
+/// `foundry finish [--skip-hooks=<phase>]`
 ///
 /// Runs the finish hook from the last cast's mold against the stored output
 /// directory without re-rendering templates. Launches a finish-only mold cast
 /// session so the hook runs in-process against the live mold package; vars are
 /// seeded from the encodable projection in `.foundry/last_cast.json`.
+///
+/// Passing `--skip-hooks finish` is evaluated in-session against the mold's
+/// optional hook policy: skipped + not required → success no-op; required →
+/// fail early.
 /// {@endtemplate}
 class FinishCommand extends Command<int> {
   /// {@macro foundry_cli.finish_command}
@@ -25,10 +29,12 @@ class FinishCommand extends Command<int> {
   })  : workingDirectory = workingDirectory ?? Directory.current,
         _readState = readState ?? readCastState,
         _launchBatchSession = launchBatchSession ?? launchBatchMoldCastSession {
-    argParser.addFlag(
-      CastCommand.noHooksOptionName,
-      negatable: false,
-      help: 'Skip the finish hook.',
+    argParser.addMultiOption(
+      CastCommand.skipHooksOptionName,
+      help: 'Skip a lifecycle hook phase (`prepare`, `shape`, or `finish`). '
+          'May be repeated. Duplicate values are treated as a set.',
+      allowed: CastCommand.skipHooksAllowedValues,
+      valueHelp: 'phase',
     );
   }
 
@@ -50,15 +56,17 @@ class FinishCommand extends Command<int> {
       'Run the finish hook for the last cast without re-rendering templates.';
 
   @override
-  String get invocation => '${runner!.executableName} finish [--no-hooks]';
+  String get invocation =>
+      '${runner!.executableName} finish [--skip-hooks=<phase>]';
 
   @override
   Future<int> run() async {
-    if (argResults!.rest.isNotEmpty) {
+    final results = argResults!;
+    if (results.rest.isNotEmpty) {
       usageException('Too many arguments: finish takes no positional args.');
     }
 
-    final noHooks = argResults!.flag(CastCommand.noHooksOptionName);
+    final skipHooks = CastCommand.parseSkipHooks(results);
 
     final state = await readCastStateOrReportError(
       logger: logger,
@@ -67,11 +75,6 @@ class FinishCommand extends Command<int> {
     );
     if (state == null) {
       return FoundryExitCode.userError.code;
-    }
-
-    if (noHooks) {
-      logger.info('Finish skipped (--no-hooks).');
-      return FoundryExitCode.success.code;
     }
 
     final moldPath = p.normalize(
@@ -93,6 +96,7 @@ class FinishCommand extends Command<int> {
       moldPath: moldPath,
       outputPath: outputPath,
       varsFileValues: state.vars,
+      skipHooks: skipHooks,
       finishOnly: true,
     );
 

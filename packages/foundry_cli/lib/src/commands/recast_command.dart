@@ -9,7 +9,7 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 
 /// {@template foundry_cli.recast_command}
-/// `foundry recast [--force] [--no-hooks]`
+/// `foundry recast [--force] [--skip-hooks=<phase>]`
 ///
 /// Replays the last successful `foundry cast` using paths and variable
 /// values from `.foundry/last_cast.json` in the process cwd. Launches a mold
@@ -32,10 +32,12 @@ class RecastCommand extends Command<int> {
         negatable: false,
         help: 'Allow casting into a non-empty output directory.',
       )
-      ..addFlag(
-        CastCommand.noHooksOptionName,
-        negatable: false,
-        help: 'Skip all lifecycle hooks (prepare, shape, finish).',
+      ..addMultiOption(
+        CastCommand.skipHooksOptionName,
+        help: 'Skip a lifecycle hook phase (`prepare`, `shape`, or `finish`). '
+            'May be repeated. Duplicate values are treated as a set.',
+        allowed: CastCommand.skipHooksAllowedValues,
+        valueHelp: 'phase',
       );
   }
 
@@ -58,16 +60,17 @@ class RecastCommand extends Command<int> {
 
   @override
   String get invocation =>
-      '${runner!.executableName} recast [--force] [--no-hooks]';
+      '${runner!.executableName} recast [--force] [--skip-hooks=<phase>]';
 
   @override
   Future<int> run() async {
-    if (argResults!.rest.isNotEmpty) {
+    final results = argResults!;
+    if (results.rest.isNotEmpty) {
       usageException('Too many arguments: recast takes no positional args.');
     }
 
-    final force = argResults!.flag(CastCommand.forceOptionName);
-    final noHooks = argResults!.flag(CastCommand.noHooksOptionName);
+    final force = results.flag(CastCommand.forceOptionName);
+    final skipHooks = CastCommand.parseSkipHooks(results);
 
     final state = await readCastStateOrReportError(
       logger: logger,
@@ -101,7 +104,7 @@ class RecastCommand extends Command<int> {
       outputPath: outputPath,
       seededValues: state.vars,
       force: force,
-      noHooks: noHooks,
+      skipHooks: skipHooks,
     );
 
     switch (result) {

@@ -145,6 +145,9 @@ void main() {
       expect(source, contains('shape: shape_hook.run,'));
       expect(source, contains('finish: finish_hook.run,'));
       expect(source, isNot(contains('const CastSessionHooks()')));
+      expect(source, contains('skipHooks'));
+      expect(source, contains('validateMoldHookSelection'));
     });
+
   });
 }

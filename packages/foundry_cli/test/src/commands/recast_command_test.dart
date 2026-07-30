@@ -68,7 +68,7 @@ void main() {
       Map<String, Object?>? seededValues,
       String? varsFlag,
       bool force,
-      bool noHooks,
+      Set<MoldHookPhase> skipHooks,
       bool finishOnly,
     })? onLaunch,
   }) {
@@ -79,7 +79,7 @@ void main() {
       seededValues,
       varsFlag,
       force = false,
-      noHooks = false,
+      skipHooks = const {},
       finishOnly = false,
     }) async {
       onLaunch?.call(
@@ -89,7 +89,7 @@ void main() {
         seededValues: seededValues,
         varsFlag: varsFlag,
         force: force,
-        noHooks: noHooks,
+        skipHooks: skipHooks,
         finishOnly: finishOnly,
       );
       Directory(outputPath).createSync(recursive: true);
@@ -202,7 +202,7 @@ void main() {
         Map<String, Object?>? seenSeededValues;
         Map<String, Object?>? seenVarsFileValues;
         var seenForce = false;
-        var seenNoHooks = true;
+        Set<MoldHookPhase>? seenSkipHooks;
         var seenFinishOnly = true;
         final infoMessages = <String>[];
         final runner = buildRunner(
@@ -220,14 +220,14 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) {
               seenMoldPath = moldPath;
               seenSeededValues = seededValues;
               seenVarsFileValues = varsFileValues;
               seenForce = force;
-              seenNoHooks = noHooks;
+              seenSkipHooks = skipHooks;
               seenFinishOnly = finishOnly;
             },
           ),
@@ -249,7 +249,7 @@ void main() {
         });
         expect(seenVarsFileValues, isNull);
         expect(seenForce, isTrue);
-        expect(seenNoHooks, isFalse);
+        expect(seenSkipHooks, isEmpty);
         expect(seenFinishOnly, isFalse);
 
         final state = json.decode(
@@ -322,7 +322,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launched = true;
@@ -344,11 +344,11 @@ void main() {
       },
     );
 
-    test('forwards --no-hooks to the session launcher', () async {
+    test('forwards --skip-hooks to the session launcher', () async {
       Directory(p.join(workDir.path, 'mold')).createSync();
       Directory(p.join(workDir.path, 'out')).createSync();
       await writeCastState(workDir, moldPath: 'mold', outputPath: 'out');
-      var seenNoHooks = false;
+      Set<MoldHookPhase>? seenSkipHooks;
       final runner = buildRunner(
         workingDirectory: workDir,
         launchBatchSession: successfulLauncher(
@@ -359,18 +359,24 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) {
-            seenNoHooks = noHooks;
+            seenSkipHooks = skipHooks;
           },
         ),
       );
 
-      final exitCode = await runner.run(['recast', '--force', '--no-hooks']);
+      final exitCode = await runner.run([
+        'recast',
+        '--force',
+        '--skip-hooks=prepare',
+        '--skip-hooks=shape',
+        '--skip-hooks=finish',
+      ]);
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(seenNoHooks, isTrue);
+      expect(seenSkipHooks, MoldHookPhase.values.toSet());
     });
 
     test('surfaces session launch failures as user errors', () async {
@@ -388,7 +394,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async {
           return const MoldCastSessionLaunchFailure(
@@ -424,7 +430,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async {
           return const MoldCastSessionLaunchFailure(
@@ -462,7 +468,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             return const MoldCastSessionDescribeSuccess(

@@ -210,7 +210,7 @@ dependencies:
             'project_type': 'package',
             'project_name': 'AutoResolve',
           },
-          noHooks: true,
+          skipHooks: MoldHookPhase.values.toSet(),
           tempParent: helperParent,
           keepHelperForDebug: true,
         );
@@ -229,7 +229,7 @@ dependencies:
                 .readAsString(),
           ) as Map<dynamic, dynamic>,
         );
-        expect(request['noHooks'], isTrue);
+        expect(request['skipHooks'], equals(['prepare', 'shape', 'finish']));
         expect(request['varsFileValues'], isA<Map<dynamic, dynamic>>());
       },
     );

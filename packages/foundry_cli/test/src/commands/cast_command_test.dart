@@ -56,7 +56,7 @@ void main() {
       Map<String, Object?>? seededValues,
       String? varsFlag,
       bool force,
-      bool noHooks,
+      Set<MoldHookPhase> skipHooks,
       bool finishOnly,
     })? onLaunch,
   }) {
@@ -67,7 +67,7 @@ void main() {
       seededValues,
       varsFlag,
       force = false,
-      noHooks = false,
+      skipHooks = const {},
       finishOnly = false,
     }) async {
       onLaunch?.call(
@@ -77,7 +77,7 @@ void main() {
         seededValues: seededValues,
         varsFlag: varsFlag,
         force: force,
-        noHooks: noHooks,
+        skipHooks: skipHooks,
         finishOnly: finishOnly,
       );
       Directory(outputPath).createSync(recursive: true);
@@ -206,7 +206,7 @@ void main() {
           seededValues,
           varsFlag,
           force = false,
-          noHooks = false,
+          skipHooks = const {},
           finishOnly = false,
         }) async =>
             const MoldCastSessionLaunchFailure(
@@ -245,7 +245,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launchCalls++;
@@ -307,7 +307,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             // Session prepare creates --output before gather cancel.
@@ -345,7 +345,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             Directory(outputPath).createSync(recursive: true);
@@ -376,9 +376,9 @@ void main() {
       },
     );
 
-    test('forwards --no-hooks to the session launcher', () async {
+    test('forwards --skip-hooks to the session launcher', () async {
       Directory(p.join(workDir.path, 'mold')).createSync();
-      var seenNoHooks = false;
+      Set<MoldHookPhase>? seenSkipHooks;
       final runner = buildRunner(
         workingDirectory: workDir,
         launchBatchSession: successfulLauncher(
@@ -389,20 +389,38 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) {
-            seenNoHooks = noHooks;
+            seenSkipHooks = skipHooks;
           },
         ),
       );
 
-      final exitCode = await runner.run(
-        ['cast', 'mold', '--output=out', '--no-hooks'],
-      );
+      final exitCode = await runner.run([
+        'cast',
+        'mold',
+        '--output=out',
+        '--skip-hooks=prepare',
+        '--skip-hooks=finish',
+        '--skip-hooks=prepare',
+      ]);
 
       expect(exitCode, FoundryExitCode.success.code);
-      expect(seenNoHooks, isTrue);
+      expect(seenSkipHooks, {MoldHookPhase.prepare, MoldHookPhase.finish});
+    });
+
+    test('rejects an invalid --skip-hooks phase name', () async {
+      Directory(p.join(workDir.path, 'mold')).createSync();
+      final runner = buildRunner(
+        workingDirectory: workDir,
+        launchBatchSession: successfulLauncher(),
+      );
+
+      await expectLater(
+        runner.run(['cast', 'mold', '--output=out', '--skip-hooks=nope']),
+        throwsA(isA<UsageException>()),
+      );
     });
 
     test(
@@ -420,7 +438,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             Directory(outputPath).createSync(recursive: true);
@@ -455,7 +473,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             // Session creates --output before gather fails (e.g. bad
@@ -492,7 +510,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
@@ -541,7 +559,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async =>
               const MoldCastSessionLaunchFailure(
@@ -578,7 +596,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) {
               launchCalls++;
@@ -587,7 +605,7 @@ void main() {
               captured['varsFlag'] = varsFlag;
               captured['varsFileValues'] = varsFileValues;
               captured['force'] = force;
-              captured['noHooks'] = noHooks;
+              captured['skipHooks'] = skipHooks;
             },
           ),
         );
@@ -604,7 +622,7 @@ void main() {
         expect(captured['varsFlag'], 'project_name=Ada');
         expect(captured['varsFileValues'], isNull);
         expect(captured['force'], isFalse);
-        expect(captured['noHooks'], isFalse);
+        expect(captured['skipHooks'], isEmpty);
         expect(
           captured['moldPath'],
           p.normalize(p.join(workDir.path, 'mold')),
@@ -644,7 +662,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) {
               launchedVarsFile = varsFileValues;
@@ -665,7 +683,7 @@ void main() {
       });
 
       test(
-        'forwards --vars, --force, and --no-hooks to the launcher',
+        'forwards --vars, --force, and --skip-hooks to the launcher',
         () async {
           Directory(p.join(workDir.path, 'mold')).createSync();
           File(p.join(workDir.path, 'vars.json')).writeAsStringSync(
@@ -683,13 +701,13 @@ void main() {
                 seededValues,
                 varsFlag,
                 force = false,
-                noHooks = false,
+                skipHooks = const {},
                 finishOnly = false,
               }) {
                 captured['varsFileValues'] = varsFileValues;
                 captured['varsFlag'] = varsFlag;
                 captured['force'] = force;
-                captured['noHooks'] = noHooks;
+                captured['skipHooks'] = skipHooks;
               },
             ),
           );
@@ -701,14 +719,16 @@ void main() {
             '--vars-file=vars.json',
             '--vars=project_name=FromFlag',
             '--force',
-            '--no-hooks',
+            '--skip-hooks=prepare',
+            '--skip-hooks=shape',
+            '--skip-hooks=finish',
           ]);
 
           expect(exitCode, FoundryExitCode.success.code);
           expect(captured['varsFileValues'], {'project_name': 'FromFile'});
           expect(captured['varsFlag'], 'project_name=FromFlag');
           expect(captured['force'], isTrue);
-          expect(captured['noHooks'], isTrue);
+          expect(captured['skipHooks'], MoldHookPhase.values.toSet());
         },
       );
 
@@ -732,7 +752,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) async =>
                 failure,
@@ -776,7 +796,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) async =>
                 failure,
@@ -820,7 +840,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) async =>
                 failure,
@@ -855,7 +875,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launchCalls++;
@@ -899,7 +919,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launchCalls++;
@@ -940,7 +960,7 @@ void main() {
             seededValues,
             varsFlag,
             force = false,
-            noHooks = false,
+            skipHooks = const {},
             finishOnly = false,
           }) async {
             launchCalls++;
@@ -983,7 +1003,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) async {
               launchCalls++;
@@ -1031,7 +1051,7 @@ void main() {
                 seededValues,
                 varsFlag,
                 force = false,
-                noHooks = false,
+                skipHooks = const {},
                 finishOnly = false,
               }) {
                 launchCalls++;
@@ -1075,7 +1095,7 @@ void main() {
               seededValues,
               varsFlag,
               force = false,
-              noHooks = false,
+              skipHooks = const {},
               finishOnly = false,
             }) async {
               return const MoldCastSessionDescribeSuccess(
