@@ -204,12 +204,6 @@ Future<CastOutcome> castMold({
   Set<String> dirtyKeys = const {},
   CastHooks hooks = const CastHooks(),
 }) async {
-  validateMoldHookSelection(
-    mold: mold,
-    skipHooks: skipHooks,
-    requiredHooks: requiredHooks,
-  );
-
   final context = await prepareCastContext(
     mold: mold,
     outputPath: outputPath,
