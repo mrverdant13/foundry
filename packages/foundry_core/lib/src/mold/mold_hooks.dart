@@ -18,6 +18,12 @@ abstract final class MoldHooks {
   /// Finish-phase hook filename.
   static const String finish = 'finish.dart';
 
+  /// Optional author policy filename (`requiredHooks` getter).
+  ///
+  /// Hosts may load this file to decide which phases are required. Core does
+  /// not execute it; see [policyPath].
+  static const String policy = 'policy.dart';
+
   /// Relative path to the prepare hook from the mold root.
   static final String preparePath = p.join(directory, prepare);
 
@@ -27,7 +33,13 @@ abstract final class MoldHooks {
   /// Relative path to the finish hook from the mold root.
   static final String finishPath = p.join(directory, finish);
 
+  /// Relative path to the optional hook policy file from the mold root.
+  static final String policyPath = p.join(directory, policy);
+
   /// All standard hook paths in lifecycle order.
+  ///
+  /// Does not include [policyPath]; policy is metadata for hosts, not a
+  /// lifecycle phase.
   static final List<String> allPaths = [
     preparePath,
     shapePath,

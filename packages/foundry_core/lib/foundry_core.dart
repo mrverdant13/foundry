@@ -25,6 +25,9 @@ export 'src/mold/mold_hook_exception.dart';
 export 'src/mold/mold_hook_in_process_runner.dart'
     show MoldHookEntryPoint, moldHookFileUriImport, runMoldHookInProcess;
 export 'src/mold/mold_hook_runner.dart' show runMoldHook;
+export 'src/mold/mold_hook_selection.dart'
+    show moldHookPathForPhase, validateMoldHookSelection;
+export 'src/mold/mold_hook_selection_exception.dart';
 export 'src/mold/mold_hooks.dart';
 export 'src/mold/mold_import_exception.dart';
 export 'src/mold/mold_inspector.dart';

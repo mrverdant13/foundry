@@ -46,6 +46,14 @@ final class Mold {
     return _existingHookFile(MoldHooks.finishPath);
   }
 
+  /// Absolute path to `hooks/policy.dart` when that optional file exists.
+  ///
+  /// Core does not load or execute the policy; callers that need
+  /// `requiredHooks` should import and await it themselves.
+  File? get policyFile {
+    return _existingHookFile(MoldHooks.policyPath);
+  }
+
   File? _existingHookFile(String relativePath) {
     final file = File(p.join(directory.path, relativePath));
     return file.existsSync() ? file : null;
