@@ -91,6 +91,8 @@ Object? _projectValue(
             '${key.runtimeType}, expected String.',
           );
         }
+        // Empty path only arises for an empty-string top-level context key;
+        // nested keys then use a bare child segment instead of ".$key".
         final childPath = path.isEmpty ? key : '$path.$key';
         projected[key] = _projectValue(entry.value, childPath, visiting);
       }
