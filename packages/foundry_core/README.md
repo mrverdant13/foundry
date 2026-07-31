@@ -17,7 +17,11 @@ tree, and optional lifecycle hooks. This library provides:
   structural only — does not import `variables.dart`
 - **Variable resolution** — evaluate `visibleWhen`, `defaultValue`, and
   validators against a read-only [`SnapshotFoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/SnapshotFoundryContext-class.html)
-- **Template rendering** — render Liquid templates to an output directory
+- **Template rendering** — render Liquid templates to an output directory.
+  Non-JSON objects seeded for hooks must implement [`FoundryLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryLiquidView-class.html)
+  (or be a liquify `Drop`) if templates need them; `renderTemplate` projects
+  context through [`projectLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/projectLiquidView.html)
+  and fails loudly on unsupported types (including plain Dart enums).
 - **Hook execution** — run prepare/shape/finish hooks against a mutable
   [`FoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryContext-class.html).
   Prefer [`runMoldHookInProcess`](https://pub.dev/documentation/foundry_core/latest/foundry_core/runMoldHookInProcess.html)
@@ -133,6 +137,13 @@ phases. Prefer that path whenever prepare, gather/shape, and finish must share
 a live heap. Use `runMoldHook` only when the host cannot import the hook and
 must spawn `dart run` (values are JSON-encoded across the process boundary).
 
+Objects that templates should read must implement `FoundryLiquidView` (return a
+map, list, primitive, nested view, or liquify `Drop` from `toLiquid()`), or be
+stored as already Liquid-safe values. Plain custom classes and Dart enums are
+rejected at render time; prefer `Flavor.vanilla.name` (or a view) when an enum
+must appear in a template. Hook-only private objects should not sit under keys
+templates need.
+
 Do not invoke overlapping `runMoldHookInProcess` calls concurrently in the same
 process: `Directory.current` is process-wide for the duration of each hook.
 
@@ -148,7 +159,7 @@ Import `package:foundry_core/foundry_core.dart`.
 | Pattern | `inspectPattern`, `PatternInspectionReport`, `PatternMarker` |
 | Context | `SnapshotFoundryContext`, `FoundryContext`, `FoundryContextException` |
 | Cast | `castMold`, `prepareCastContext`, `completeCast`, `CastHooks`, `parseCastVariableInputs` (supports dotted object `--vars` paths such as `publish.host=`), `CastOutcome`, `readCastState`, `writeCastState` |
-| Render | `renderTemplate` |
+| Render | `renderTemplate`, `FoundryLiquidView`, `projectLiquidView`, `LiquidViewProjectionException` |
 | Hooks | `runMoldHook`, `runMoldHookInProcess`, `MoldHookEntryPoint`, `moldHookFileUriImport`, `moldHookPathForPhase`, `validateMoldHookSelection`, `FoundryHookException`, `MoldHookSelectionException` |
 | Import | `importMoldFromLocal`, `importMoldFromGit` |
 
