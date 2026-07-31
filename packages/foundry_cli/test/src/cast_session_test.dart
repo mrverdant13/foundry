@@ -7,9 +7,13 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-class _PrepareSeed {
+class _PrepareSeed implements FoundryLiquidView {
   const _PrepareSeed(this.label);
   final String label;
+
+  /// Hook-only identity token; templates never read this key.
+  @override
+  Object? toLiquid() => null;
 }
 
 void main() {
