@@ -1,5 +1,3 @@
-import 'dart:collection';
-
 import 'package:foundry_core/src/rendering/foundry_liquid_view.dart';
 import 'package:liquify/liquify.dart';
 
@@ -25,7 +23,7 @@ final class LiquidViewProjectionException implements Exception {
 /// fails loudly. Cycles are detected by object identity and reported with a
 /// dotted context path (for example `repo.owner`).
 Map<String, dynamic> projectLiquidView(Map<String, Object?> values) {
-  final visiting = IdentityHashMap<Object, bool>();
+  final visiting = Map<Object, bool>.identity();
   final projected = <String, dynamic>{};
   for (final entry in values.entries) {
     projected[entry.key] = _projectValue(entry.value, entry.key, visiting);
@@ -36,7 +34,7 @@ Map<String, dynamic> projectLiquidView(Map<String, Object?> values) {
 Object? _projectValue(
   Object? value,
   String path,
-  IdentityHashMap<Object, bool> visiting,
+  Map<Object, bool> visiting,
 ) {
   if (value == null || value is bool || value is String || value is num) {
     return value;
@@ -97,7 +95,7 @@ Object? _projectValue(
 void _enter(
   Object value,
   String path,
-  IdentityHashMap<Object, bool> visiting,
+  Map<Object, bool> visiting,
 ) {
   if (visiting.containsKey(value)) {
     throw LiquidViewProjectionException(

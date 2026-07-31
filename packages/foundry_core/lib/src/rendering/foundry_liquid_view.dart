@@ -7,6 +7,9 @@
 ///
 /// Projection runs only at template render time; hooks continue to see the
 /// original object on `FoundryContext`.
+// Intentionally a one-member protocol so mold authors can implement a clear
+// Liquid surface without depending on liquify `Drop`.
+// ignore: one_member_abstracts
 abstract interface class FoundryLiquidView {
   /// Returns the Liquid-facing representation of this object.
   Object? toLiquid();

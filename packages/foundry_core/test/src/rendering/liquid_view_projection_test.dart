@@ -2,7 +2,7 @@ import 'package:foundry_core/foundry_core.dart';
 import 'package:liquify/liquify.dart';
 import 'package:test/test.dart';
 
-enum _Flavor { vanilla, chocolate }
+enum _Flavor { vanilla }
 
 final class _RepoSummary implements FoundryLiquidView {
   _RepoSummary({
