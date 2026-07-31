@@ -15,6 +15,9 @@ final class LiquidViewProjectionException implements Exception {
 
 /// Projects [values] into a Liquid-compatible map for template rendering.
 ///
+/// Every entry is projected, whether or not a template references its key —
+/// bare `{% render %}` forwards the full cast map into Liquid's render scope.
+///
 /// Accepted leaves: `null`, [bool], [String], finite [num], liquify [Drop], and
 /// [FoundryLiquidView] (via [FoundryLiquidView.toLiquid], then projected).
 /// [List] and string-keyed [Map] values are projected recursively.

@@ -141,8 +141,9 @@ Objects that templates should read must implement `FoundryLiquidView` (return a
 map, list, primitive, nested view, or liquify `Drop` from `toLiquid()`), or be
 stored as already Liquid-safe values. Plain custom classes and Dart enums are
 rejected at render time; prefer `Flavor.vanilla.name` (or a view) when an enum
-must appear in a template. Hook-only private objects should not sit under keys
-templates need.
+must appear in a template. Every context entry is projected at render — hook-only
+private objects must implement `FoundryLiquidView`, already be Liquid-safe, or be
+removed before render.
 
 Do not invoke overlapping `runMoldHookInProcess` calls concurrently in the same
 process: `Directory.current` is process-wide for the duration of each hook.
