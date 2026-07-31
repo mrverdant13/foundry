@@ -171,6 +171,39 @@ void main() {
       );
     });
 
+    test('rejects non-finite numbers', () {
+      expect(
+        () => projectLiquidView({'score': double.nan}),
+        throwsA(
+          isA<LiquidViewProjectionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('score'), contains('non-finite')),
+          ),
+        ),
+      );
+      expect(
+        () => projectLiquidView({'score': double.infinity}),
+        throwsA(
+          isA<LiquidViewProjectionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('score'), contains('non-finite')),
+          ),
+        ),
+      );
+      expect(
+        () => projectLiquidView({'score': double.negativeInfinity}),
+        throwsA(
+          isA<LiquidViewProjectionException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('score'), contains('non-finite')),
+          ),
+        ),
+      );
+    });
+
     test('detects identity cycles through maps', () {
       final cyclic = <String, Object?>{};
       cyclic['self'] = cyclic;

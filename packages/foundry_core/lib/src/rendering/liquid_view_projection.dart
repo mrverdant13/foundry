@@ -15,13 +15,14 @@ final class LiquidViewProjectionException implements Exception {
 
 /// Projects [values] into a Liquid-compatible map for template rendering.
 ///
-/// Accepted leaves: `null`, [bool], [String], [num], liquify [Drop], and
+/// Accepted leaves: `null`, [bool], [String], finite [num], liquify [Drop], and
 /// [FoundryLiquidView] (via [FoundryLiquidView.toLiquid], then projected).
 /// [List] and string-keyed [Map] values are projected recursively.
 ///
-/// Anything else — including Dart [Enum] values and maps with non-string keys —
-/// fails loudly. Cycles are detected by object identity and reported with a
-/// dotted context path (for example `repo.owner`).
+/// Anything else — including Dart [Enum] values, non-finite numbers
+/// (`NaN` / ±Infinity), and maps with non-string keys — fails loudly. Cycles
+/// are detected by object identity and reported with a dotted context path
+/// (for example `repo.owner`).
 Map<String, dynamic> projectLiquidView(Map<String, Object?> values) {
   final visiting = Map<Object, bool>.identity();
   final projected = <String, dynamic>{};
@@ -36,7 +37,17 @@ Object? _projectValue(
   String path,
   Map<Object, bool> visiting,
 ) {
-  if (value == null || value is bool || value is String || value is num) {
+  if (value == null || value is bool || value is String) {
+    return value;
+  }
+
+  if (value is num) {
+    if (!value.isFinite) {
+      throw LiquidViewProjectionException(
+        'Cannot project non-finite number at "$path" '
+        '(${value.runtimeType}: $value) for Liquid templates.',
+      );
+    }
     return value;
   }
 
