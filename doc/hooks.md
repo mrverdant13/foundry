@@ -109,6 +109,56 @@ context.remove('temporary');
 Values do not need to be JSON-encodable for later phases of the **same** cast.
 Only the encodable projection is written to `.foundry/last_cast.json`.
 
+### Seeding values for Liquid templates
+
+Hooks keep whatever you put on `FoundryContext` — including rich Dart objects —
+for later phases and callbacks. Template rendering is different: every context
+entry is projected into a Liquid-compatible map before path segments and file
+contents are rendered. That projection does not change the live context.
+
+Accepted values include JSON-safe leaves (`null`, `bool`, `String`, finite
+numbers), lists, string-keyed maps, liquify `Drop` instances (passed through
+unchanged), and objects that implement **`FoundryLiquidView`**:
+
+```dart
+class RepoSummary implements FoundryLiquidView {
+  RepoSummary({required this.name, required this.defaultBranch});
+
+  final String name;
+  final String defaultBranch;
+
+  @override
+  Object? toLiquid() => {
+        'name': name,
+        'default_branch': defaultBranch,
+      };
+}
+
+Future<void> run(FoundryContext context) async {
+  context.set(
+    'repo',
+    RepoSummary(name: 'foundry', defaultBranch: 'main'),
+  );
+}
+```
+
+Templates can then use dotted access such as `{{ repo.name }}` or
+`{{ repo.default_branch }}`. Nested views, maps, and lists are projected
+recursively.
+
+Unknown types fail loudly at render time (the error names the context path and
+runtime type). Dart **enums are not auto-projected** — store a string (or wrap
+the value in a view) when templates need them:
+
+```dart
+context.set('flavor', Flavor.vanilla.name); // OK for templates
+context.set('flavor', Flavor.vanilla);      // fails at render unless wrapped
+```
+
+Hook-only private objects must not sit under keys templates need, or must be
+replaced/wrapped before render. Persistable cast state remains JSON-only — see
+[Cast state and recast / finish seeds](#cast-state-and-recast--finish-seeds).
+
 ### Hook environment
 
 `FoundryContext` also exposes:

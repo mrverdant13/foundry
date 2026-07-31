@@ -157,7 +157,9 @@ package that depends on the CLI and your mold, then runs prepare → gather → 
 render → finish in one process that imports the mold's live `variables.dart` and
 in-process hooks. Callbacks such as `visibleWhen` / `defaultValue` / validators
 execute as real Dart; prepare can seed rich context values that gather, shape, and
-finish see on the same `FoundryContext` (see [`doc/hooks.md`](doc/hooks.md)).
+finish see on the same `FoundryContext`. Objects templates should read must expose
+a Liquid surface (`FoundryLiquidView` or already Liquid-safe values) — see
+[`doc/hooks.md`](doc/hooks.md).
 
 By default Foundry gathers variables through an interactive TUI inside that session,
 renders files under `template/` into `--output`, and on success writes
