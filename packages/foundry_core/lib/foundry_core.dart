@@ -50,6 +50,9 @@ export 'src/pattern/pattern_issue.dart';
 export 'src/pattern/pattern_line_deletion.dart';
 export 'src/pattern/pattern_marker.dart';
 export 'src/pattern/pattern_replacement.dart';
+export 'src/rendering/foundry_liquid_view.dart';
+export 'src/rendering/liquid_view_projection.dart'
+    show LiquidViewProjectionException, projectLiquidView;
 export 'src/rendering/template_render_exception.dart';
 export 'src/rendering/template_renderer.dart' show renderTemplate;
 export 'src/variables/foundry_variable.dart';
