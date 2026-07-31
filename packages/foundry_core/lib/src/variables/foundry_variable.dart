@@ -226,6 +226,12 @@ final class FoundryDoubleVariable extends FoundryVariable<double> {
 ///
 /// The resolved value type is [T]. [displayLabel] is required so the TUI can
 /// render non-string options.
+///
+/// When [T] is not already Liquid-safe (`null`, [bool], [String], finite [num],
+/// a string-keyed [Map], a [List], or a liquify `Drop`), store a Liquid-safe
+/// representation (for example `Flavor.vanilla.name`) or implement
+/// `FoundryLiquidView` on [T] so `renderTemplate` can project the resolved
+/// value.
 final class FoundrySingleChoiceVariable<T> extends FoundryVariable<T> {
   /// Creates a [FoundrySingleChoiceVariable].
   ///
@@ -276,6 +282,12 @@ final class FoundrySingleChoiceVariable<T> extends FoundryVariable<T> {
 /// [options] declaration order (duplicates removed). An empty selection is
 /// allowed unless [validators] reject it. [displayLabel] is required so the
 /// TUI can render non-string options.
+///
+/// When [T] is not already Liquid-safe (`null`, [bool], [String], finite [num],
+/// a string-keyed [Map], a [List], or a liquify `Drop`), store a Liquid-safe
+/// representation (for example `Flavor.vanilla.name`) or implement
+/// `FoundryLiquidView` on [T] so `renderTemplate` can project each selected
+/// value.
 final class FoundryMultipleChoiceVariable<T> extends FoundryVariable<List<T>> {
   /// Creates a [FoundryMultipleChoiceVariable].
   ///

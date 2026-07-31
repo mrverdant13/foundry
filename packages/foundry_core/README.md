@@ -18,10 +18,11 @@ tree, and optional lifecycle hooks. This library provides:
 - **Variable resolution** — evaluate `visibleWhen`, `defaultValue`, and
   validators against a read-only [`SnapshotFoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/SnapshotFoundryContext-class.html)
 - **Template rendering** — render Liquid templates to an output directory.
-  Non-JSON objects seeded for hooks must implement [`FoundryLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryLiquidView-class.html)
-  (or be a liquify `Drop`) if templates need them; `renderTemplate` projects
-  context through [`projectLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/projectLiquidView.html)
-  and fails loudly on unsupported types (including plain Dart enums).
+  `renderTemplate` projects every cast context entry through
+  [`projectLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/projectLiquidView.html)
+  and fails loudly on unsupported types (including plain Dart enums). Non-JSON
+  objects seeded for hooks must implement [`FoundryLiquidView`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryLiquidView-class.html)
+  (or be a liquify `Drop`), already be Liquid-safe, or be removed before render.
 - **Hook execution** — run prepare/shape/finish hooks against a mutable
   [`FoundryContext`](https://pub.dev/documentation/foundry_core/latest/foundry_core/FoundryContext-class.html).
   Prefer [`runMoldHookInProcess`](https://pub.dev/documentation/foundry_core/latest/foundry_core/runMoldHookInProcess.html)
