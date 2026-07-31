@@ -469,5 +469,105 @@ void main() {
         );
       },
     );
+
+    test('renders dotted fields from a FoundryLiquidView', () async {
+      await _writeFile(
+        p.join(templateDirectory.path, 'README.md'),
+        '{{ repo.name }} / {{ repo.default_branch }}\n',
+      );
+
+      final writtenFiles = await renderTemplate(
+        templateDirectory: templateDirectory,
+        outputDirectory: outputDirectory,
+        context: SnapshotFoundryContext({
+          'repo': _RepoSummary(name: 'foundry', defaultBranch: 'main'),
+        }),
+      );
+
+      expect(writtenFiles, hasLength(1));
+      expect(
+        await File(p.join(outputDirectory.path, 'README.md')).readAsString(),
+        'foundry / main\n',
+      );
+    });
+
+    test(
+      'throws before writes when context holds an unknown class',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'README.md'),
+          '{{ token }}\n',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'token': _OpaqueToken()}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('Failed to project cast context'),
+                contains('token'),
+                contains('_OpaqueToken'),
+              ),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
+
+    test(
+      'throws before writes when context holds a plain Enum',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, 'README.md'),
+          '{{ flavor }}\n',
+        );
+
+        await expectLater(
+          renderTemplate(
+            templateDirectory: templateDirectory,
+            outputDirectory: outputDirectory,
+            context: SnapshotFoundryContext({'flavor': _Flavor.vanilla}),
+          ),
+          throwsA(
+            isA<TemplateRenderException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('Failed to project cast context'),
+                contains('flavor'),
+                contains('_Flavor'),
+              ),
+            ),
+          ),
+        );
+
+        expect(outputDirectory.listSync(), isEmpty);
+      },
+    );
   });
 }
+
+enum _Flavor { vanilla }
+
+final class _RepoSummary implements FoundryLiquidView {
+  _RepoSummary({required this.name, required this.defaultBranch});
+
+  final String name;
+  final String defaultBranch;
+
+  @override
+  Object? toLiquid() => {
+        'name': name,
+        'default_branch': defaultBranch,
+      };
+}
+
+final class _OpaqueToken {}

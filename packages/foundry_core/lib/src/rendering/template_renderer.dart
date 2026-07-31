@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:foundry_core/src/context/snapshot_foundry_context.dart';
+import 'package:foundry_core/src/rendering/liquid_view_projection.dart';
 import 'package:foundry_core/src/rendering/template_liquid_filters.dart';
 import 'package:foundry_core/src/rendering/template_render_exception.dart';
 import 'package:glob/glob.dart';
@@ -11,9 +12,10 @@ import 'package:path/path.dart' as p;
 /// Renders every file under [templateDirectory] to [outputDirectory].
 ///
 /// File contents and path segments are both rendered with Liquid, fed from
-/// the entries of [context] (see [SnapshotFoundryContext]). This only
-/// renders `template/`; it does not run lifecycle hooks or the rest of a
-/// cast.
+/// a Liquid projection of [context] entries (see [projectLiquidView] and
+/// [SnapshotFoundryContext]). Hooks keep the original objects; only this
+/// render path sees the projected map. This only renders `template/`; it
+/// does not run lifecycle hooks or the rest of a cast.
 ///
 /// Files whose names end in `.partial` are template includes for
 /// `{% render %}` and are **not** written to [outputDirectory]. Content
@@ -51,7 +53,14 @@ Future<List<File>> renderTemplate({
   }
 
   final resolvedOutputDirectory = outputDirectory.absolute;
-  final values = Map<String, dynamic>.from(context.entries);
+  final Map<String, dynamic> values;
+  try {
+    values = projectLiquidView(context.entries);
+  } on LiquidViewProjectionException catch (error) {
+    throw TemplateRenderException(
+      'Failed to project cast context for Liquid rendering: $error',
+    );
+  }
   final templateRoot = await _partialRenderRoot(
     resolvedTemplateDirectory,
     values.keys,

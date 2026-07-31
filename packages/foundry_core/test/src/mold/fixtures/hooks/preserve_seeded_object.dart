@@ -9,7 +9,14 @@ Future<void> run(FoundryContext context) async {
 }
 
 /// Opaque token used only by in-process hook tests.
-final class _SeedToken {}
+///
+/// Implements [FoundryLiquidView] so cast can render while hooks keep the
+/// live object identity. Templates that accidentally reference this key get
+/// `null` rather than a fail-loud unknown type.
+final class _SeedToken implements FoundryLiquidView {
+  @override
+  Object? toLiquid() => null;
+}
 
 /// Builds a fresh seed token for tests that seed non-JSON context values.
 Object createSeedToken() => _SeedToken();
