@@ -1,6 +1,35 @@
+## 0.0.1-dev.2
+
+ - **FEAT**: add TUI widgets for scalar variables ([#40](https://github.com/mrverdant13/foundry/issues/40)). ([2f9cc9d2](https://github.com/mrverdant13/foundry/commit/2f9cc9d2a8f15c87ee96358c4fb56a6861281bee))
+ - **FEAT**: add TUI widgets for choice variables ([#47](https://github.com/mrverdant13/foundry/issues/47)). ([11f642cd](https://github.com/mrverdant13/foundry/commit/11f642cd035b4b0b08991ab995d67e63e1ccb0ec))
+ - **FEAT**: add TUI for nested object variables ([#49](https://github.com/mrverdant13/foundry/issues/49)). ([291fed6f](https://github.com/mrverdant13/foundry/commit/291fed6fc3007038549c0cfdd880729ad13c4a3d))
+ - **FEAT**: add TUI for values variables ([#52](https://github.com/mrverdant13/foundry/issues/52)). ([9d8c30e5](https://github.com/mrverdant13/foundry/commit/9d8c30e55a40d116ae61a6d0ab5d609a40cfc701))
+ - **FEAT**: add vars and vars-file to cast ([#54](https://github.com/mrverdant13/foundry/issues/54)). ([44ff8926](https://github.com/mrverdant13/foundry/commit/44ff8926ddcf1c8cc6d90e049dbc57e349a4d108))
+ - **FIX**: keep cast alive after interactive TUI submit ([#55](https://github.com/mrverdant13/foundry/issues/55)). ([d006f423](https://github.com/mrverdant13/foundry/commit/d006f423f8e655ee3c347d320d87959cf982285b))
+ - **FEAT**: add pattern init command ([#56](https://github.com/mrverdant13/foundry/issues/56)). ([b426668c](https://github.com/mrverdant13/foundry/commit/b426668cd9db17d7d3ca51728416246eed61101b))
+ - **FEAT**: add pattern inspect command ([#57](https://github.com/mrverdant13/foundry/issues/57)). ([0c58df37](https://github.com/mrverdant13/foundry/commit/0c58df37ad355ae2f89b81be44ca5956e389f402))
+ - **FEAT**: add mold derive command ([#59](https://github.com/mrverdant13/foundry/issues/59)). ([148129a9](https://github.com/mrverdant13/foundry/commit/148129a99cdbd8a00fe0065ca873418065a729e6))
+ - **FEAT**: add mold sync command ([#62](https://github.com/mrverdant13/foundry/issues/62)). ([aed1370e](https://github.com/mrverdant13/foundry/commit/aed1370e6418019c1e9a790f9d798746bfa212b2))
+ - **TEST**: add e2e for batch cast and new variable kinds ([#63](https://github.com/mrverdant13/foundry/issues/63)). ([d3fa63e2](https://github.com/mrverdant13/foundry/commit/d3fa63e2dc8a7d6d965960d76b171769290c988d))
+ - **TEST**: add e2e for pattern derive and sync ([#64](https://github.com/mrverdant13/foundry/issues/64)). ([353697c4](https://github.com/mrverdant13/foundry/commit/353697c4d99b3793ce742c7d950f0564089956c8))
+ - **DOCS**: link pattern annotation reference ([#78](https://github.com/mrverdant13/foundry/issues/78)). ([ec5eb211](https://github.com/mrverdant13/foundry/commit/ec5eb211d5b428034c0ad9b3abd7d92f761ced14))
+ - **TEST**: add e2e for annotated pattern derive sync and cast ([#79](https://github.com/mrverdant13/foundry/issues/79)). ([fb47813e](https://github.com/mrverdant13/foundry/commit/fb47813e3ce13414755cabbd408ebabcc9a784ef))
+ - **FIX**: run prepare before cast variable gather ([#82](https://github.com/mrverdant13/foundry/issues/82)). ([6bbff472](https://github.com/mrverdant13/foundry/commit/6bbff47230cf41c34c05528c8f652ebf0f84832e))
+ - **DOCS**: document dotted object --vars ([#84](https://github.com/mrverdant13/foundry/issues/84)). ([6b3b7025](https://github.com/mrverdant13/foundry/commit/6b3b70252eda2d3015b56128ae3f9df7ec312549))
+ - **FEAT**: add batch cast session runner on a live variable group ([#86](https://github.com/mrverdant13/foundry/issues/86)). ([0f6c2575](https://github.com/mrverdant13/foundry/commit/0f6c25757a23427a2fe16dca4c716c396e6a2730))
+ - **FEAT**: launch mold cast session via synthetic helper package ([#87](https://github.com/mrverdant13/foundry/issues/87)). ([a20f1125](https://github.com/mrverdant13/foundry/commit/a20f1125ec6680b691e2d85e0060e490b580eacd))
+ - **FEAT**: route batch cast through the mold session ([#88](https://github.com/mrverdant13/foundry/issues/88)). ([ce178259](https://github.com/mrverdant13/foundry/commit/ce1782598dde0b0577dfe8350e4a385ab4265245))
+ - **FEAT**: run interactive cast gather inside the mold session ([#89](https://github.com/mrverdant13/foundry/issues/89)). ([4074e978](https://github.com/mrverdant13/foundry/commit/4074e978b8bb0d905de22cfedd2568b3f1565253))
+ - **FEAT**: route recast and finish through the mold session ([#90](https://github.com/mrverdant13/foundry/issues/90)). ([3d2eab59](https://github.com/mrverdant13/foundry/commit/3d2eab5965cb5eaf684945bb96776a74b9eba1b1))
+ - **FEAT**: describe mold variables via mold session for inspect ([#91](https://github.com/mrverdant13/foundry/issues/91)). ([d9796919](https://github.com/mrverdant13/foundry/commit/d9796919864ec9bcdbc0fbd46398719f345c101a))
+ - **REFACTOR**: warn on empty mold variables from describe ([#94](https://github.com/mrverdant13/foundry/issues/94)). ([310f3e44](https://github.com/mrverdant13/foundry/commit/310f3e4474ffcb8f734112bd37bcab31a7910d91))
+ - **DOCS**: document mold cast session in package README ([#97](https://github.com/mrverdant13/foundry/issues/97)). ([0b4582d9](https://github.com/mrverdant13/foundry/commit/0b4582d957f36f7833de5c05a6aff2637485e0fe))
+ - **FEAT**: cache synthetic helper package resolution ([#98](https://github.com/mrverdant13/foundry/issues/98)). ([8f1919bf](https://github.com/mrverdant13/foundry/commit/8f1919bf2917c08a1f00cb726213f8ecd5205066))
+ - **FIX**: print relative cast output path when under cwd ([#100](https://github.com/mrverdant13/foundry/issues/100)). ([12afccac](https://github.com/mrverdant13/foundry/commit/12afccacc63ba121bd7d62582d75d697509d150c))
+ - **FEAT**: add --skip-hooks and enforce mold hook policy ([#105](https://github.com/mrverdant13/foundry/issues/105)). ([d3aa8546](https://github.com/mrverdant13/foundry/commit/d3aa8546cc397e8e458856c16ffcbb9d3c58a4c8))
+
 ## 0.0.1-dev.1
 
- - **REFACTOR**: warn on empty mold variables from live describe sessions.
  - **FEAT**: add command runner and version flag ([#25](https://github.com/mrverdant13/foundry/issues/25)). ([ba270ea3](https://github.com/mrverdant13/foundry/commit/ba270ea30b0f580aca9dfe755555f73679488901))
  - **FEAT**: add mold init command ([#26](https://github.com/mrverdant13/foundry/issues/26)). ([0c70f0d6](https://github.com/mrverdant13/foundry/commit/0c70f0d6c17299e87a1c0abfa783453e9ccbd28d))
  - **FEAT**: add mold inspect command ([#27](https://github.com/mrverdant13/foundry/issues/27)). ([293d094f](https://github.com/mrverdant13/foundry/commit/293d094fa8cccd64f28e3af95d19e792c5ee2bf3))

@@ -9,7 +9,7 @@ environment:
 dependencies:
   foundry_cli:
     path: ..
-  foundry_core: ^0.0.1-dev.1
+  foundry_core: ^0.0.1-dev.2
 
 dev_dependencies:
   path: ^1.9.1
