@@ -129,7 +129,7 @@ int syncPackageVersion(
     name: null,
     errorMessage:
         'Multiple semver-shaped version consts found in version.dart: '
-        '${semverConsts.join(', ')}. Pass --version-const to select one.',
+            '${semverConsts.join(', ')}. Pass --version-const to select one.',
   );
 }
 
