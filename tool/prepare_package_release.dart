@@ -788,12 +788,14 @@ enum ReleaseSafetyFailure {
     );
   }
 
+  final errorMessage =
+      'Package version $currentVersion is behind latest release tag '
+      '$latestTag ($latestTagVersion). Update pubspec version to match the '
+      'latest tag or pass --allow-unsafe-bump for local recovery.';
   return (
     passed: false,
     failure: ReleaseSafetyFailure.pubspecBehindTag,
-    errorMessage: 'Package version $currentVersion is behind latest release tag '
-        '$latestTag ($latestTagVersion). Update pubspec version to match the '
-        'latest tag or pass --allow-unsafe-bump for local recovery.',
+    errorMessage: errorMessage,
   );
 }
 
