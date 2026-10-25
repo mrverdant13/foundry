@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 ///
 /// Mirrors the constraint this CLI itself depends on so a freshly scaffolded
 /// mold resolves against a compatible `foundry_core` release.
-const String scaffoldFoundryCoreConstraint = '^0.0.1-dev.1';
+const String scaffoldFoundryCoreConstraint = '^0.0.1-dev.2';
 
 final RegExp _validMoldNamePattern = RegExp(r'^[a-z_][a-z0-9_]*$');
 
