@@ -94,6 +94,75 @@ void main() {
     });
 
     test(
+      'omits template files when any rendered path segment is empty',
+      () async {
+        await _writeFile(
+          p.join(
+            templateDirectory.path,
+            '{% if include_pkg %}pkg{% endif %}',
+            'lib',
+            'a.dart',
+          ),
+          'package contents',
+        );
+        await _writeFile(
+          p.join(
+            templateDirectory.path,
+            '{% unless include_pkg %}REQUIREMENTS.md{% endunless %}',
+          ),
+          'requirements',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'always.txt'),
+          'kept',
+        );
+
+        final withPkg = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'include_pkg': true}),
+        );
+        expect(withPkg, hasLength(2));
+        expect(
+          File(p.join(outputDirectory.path, 'pkg', 'lib', 'a.dart'))
+              .existsSync(),
+          isTrue,
+        );
+        expect(
+          File(p.join(outputDirectory.path, 'REQUIREMENTS.md')).existsSync(),
+          isFalse,
+        );
+        expect(
+          await File(p.join(outputDirectory.path, 'always.txt')).readAsString(),
+          'kept',
+        );
+
+        final withoutPkgDir = Directory(p.join(tempRoot.path, 'output2'))
+          ..createSync();
+        final withoutPkg = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: withoutPkgDir,
+          context: SnapshotFoundryContext({'include_pkg': false}),
+        );
+        expect(withoutPkg, hasLength(2));
+        expect(
+          File(p.join(withoutPkgDir.path, 'pkg', 'lib', 'a.dart')).existsSync(),
+          isFalse,
+        );
+        expect(
+          await File(
+            p.join(withoutPkgDir.path, 'REQUIREMENTS.md'),
+          ).readAsString(),
+          'requirements',
+        );
+        expect(
+          await File(p.join(withoutPkgDir.path, 'always.txt')).readAsString(),
+          'kept',
+        );
+      },
+    );
+
+    test(
       'throws and writes nothing when a destination exists without force',
       () async {
         await _writeFile(

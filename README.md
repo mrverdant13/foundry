@@ -47,6 +47,10 @@ flutter_app/
     └── policy.dart    # optional required-phases declaration
 ```
 
+Path segments may include Liquid. If any segment renders empty (after trim), that
+template file is omitted — useful for conditional dirs/files such as
+`{% if flag %}dir{% endif %}/…`.
+
 ---
 
 ## Quick start

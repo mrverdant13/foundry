@@ -28,6 +28,11 @@ import 'package:path/path.dart' as p;
 /// when one partial renders another. Tags that already pass arguments are
 /// left unchanged.
 ///
+/// If any rendered path segment is empty after trim, that template file is
+/// **omitted** (not written). This enables conditional directories and files
+/// such as `{% if flag %}dir{% endif %}/…` or
+/// `{% unless flag %}REQUIREMENTS.md{% endunless %}`.
+///
 /// When [force] is `false` (the default) and a destination file already
 /// exists, a [TemplateRenderException] is thrown before any file is written
 /// and the output directory is left untouched. When [force] is `true`,
@@ -81,7 +86,7 @@ Future<List<File>> renderTemplate({
       sourceFile.path,
       from: resolvedTemplateDirectory.path,
     );
-    final String destinationRelativePath;
+    final String? destinationRelativePath;
     try {
       destinationRelativePath = _renderPathSegments(
         relativeSourcePath,
@@ -92,6 +97,9 @@ Future<List<File>> renderTemplate({
         'Failed to render path segments of template file '
         '"$relativeSourcePath": $error',
       );
+    }
+    if (destinationRelativePath == null) {
+      continue;
     }
     final destinationPath = p.normalize(
       p.join(resolvedOutputDirectory.path, destinationRelativePath),
@@ -202,10 +210,19 @@ final RegExp _bareRenderTagPattern = RegExp(
   r"""\{%-?\s*render\s+(['"])([^'"]+)\1\s*-?%\}""",
 );
 
-String _renderPathSegments(String relativePath, Map<String, dynamic> values) {
-  final renderedSegments = p.split(relativePath).map((segment) {
-    return Template.parse(segment, data: values).render();
-  });
+/// Renders each path segment with Liquid.
+///
+/// Returns `null` when any segment is empty after trim, so the caller can
+/// omit that template file.
+String? _renderPathSegments(String relativePath, Map<String, dynamic> values) {
+  final renderedSegments = <String>[];
+  for (final segment in p.split(relativePath)) {
+    final rendered = Template.parse(segment, data: values).render().trim();
+    if (rendered.isEmpty) {
+      return null;
+    }
+    renderedSegments.add(rendered);
+  }
   return p.joinAll(renderedSegments);
 }
 
