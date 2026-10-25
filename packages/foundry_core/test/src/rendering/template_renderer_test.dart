@@ -163,6 +163,57 @@ void main() {
     );
 
     test(
+      'keeps surrounding whitespace in a nonempty rendered path segment',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ name }}.txt'),
+          'kept',
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'name': ' config '}),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        final generated = File(p.join(outputDirectory.path, ' config .txt'));
+        expect(generated.existsSync(), isTrue);
+        expect(await generated.readAsString(), 'kept');
+      },
+    );
+
+    test(
+      'omits a template file when a path segment renders only whitespace',
+      () async {
+        await _writeFile(
+          p.join(templateDirectory.path, '{{ label }}'),
+          'skipped',
+        );
+        await _writeFile(
+          p.join(templateDirectory.path, 'always.txt'),
+          'kept',
+        );
+
+        final writtenFiles = await renderTemplate(
+          templateDirectory: templateDirectory,
+          outputDirectory: outputDirectory,
+          context: SnapshotFoundryContext({'label': '   '}),
+        );
+
+        expect(writtenFiles, hasLength(1));
+        expect(
+          File(p.join(outputDirectory.path, '   ')).existsSync(),
+          isFalse,
+        );
+        expect(
+          await File(p.join(outputDirectory.path, 'always.txt')).readAsString(),
+          'kept',
+        );
+      },
+    );
+
+    test(
       'throws and writes nothing when a destination exists without force',
       () async {
         await _writeFile(
