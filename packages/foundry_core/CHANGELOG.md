@@ -1,3 +1,36 @@
+## 0.0.1-dev.2
+
+ - **FEAT**: add boolean int and double variables ([#39](https://github.com/mrverdant13/foundry/issues/39)). ([415d6996](https://github.com/mrverdant13/foundry/commit/415d699674c670fff206f5f2a0c16317f19b0a3b))
+ - **FEAT**: add single and multiple choice variables ([#45](https://github.com/mrverdant13/foundry/issues/45)). ([2dd7579b](https://github.com/mrverdant13/foundry/commit/2dd7579b826cc0a4a42eb849fc6bdecf8d838f77))
+ - **FEAT**: add pattern model and inspect ([#46](https://github.com/mrverdant13/foundry/issues/46)). ([a05acd55](https://github.com/mrverdant13/foundry/commit/a05acd55bd1ac439a74dc62c74e23cfd8e78b6e8))
+ - **FEAT**: add object variable with nested groups ([#48](https://github.com/mrverdant13/foundry/issues/48)). ([cdeb65b2](https://github.com/mrverdant13/foundry/commit/cdeb65b2a735f7ccee92eda28a17b29a8378a661))
+ - **FIX**: honor nested dirty keys for object variables ([#50](https://github.com/mrverdant13/foundry/issues/50)). ([00b96b3d](https://github.com/mrverdant13/foundry/commit/00b96b3dfc43965bd844d1a3b4189c3cb264de81))
+ - **FEAT**: add values variable for reorderable lists ([#51](https://github.com/mrverdant13/foundry/issues/51)). ([b8ac09ad](https://github.com/mrverdant13/foundry/commit/b8ac09adb747b72461d3b72ff5500ea65ba680ca))
+ - **FEAT**: add cast variable input parsing ([#53](https://github.com/mrverdant13/foundry/issues/53)). ([62622317](https://github.com/mrverdant13/foundry/commit/62622317f5c4feba22d05b429fd879a0d2f74c82))
+ - **FEAT**: add mold derive from pattern ([#58](https://github.com/mrverdant13/foundry/issues/58)). ([b3d00775](https://github.com/mrverdant13/foundry/commit/b3d007752fb458252b3a9257cc7519ef515a1faa))
+ - **FEAT**: add mold sync preserving manual edits ([#61](https://github.com/mrverdant13/foundry/issues/61)). ([8763f938](https://github.com/mrverdant13/foundry/commit/8763f9388cb5f1ad297550a6327df922462fd0dd))
+ - **REFACTOR**: extract resolvePatternContent pipeline ([#66](https://github.com/mrverdant13/foundry/issues/66)). ([04596ec0](https://github.com/mrverdant13/foundry/commit/04596ec0d118ab0411c5440c12defe5d67926435))
+ - **FEAT**: add replacements and lineDeletions to pattern marker ([#67](https://github.com/mrverdant13/foundry/issues/67)). ([040e6b9a](https://github.com/mrverdant13/foundry/commit/040e6b9ac4ec084e1b9b847bc9b3c29b48b3cc8d))
+ - **FEAT**: apply line deletions in pattern content resolve ([#68](https://github.com/mrverdant13/foundry/issues/68)). ([afe04950](https://github.com/mrverdant13/foundry/commit/afe049504e169f2c31200728e89276090522a41e))
+ - **FEAT**: apply regex replacements to paths and contents ([#69](https://github.com/mrverdant13/foundry/issues/69)). ([03ec0970](https://github.com/mrverdant13/foundry/commit/03ec09703fdaa05ccfa4bbaab32d1c0a9a1480e9))
+ - **FEAT**: apply remotion annotations ([#70](https://github.com/mrverdant13/foundry/issues/70)). ([27ad9461](https://github.com/mrverdant13/foundry/commit/27ad94617a6cdeac2426753df02e62b3876c77c2))
+ - **FEAT**: apply replace-block annotations ([#71](https://github.com/mrverdant13/foundry/issues/71)). ([7b4b663b](https://github.com/mrverdant13/foundry/commit/7b4b663b11f01488e9eb705d0de40fb7a9345954))
+ - **FEAT**: apply insert-block annotations ([#72](https://github.com/mrverdant13/foundry/issues/72)). ([d62338bc](https://github.com/mrverdant13/foundry/commit/d62338bc970f43b0e82d7fd046d7527d5ef03055))
+ - **FEAT**: unwrap Liquid tags from comments ([#73](https://github.com/mrverdant13/foundry/issues/73)). ([9ffe1695](https://github.com/mrverdant13/foundry/commit/9ffe16955731e60ea2a4331742ce6897e64f2cd5))
+ - **FEAT**: apply spacing-group annotations ([#74](https://github.com/mrverdant13/foundry/issues/74)). ([a933d7f7](https://github.com/mrverdant13/foundry/commit/a933d7f75d0d62c80117e40f97330eb9a4f409cd))
+ - **FEAT**: resolve partial annotations with Liquid render ([#75](https://github.com/mrverdant13/foundry/issues/75)). ([1af569a8](https://github.com/mrverdant13/foundry/commit/1af569a812dc7fd54bb65edc0a0c142955d23d0a))
+ - **DOCS**: link pattern annotation reference ([#77](https://github.com/mrverdant13/foundry/issues/77)). ([81cb2403](https://github.com/mrverdant13/foundry/commit/81cb24034a39199deeb9973e9d833c986cd4c380))
+ - **FIX**: expose prepare and complete cast phases ([#81](https://github.com/mrverdant13/foundry/issues/81)). ([97d85a64](https://github.com/mrverdant13/foundry/commit/97d85a64deb9981dcbc01c97a686d2cb93656bd4))
+ - **FEAT**: support dotted paths in cast --vars ([#83](https://github.com/mrverdant13/foundry/issues/83)). ([8c2a7826](https://github.com/mrverdant13/foundry/commit/8c2a78265dfee065e4c22fc23552953941f86e40))
+ - **FEAT**: add in-process mold hook runner ([#85](https://github.com/mrverdant13/foundry/issues/85)). ([75c5ce75](https://github.com/mrverdant13/foundry/commit/75c5ce759124374d31d12d9b33d65d00a536bd13))
+ - **REFACTOR**: remove isolate serialize mold variable loading ([#93](https://github.com/mrverdant13/foundry/issues/93)). ([1fd46e5c](https://github.com/mrverdant13/foundry/commit/1fd46e5cfa7b8c79772ea34e288a9db24298998d))
+ - **DOCS**: document in-process hooks for mold authors ([#95](https://github.com/mrverdant13/foundry/issues/95)). ([59ae2289](https://github.com/mrverdant13/foundry/commit/59ae2289cd62b6bd104d9b24426a569df8eeb10b))
+ - **FEAT**: run castMold hooks in-process when entry points are provided ([#102](https://github.com/mrverdant13/foundry/issues/102)). ([9ea58697](https://github.com/mrverdant13/foundry/commit/9ea586979cf5756d34f07869991bf62a23452cc5))
+ - **FEAT**: sparse-checkout mold git import when path is set ([#103](https://github.com/mrverdant13/foundry/issues/103)). ([ddc3c81e](https://github.com/mrverdant13/foundry/commit/ddc3c81e8c87892c28faf117fa0e1b95ed05bcec))
+ - **FEAT**: support selective hook skipping and required phases ([#104](https://github.com/mrverdant13/foundry/issues/104)). ([0664a7c6](https://github.com/mrverdant13/foundry/commit/0664a7c6b8f1ec1602dc8de465e78b893e454b54))
+ - **FEAT**: add FoundryLiquidView and Liquid template projection ([#107](https://github.com/mrverdant13/foundry/issues/107)). ([26301b17](https://github.com/mrverdant13/foundry/commit/26301b177a2cb0194edbf95a5874a902944242cc))
+ - **FEAT**: omit template files when a path segment renders empty ([#109](https://github.com/mrverdant13/foundry/issues/109)). ([3f61d54a](https://github.com/mrverdant13/foundry/commit/3f61d54a5bd0b48fe740526eed8a5fe6f422bc19))
+
 ## 0.0.1-dev.1
 
  - **REFACTOR**: remove isolate serialize mold variable loading.
