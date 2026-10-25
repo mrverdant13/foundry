@@ -217,8 +217,8 @@ final RegExp _bareRenderTagPattern = RegExp(
 String? _renderPathSegments(String relativePath, Map<String, dynamic> values) {
   final renderedSegments = <String>[];
   for (final segment in p.split(relativePath)) {
-    final rendered = Template.parse(segment, data: values).render().trim();
-    if (rendered.isEmpty) {
+    final rendered = Template.parse(segment, data: values).render();
+    if (rendered.trim().isEmpty) {
       return null;
     }
     renderedSegments.add(rendered);
